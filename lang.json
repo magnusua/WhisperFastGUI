@@ -550,9 +550,9 @@
     "RU": "❌ Ошибка загрузки модели: {error}"
   },
   "help_file_not_found": {
-    "EN": "Help file (Readmy.txt) not found.",
-    "UK": "Файл довідки (Readmy.txt) не знайдено.",
-    "RU": "Файл справки (Readmy.txt) не найден."
+    "EN": "Help file (README.md) not found.",
+    "UK": "Файл довідки (README.md) не знайдено.",
+    "RU": "Файл справки (README.md) не найден."
   },
   "copy": {
     "EN": "Copy",
@@ -745,9 +745,9 @@
     "RU": "Воспроизвести звук после обработки всех файлов в очереди."
   },
   "tooltip_help": {
-    "EN": "Open this help (Readmy.txt).",
-    "UK": "Відкрити цю довідку (Readmy.txt).",
-    "RU": "Открыть эту справку (Readmy.txt)."
+    "EN": "Open this help (README.md).",
+    "UK": "Відкрити цю довідку (README.md).",
+    "RU": "Открыть эту справку (README.md)."
   },
   "tooltip_ui_language": {
     "EN": "Interface language: EN (English), UK (Ukrainian), RU (Russian). Saved in settings.json.",
