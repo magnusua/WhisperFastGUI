@@ -258,20 +258,25 @@ class WhisperGUI:
         """Запуск иконки в системном трее (если доступны pystray и Pillow). Не создаёт трей в режиме «Панель»."""
         if self.tray_mode.get() == "panel":
             return
-        if not TRAY_OK or not os.path.exists(self._icon_path):
+        if not TRAY_OK:
+            self.log(t("warning_tray_unavailable"))
             return
         if self._tray_icon:
             return
-        try:
-            img = Image.open(self._icon_path)
-            if img.mode != "RGBA":
-                img = img.convert("RGBA")
-            width = 64
-            height = 64
-            if img.size != (width, height):
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-        except Exception:
-            return
+        width, height = 64, 64
+        img = None
+        if os.path.exists(self._icon_path):
+            try:
+                img = Image.open(self._icon_path)
+                if img.mode != "RGBA":
+                    img = img.convert("RGBA")
+                if img.size != (width, height):
+                    img = img.resize((width, height), Image.Resampling.LANCZOS)
+            except Exception:
+                img = None
+        if img is None:
+            # Резервна іконка, якщо favicon.ico відсутній — простий сірий квадрат
+            img = Image.new("RGBA", (width, height), (80, 80, 80, 255))
 
         def show_window(icon, item):
             self.root.after(0, self._tray_show_window)
@@ -298,11 +303,14 @@ class WhisperGUI:
                 self._tray_icon = None
             self.root.deiconify()
         else:
-            self._setup_tray()
-            if mode == "tray" and self._tray_icon:
-                self.root.withdraw()
-            else:
-                self.root.deiconify()
+            # Відкладений запуск трею: на Windows іконка часто не з'являється, якщо створювати її до готовності панелі задач
+            def delayed_tray():
+                self._setup_tray()
+                if mode == "tray" and self._tray_icon:
+                    self.root.withdraw()
+                else:
+                    self.root.deiconify()
+            self.root.after(500, delayed_tray)
 
     def _tray_show_window(self):
         """Показать окно из трея (вызывается в main thread)."""
@@ -928,7 +936,7 @@ class WhisperGUI:
         def worker():
             updates = check_updates(self.log)
             if updates:
-                updates_str = "\n".join([f"{p}: {c}->{l}" for p, c, l in updates])
+                updates_str = "\n".join([f"{p}: {c or 'not installed'} -> {l}" for p, c, l in updates])
                 msg = t("updates_available", updates=updates_str)
                 if messagebox.askyesno(t("update"), msg):
                     install_dependencies(log_func=self.log, packages_to_update=updates, include_nvidia=True)

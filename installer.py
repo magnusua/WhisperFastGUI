@@ -31,7 +31,8 @@ def get_latest_pypi_version(package):
         return None
 
 def check_updates(log_func):
-    """Проверяет наличие обновлений для всех компонентов, нужных для работы программы."""
+    """Проверяет наличие обновлений для всех компонентов, нужных для работы программы.
+    Пакеты, которые не установлены, добавляются в список для установки (например pystray, Pillow)."""
     log_func(t("checking_updates"))
     updates_found = []
     for pkg in UPDATE_PACKAGES:
@@ -48,7 +49,11 @@ def check_updates(log_func):
             else:
                 log_func(t("package_ok", package=pkg, version=current))
         except (importlib.metadata.PackageNotFoundError, TypeError):
-            continue
+            # Пакет не установлен — предлагаем установить (важно для pystray, Pillow і т.д.)
+            latest = get_latest_pypi_version(pkg)
+            if latest:
+                updates_found.append((pkg, None, latest))
+                log_func(t("package_not_installed", package=pkg, latest=latest))
     return updates_found
 
 
@@ -96,11 +101,17 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         commands = _get_full_install_commands(include_nvidia=include_nvidia)
 
     for name, cmd in commands:
-        if force and not packages_to_update: 
+        if force and not packages_to_update:
             cmd.extend(["--force-reinstall", "--no-cache-dir"])
         log_func(f"📦 {name}...")
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if result.returncode != 0 and result.stderr:
+            log_func(t("install_step_failed", name=name))
+            err = result.stderr.strip()
+            if len(err) > 800:
+                err = err[:800] + "\n..."
+            for line in err.splitlines():
+                log_func(line)
     log_func(t("install_complete"))
 
 def check_system(log_func):
