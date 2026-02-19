@@ -911,10 +911,11 @@ class WhisperGUI:
                 self.log(t("audio_mp3_error", error=str(e)))
 
     def mark_done(self, idx, name):
-        """Отмечает файл как обработанный в очереди."""
+        """Отмечает файл как обработанный в очереди и сохраняет очередь в request_queue.json."""
         if 0 <= idx < len(self.queue):
             self.queue[idx]["processed"] = True
             self._refresh_queue_treeview()
+            self._save_queue_to_file()
 
     # --- СЕРВИСНЫЕ МЕТОДЫ ---
 
