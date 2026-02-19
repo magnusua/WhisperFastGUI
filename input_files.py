@@ -5,7 +5,7 @@
 """
 import os
 from tkinter import filedialog, messagebox
-from config import VALID_EXTS
+from config import VALID_EXTS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, DEFAULT_START_TIMESTAMP
 
 # Импорт менеджера языков
 try:
@@ -17,8 +17,8 @@ except ImportError:
 def get_file_dialog_filetypes():
     """Единый список типов файлов для диалогов выбора (один/несколько файлов)."""
     exts_str = ";".join(f"*{e}" for e in VALID_EXTS)
-    audio_exts = ";".join(f"*{e}" for e in VALID_EXTS if e in ('.mp3', '.wav', '.m4a', '.flac', '.ogg'))
-    video_exts = ";".join(f"*{e}" for e in VALID_EXTS if e in ('.mp4', '.mkv', '.avi', '.mov'))
+    audio_exts = ";".join(f"*{e}" for e in AUDIO_EXTENSIONS)
+    video_exts = ";".join(f"*{e}" for e in VIDEO_EXTENSIONS)
     return [
         (t("all_supported"), exts_str),
         (t("audio_files"), audio_exts or exts_str),
@@ -165,12 +165,9 @@ def get_valid_files_from_directory(directory, recursive=True):
                 file_path = os.path.join(directory, file)
                 if is_valid_file(file_path):
                     valid_files.append(file_path)
-    except PermissionError:
-        # Игнорируем каталоги без доступа
-        pass
     except (PermissionError, OSError) as e:
-        print(f"Ошибка при сканировании каталога {directory}: {e}")
-    
+        if not isinstance(e, PermissionError):
+            print(f"Ошибка при сканировании каталога {directory}: {e}")
     return valid_files
 
 
@@ -260,10 +257,10 @@ def _default_queue_item(path):
     """Формирует элемент очереди (dict) с временами по умолчанию."""
     from utils import get_audio_duration_seconds, format_timestamp
     duration = get_audio_duration_seconds(path) or 0.0
-    end_ts = format_timestamp(duration) if duration > 0 else "00:00:00,000"
+    end_ts = format_timestamp(duration) if duration > 0 else DEFAULT_START_TIMESTAMP
     return {
         "path": path,
-        "start": "00:00:00,000",
+        "start": DEFAULT_START_TIMESTAMP,
         "end_segment_1": "",
         "end_segment_2": "",
         "end": end_ts,

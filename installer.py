@@ -176,12 +176,14 @@ def run_full_installation():
     print(t("install_continue"))
     print()
     commands = _get_full_install_commands(include_nvidia=False)
+    # Длина step_labels должна совпадать с len(commands) (при include_nvidia=False — 4 шага)
     step_labels = [
         ("install_step_pip", "install_tools_ok", "install_pip_error"),
         ("install_step_torch", "install_torch_ok", "install_torch_warn"),
         ("install_step_whisper", "install_whisper_ok", "install_whisper_error"),
         ("install_step_multimedia", "install_multimedia_ok", "install_multimedia_error"),
     ]
+    assert len(step_labels) == len(commands), "step_labels must match commands length"
     for i, (name, cmd) in enumerate(commands):
         step_msg, ok_msg, err_msg = step_labels[i]
         print(t(step_msg))

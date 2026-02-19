@@ -4,12 +4,22 @@ import glob
 import subprocess
 import pygame
 
+try:
+    from config import BASE_DIR
+except ImportError:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 def format_timestamp(seconds):
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
     s = int(seconds % 60)
     ms = int((seconds % 1) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def format_timestamp_srt(seconds):
+    """Формат времени для SRT: HH:MM:SS.mmm (точка вместо запятой)."""
+    return format_timestamp(seconds).replace(",", ".")
 
 
 def parse_timestamp_to_seconds(s):
@@ -63,7 +73,7 @@ def play_finish_sound():
     try:
         if not pygame.mixer.get_init():
             pygame.mixer.init()
-        mp3 = glob.glob("*.mp3")
+        mp3 = glob.glob(os.path.join(BASE_DIR, "*.mp3"))
         if mp3:
             pygame.mixer.music.load(mp3[0])
         elif sys.platform == "win32":

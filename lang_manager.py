@@ -5,14 +5,25 @@
 import json
 import os
 
+try:
+    from config import BASE_DIR
+except ImportError:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Текущий язык по умолчанию
 _current_language = "EN"
 
 # Словарь переводов
 _translations = {}
 
-# Файл настроек
+# Файл настроек (путь относительно BASE_DIR приложения)
 SETTINGS_FILE = "settings.json"
+
+
+def _settings_path():
+    """Единый путь к файлу настроек."""
+    return os.path.join(BASE_DIR, SETTINGS_FILE)
+
 
 def load_translations():
     """Загружает переводы из файла lang.json"""
@@ -31,19 +42,20 @@ def load_translations():
 
 def load_settings():
     """Загружает настройки из файла settings.json"""
-    settings_file = os.path.join(os.path.dirname(__file__), SETTINGS_FILE)
-    if os.path.exists(settings_file):
+    path = _settings_path()
+    if os.path.exists(path):
         try:
-            with open(settings_file, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
                 return settings.get("language", "EN")
         except (json.JSONDecodeError, KeyError):
             return "EN"
     return "EN"
 
+
 def load_app_settings():
     """Загружает всі налаштування з settings.json (мова, слідкування, каталоги, пристрій тощо)."""
-    settings_file = os.path.join(os.path.dirname(__file__), SETTINGS_FILE)
+    path = _settings_path()
     defaults = {
         "language": "EN",
         "output_dir": "",
@@ -52,11 +64,12 @@ def load_app_settings():
         "device_mode": "AUTO",
         "play_sound_on_finish": False,
         "save_audio_mp3": False,
+        "tray_mode": "panel",
     }
-    if not os.path.exists(settings_file):
+    if not os.path.exists(path):
         return defaults.copy()
     try:
-        with open(settings_file, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         for k, v in defaults.items():
             if k not in data:
@@ -65,41 +78,41 @@ def load_app_settings():
     except (json.JSONDecodeError, TypeError):
         return defaults.copy()
 
+
 def save_settings(language):
     """Сохраняет настройки в файл settings.json"""
-    settings_file = os.path.join(os.path.dirname(__file__), SETTINGS_FILE)
+    path = _settings_path()
     try:
         settings = {}
-        if os.path.exists(settings_file):
+        if os.path.exists(path):
             try:
-                with open(settings_file, "r", encoding="utf-8") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
             except json.JSONDecodeError:
                 settings = {}
-        
         settings["language"] = language
-        
-        with open(settings_file, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
-    except Exception as e:
+    except OSError as e:
         print(f"Warning: Failed to save settings: {e}")
+
 
 def save_app_settings(settings_dict):
     """Зберігає налаштування в settings.json (злиття з існуючим вмістом)."""
-    settings_file = os.path.join(os.path.dirname(__file__), SETTINGS_FILE)
+    path = _settings_path()
     try:
         settings = {}
-        if os.path.exists(settings_file):
+        if os.path.exists(path):
             try:
-                with open(settings_file, "r", encoding="utf-8") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
             except json.JSONDecodeError:
                 settings = {}
         for k, v in settings_dict.items():
             settings[k] = v
-        with open(settings_file, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
-    except Exception as e:
+    except OSError as e:
         print(f"Warning: Failed to save app settings: {e}")
 
 def set_language(lang_code):

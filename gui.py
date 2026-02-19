@@ -41,8 +41,12 @@ except ImportError as e:
         raise
 
 # Импорт модулей проекта
-from config import HELP_TEXT, APP_VERSION, APP_DATE
-from utils import format_timestamp, play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds
+from config import (
+    APP_VERSION, APP_DATE, BASE_DIR, load_help_text,
+    LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS,
+    AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP,
+)
+from utils import format_timestamp, format_timestamp_srt, play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
 from input_files import (
@@ -52,10 +56,6 @@ from input_files import (
     add_files_to_queue_controller
 )
 from lang_manager import t, set_language, get_language, load_app_settings, save_app_settings
-from config import LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS
-
-# Расширения, при которых источник считается аудиофайлом (для диалога сохранения MP3)
-AUDIO_EXTENSIONS = tuple(e for e in VALID_EXTS if e in ('.mp3', '.wav', '.m4a', '.flac', '.ogg'))
 
 
 class _SegmentOffset:
@@ -92,6 +92,7 @@ TOOLTIP_DELAY_MS = 1000
 UI_DESIGN_WIDTH = 1050
 UI_MIN_SCALE = 0.5
 UI_BASE_FONT_SIZE = 9
+LOG_MAX_LINES = 10000  # ограничение размера лога для длинных сессий
 
 
 class Tooltip:
@@ -157,28 +158,30 @@ class Tooltip:
 
 
 class WhisperGUI:
-    def __init__(self, root, on_close_request=None):
+    def __init__(self, root, on_close_request=None, on_close_factory=None):
         self.root = root
-        self._on_close_request = on_close_request  # callback для закрытия из трея
+        # callback для закрытия из трея или по X; можно задать напрямую или через factory(root, app)
+        if on_close_factory is not None:
+            self._on_close_request = on_close_factory(root, self)
+        else:
+            self._on_close_request = on_close_request
         self._tray_icon = None  # pystray Icon, останавливается в prepare_close
 
         self.root.title(t("app_title"))
         self.root.geometry("1050x950")
         self.root.minsize(400, 400)
 
-        # Кастомная иконка окна и панели задач (favicon.ico)
-        _base_dir = os.path.dirname(os.path.abspath(__file__))
-        _icon_path = os.path.join(_base_dir, "favicon.ico")
-        self._icon_path = _icon_path
-        if os.path.exists(_icon_path):
+        # Кастомная иконка окна и панели задач (favicon.ico); пути через config.BASE_DIR
+        self._icon_path = os.path.join(BASE_DIR, "favicon.ico")
+        if os.path.exists(self._icon_path):
             try:
-                self.root.iconbitmap(_icon_path)
+                self.root.iconbitmap(self._icon_path)
             except Exception:
                 pass
 
         # Состояние приложения: очередь — список dict (path, start, end_segment_1, end_segment_2, end)
         self.queue = []
-        self._request_queue_file = os.path.join(_base_dir, "request_queue.json")
+        self._request_queue_file = os.path.join(BASE_DIR, "request_queue.json")
         self.cancel_requested = False
         
         # Переменные интерфейса
@@ -326,7 +329,7 @@ class WhisperGUI:
                     continue
                 self.queue.append({
                     "path": path,
-                    "start": item.get("start") or "00:00:00,000",
+                    "start": item.get("start") or DEFAULT_START_TIMESTAMP,
                     "end_segment_1": item.get("end_segment_1") or "",
                     "end_segment_2": item.get("end_segment_2") or "",
                     "end": item.get("end") or format_timestamp(get_audio_duration_seconds(path) or 0),
@@ -391,7 +394,7 @@ class WhisperGUI:
         e_end.grid(row=3, column=1, padx=5, pady=3)
 
         def apply_and_close():
-            self.queue[idx]["start"] = e_start.get().strip() or "00:00:00,000"
+            self.queue[idx]["start"] = e_start.get().strip() or DEFAULT_START_TIMESTAMP
             self.queue[idx]["end_segment_1"] = e_seg1.get().strip()
             self.queue[idx]["end_segment_2"] = e_seg2.get().strip()
             self.queue[idx]["end"] = e_end.get().strip() or row["end"]
@@ -889,7 +892,7 @@ class WhisperGUI:
 
         with open(srt_p, "w", encoding="utf-8") as f:
             for i, s in enumerate(segments, 1):
-                timestamp = f"{format_timestamp(s.start).replace(',', '.')} --> {format_timestamp(s.end).replace(',', '.')}"
+                timestamp = f"{format_timestamp_srt(s.start)} --> {format_timestamp_srt(s.end)}"
                 f.write(f"{i}\n{timestamp}\n{s.text.strip()}\n\n")
 
         self.log(t("files_created", name=base))
@@ -937,12 +940,16 @@ class WhisperGUI:
         ).start()
 
     def log(self, msg, tag=None):
-        self.root.after(0, lambda: (
-            self.log_box.config(state="normal"),
-            self.log_box.insert("end", str(msg) + ("" if str(msg).endswith("\n") else "\n"), tag),
-            self.log_box.see("end"),
+        def _do_log():
+            self.log_box.config(state="normal")
+            self.log_box.insert("end", str(msg) + ("" if str(msg).endswith("\n") else "\n"), tag or None)
+            # Ограничение размера лога: удаляем старые строки сверху
+            line_count = int(self.log_box.index("end-1c").split(".")[0])
+            if line_count > LOG_MAX_LINES:
+                self.log_box.delete("1.0", f"{line_count - LOG_MAX_LINES}.0")
+            self.log_box.see("end")
             self.log_box.config(state="disabled")
-        ))
+        self.root.after(0, _do_log)
 
     def clear_log(self):
         self.log_box.config(state="normal")
@@ -999,8 +1006,8 @@ class WhisperGUI:
         )
         text_widget.pack(fill="both", expand=True)
         
-        # Вставляем текст справки
-        text_widget.insert("1.0", HELP_TEXT)
+        # Вставляем текст справки (ленивая загрузка при первом открытии)
+        text_widget.insert("1.0", load_help_text())
         text_widget.config(state="disabled")  # Делаем только для чтения
         
         # Прокрутка в начало
@@ -1146,21 +1153,19 @@ class WhisperGUI:
 
     def _run_autostart_script(self):
         """Запускає autorun_delayed.bat у папці програми (додає ярлик у автозавантаження)."""
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        bat_path = os.path.join(script_dir, "autorun_delayed.bat")
+        bat_path = os.path.join(BASE_DIR, "autorun_delayed.bat")
         if not os.path.isfile(bat_path):
             messagebox.showerror(t("error"), t("autostart_bat_not_found", path=bat_path))
             return
         try:
             if sys.platform == "win32":
-                # Отдельное консольное окно, чтобы пользователь видел вывод и pause
                 subprocess.Popen(
                     [bat_path],
-                    cwd=script_dir,
+                    cwd=BASE_DIR,
                     creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
                 )
             else:
-                subprocess.Popen([bat_path], cwd=script_dir)
+                subprocess.Popen([bat_path], cwd=BASE_DIR)
         except OSError as e:
             messagebox.showerror(t("error"), f"{t('autostart_run_error')}: {e}")
 
@@ -1230,61 +1235,6 @@ class WhisperGUI:
         idx = len(self.queue) - 1
         if idx >= 0:
             self.start_thread(mode="single", target_idx=idx)
-
-    def process_single_file(self, path):
-        """Обработка одного файла (для слежения за каталогом): текущие настройки, без очереди."""
-        try:
-            self.root.after(0, lambda: (self.start_btn.config(state="disabled"), self.cancel_btn.config(state="normal")))
-            model = WhisperModelSingleton.get(self.log, self.device_mode.get())
-            name = os.path.basename(path)
-            self.log(f"\n{t('processing', current=1, total=1, name=name)}")
-            audio = None
-            if self.save_audio_mp3.get():
-                ext = os.path.splitext(path)[1].lower()
-                is_audio_source = ext in AUDIO_EXTENSIONS
-                if is_audio_source:
-                    choice = [None]
-                    def ask_save_mp3():
-                        choice[0] = messagebox.askyesno(
-                            t("save_audio_mp3"),
-                            t("save_mp3_confirm", filename=name)
-                        )
-                    self.root.after(0, ask_save_mp3)
-                    while choice[0] is None and not self.cancel_requested:
-                        time.sleep(0.05)
-                    if choice[0]:
-                        audio = AudioSegment.from_file(path)
-                else:
-                    audio = AudioSegment.from_file(path)
-            lang_val = self.lang_mode.get()
-            lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
-            duration = get_audio_duration_seconds(path) or 1.0
-            segments, _ = model.transcribe(path, language=lang_param, vad_filter=True)
-            res = []
-            last_progress_update = [0.0]
-            last_log_update = [0.0]
-            segment_count = [0]
-            for s in segments:
-                if self.cancel_requested:
-                    break
-                res.append(s)
-                segment_count[0] += 1
-                now = time.time()
-                if now - last_progress_update[0] >= 0.1:
-                    self.progress["value"] = min(100, (s.end / duration) * 100)
-                    last_progress_update[0] = now
-                if now - last_log_update[0] >= 0.5 or segment_count[0] <= 2:
-                    self.log(f"   [{format_timestamp(s.start)}] {s.text.strip()}")
-                    last_log_update[0] = now
-            if not self.cancel_requested:
-                self.progress["value"] = 100
-                self.save_files(path, res, audio_segment=audio)
-                if self.play_sound_on_finish.get():
-                    play_finish_sound()
-        except Exception as e:
-            self.log(t("error_occurred", error=str(e)))
-        finally:
-            self.root.after(0, self.reset_ui)
 
     def clear_queue(self):
         self.queue.clear()
@@ -1371,7 +1321,6 @@ class WhisperGUI:
             if rng:
                 path = self.log_box.get(*rng).strip()
                 if os.path.exists(path):
-                    import subprocess
                     # Shift — открыть папку и выделить файл
                     if event.state & 0x0001:
                         if sys.platform == "win32":

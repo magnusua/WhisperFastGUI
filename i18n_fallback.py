@@ -5,7 +5,12 @@ Fallback для i18n, когда lang_manager недоступен (наприм
 
 
 def t(key, **kwargs):
-    """Возвращает ключ как строку (перевод недоступен)."""
+    """Возвращает ключ как строку (перевод недоступен); при наличии kwargs пробует key.format(**kwargs)."""
+    if kwargs:
+        try:
+            return key.format(**kwargs)
+        except (KeyError, ValueError):
+            pass
     return key
 
 
