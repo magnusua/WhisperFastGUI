@@ -244,8 +244,10 @@ class WhisperGUI:
         if not DND_OK:
             self.log(t("warning_dnd"))
 
-        # Загрузка очереди из request_queue.json
+        # Загрузка очереди из request_queue.json; при первом запуске создаём пустой файл
         self._load_queue_from_file()
+        if not os.path.exists(self._request_queue_file):
+            self._save_queue_to_file()
 
         # Иконка в системном трее (зависит от переключателя Панель / Трей / Панель + Трей)
         self._apply_tray_mode()
@@ -852,7 +854,10 @@ class WhisperGUI:
                     self.progress["value"] = 100
                     if start_sec > 0 or end_sec < duration:
                         res = [_SegmentOffset(s.start + start_sec, s.end + start_sec, s.text) for s in res]
-                    is_segment = start_sec > 0 or end_sec < duration
+                    # Суффикс в имени файла только при явной обработке отрезка (не всего видео)
+                    # Порог 0.5 с устраняет ложное срабатывание из-за погрешности float при полной длительности
+                    FULL_VIDEO_EPS = 0.5
+                    is_segment = start_sec >= FULL_VIDEO_EPS or (duration - end_sec) >= FULL_VIDEO_EPS
                     self.save_files(path, res, audio_segment=audio, segment_start_sec=start_sec if is_segment else None, segment_end_sec=end_sec if is_segment else None)
                     self.root.after(0, lambda i=idx, n=name: self.mark_done(i, n))
                     done += 1

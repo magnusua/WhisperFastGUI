@@ -54,7 +54,8 @@ def load_settings():
 
 
 def load_app_settings():
-    """Загружает всі налаштування з settings.json (мова, слідкування, каталоги, пристрій тощо)."""
+    """Загружает всі налаштування з settings.json (мова, слідкування, каталоги, пристрій тощо).
+    При першому запуску створює settings.json з налаштуваннями за замовчуванням."""
     path = _settings_path()
     defaults = {
         "language": "EN",
@@ -67,6 +68,11 @@ def load_app_settings():
         "tray_mode": "panel",
     }
     if not os.path.exists(path):
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(defaults, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
         return defaults.copy()
     try:
         with open(path, "r", encoding="utf-8") as f:
