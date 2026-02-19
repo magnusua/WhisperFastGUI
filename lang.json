@@ -5,9 +5,14 @@
     "RU": "Whisper Fast GUI 2026"
   },
   "queue_header": {
-    "EN": "File Queue (Drag & Drop)",
-    "UK": "Черга файлів (Drag & Drop)",
-    "RU": "Очередь файлов (Drag & Drop)"
+    "EN": "Queue",
+    "UK": "Черга",
+    "RU": "Очередь"
+  },
+  "tooltip_queue_header": {
+    "EN": "Table: add files (buttons or drag & drop), select a row and press Start to transcribe.\n• Columns: Start = from time (default 00:00:00); End = to time (default = full file); End seg. 1/2 = optional segment boundaries.\n• Double-click a row to edit time range (Start, End seg 1/2, End). Only the [Start — End] range is transcribed; use segments to process one file in parts (e.g. 0–20 min in one language, 20–60 min in another).\n• Queue is saved to request_queue.json and restored on startup.",
+    "UK": "Таблиця: додайте файли (кнопки або перетягування), виберіть рядок і натисніть Старт для транскрибації.\n• Колонки: Початок = час початку (за замовч. 00:00:00); Кінець = час кінця (за замовч. — тривалість файлу); Кінець відр. 1/2 = необов’язкові межі відрізків.\n• Подвійний клік по рядку — редагування діапазону (Початок, Кінець відр. 1/2, Кінець). Обробляється лише діапазон [Початок — Кінець]; відрізки дозволяють обробити один файл частинами (напр. 0–20 хв однією мовою, 20–60 хв іншою).\n• Черга зберігається в request_queue.json і відновлюється при запуску.",
+    "RU": "Таблица: добавьте файлы (кнопки или перетаскивание), выберите строку и нажмите Старт для транскрибации.\n• Колонки: Начало = время начала (по умолч. 00:00:00); Конец = время конца (по умолч. — длительность файла); Конец отр. 1/2 = необязательные границы отрезков.\n• Двойной клик по строке — редактирование диапазона (Начало, Конец отр. 1/2, Конец). Обрабатывается только диапазон [Начало — Конец]; отрезки позволяют обработать один файл частями (напр. 0–20 мин на одном языке, 20–60 мин на другом).\n• Очередь сохраняется в request_queue.json и восстанавливается при запуске."
   },
   "col_num": {
     "EN": "#",
@@ -878,6 +883,41 @@
     "EN": "Panel: only taskbar; closing window (×) asks to exit. Tray: only system tray; closing window hides to tray (app keeps running); quit via tray menu «Exit». Panel + Tray: both; closing × asks to exit; minimize (−) to keep running in background.",
     "UK": "Панель: лише панель задач; закриття вікна (×) — діалог виходу. Трей: лише трей; закриття вікна ховає в трей (програма працює далі); вихід — через меню іконки «Вихід». Панель + Трей: обидва; × — діалог виходу; згорнути (−), щоб лишити в фоні.",
     "RU": "Панель: только панель задач; закрытие окна (×) — диалог выхода. Трей: только трей; закрытие окна сворачивает в трей (программа продолжает работать); выход — через меню иконки «Выход». Панель + Трей: оба; × — диалог выхода; свернуть (−), чтобы оставить в фоне."
+  },
+  "tooltip_model_btn": {
+    "EN": "Current model / select another. Downloaded models are stored in: {cache_dir}",
+    "UK": "Поточна модель / обрати іншу. Завантажені моделі зберігаються в: {cache_dir}",
+    "RU": "Текущая модель / выбрать другую. Загруженные модели хранятся в: {cache_dir}"
+  },
+  "model_dialog_title": {
+    "EN": "Whisper model",
+    "UK": "Модель Whisper",
+    "RU": "Модель Whisper"
+  },
+  "model_dialog_cache": {
+    "EN": "Cache (downloaded models): {cache_dir}",
+    "UK": "Кеш (завантажені моделі): {cache_dir}",
+    "RU": "Кеш (загруженные модели): {cache_dir}"
+  },
+  "model_dialog_downloaded": {
+    "EN": "downloaded",
+    "UK": "завантажено",
+    "RU": "загружено"
+  },
+  "model_dialog_not_downloaded": {
+    "EN": "not downloaded",
+    "UK": "не завантажено",
+    "RU": "не загружено"
+  },
+  "model_selected": {
+    "EN": "Model set to: {model} (will load on next transcription)",
+    "UK": "Модель встановлено: {model} (завантажиться при наступній транскрипції)",
+    "RU": "Модель выбрана: {model} (загрузится при следующей транскрипции)"
+  },
+  "ok": {
+    "EN": "OK",
+    "UK": "OK",
+    "RU": "OK"
   },
   "autostart": {
     "EN": "Autostart",

@@ -44,7 +44,8 @@ except ImportError as e:
 from config import (
     APP_VERSION, APP_DATE, BASE_DIR, load_help_text,
     LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS,
-    AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP,
+    AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
+    WHISPER_MODELS, get_whisper_cache_dir, get_whisper_model_cache_folder,
 )
 from utils import format_timestamp, format_timestamp_srt, play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds
 from model_manager import WhisperModelSingleton
@@ -196,6 +197,7 @@ class WhisperGUI:
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
         self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
+        self.whisper_model = tk.StringVar(value=DEFAULT_MODEL)
         
         # Загружаем сохранённые налаштування з settings.json
         saved = load_app_settings()
@@ -207,6 +209,7 @@ class WhisperGUI:
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
         self.tray_mode.set(saved.get("tray_mode", "panel"))
+        self.whisper_model.set(saved.get("whisper_model", DEFAULT_MODEL) or DEFAULT_MODEL)
         
         # Загружаем сохраненный язык или используем EN по умолчанию
         self.ui_language = tk.StringVar(value=saved_language)  # Язык интерфейса
@@ -414,7 +417,7 @@ class WhisperGUI:
 
         ttk.Button(d, text=t("close"), command=d.destroy).grid(row=4, column=0, padx=5, pady=8)
         ttk.Button(d, text="OK", command=apply_and_close).grid(row=4, column=1, padx=5, pady=8)
-        d.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
+        self._center_toplevel(d)
 
     def build_ui(self):
         """Создание интерфейса по блокам 1, 2, 3, 4"""
@@ -554,6 +557,9 @@ class WhisperGUI:
         self.dependencies_btn = ttk.Button(log_center, text=t("dependencies"), command=self.run_install)
         self.dependencies_btn.pack(side="left", padx=2)
         ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
+        self.model_btn = ttk.Button(log_center, text=self._model_button_label(), width=14, command=self._show_model_dialog)
+        self.model_btn.pack(side="left", padx=2)
+        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
         self.tray_mode_combo = ttk.Combobox(log_center, state="readonly", width=14, values=[t("tray_mode_panel"), t("tray_mode_tray"), t("tray_mode_panel_tray")])
         self.tray_mode_combo.pack(side="left", padx=2)
         idx = self.TRAY_MODE_KEYS.index(self.tray_mode.get()) if self.tray_mode.get() in self.TRAY_MODE_KEYS else 0
@@ -576,6 +582,7 @@ class WhisperGUI:
         """Привязка подсказок к переключателям, кнопкам и полям (задержка 1 с)."""
         def tip(widget, key):
             self._tooltips.append(Tooltip(widget, t(key)))
+        tip(self.queue_header_label, "tooltip_queue_header")
         tip(self.add_files_btn, "tooltip_add_files")
         tip(self.add_directory_btn, "tooltip_add_directory")
         tip(self.clear_queue_btn, "tooltip_clear_queue")
@@ -589,6 +596,7 @@ class WhisperGUI:
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
+        self._tooltips.append(Tooltip(self.model_btn, t("tooltip_model_btn", cache_dir=get_whisper_cache_dir())))
         tip(self.tray_mode_combo, "tooltip_tray_mode")
         tip(self.autostart_btn, "tooltip_autostart")
         tip(self.output_dir_entry, "tooltip_output_dir")
@@ -703,13 +711,6 @@ class WhisperGUI:
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
-        
-        # Центрируем окно
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
-        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
-        dialog.geometry(f"+{x}+{y}")
-        
         result = {"choice": "cancel"}
         
         # Текст вопроса
@@ -758,10 +759,8 @@ class WhisperGUI:
             width=15
         ).pack(side="left", padx=5)
         
-        # Обработка закрытия окна
         dialog.protocol("WM_DELETE_WINDOW", choose_cancel)
-        
-        # Ожидание закрытия диалога
+        self._center_toplevel(dialog)
         dialog.wait_window()
         
         return result["choice"]
@@ -774,7 +773,7 @@ class WhisperGUI:
 
     def process_queue(self, mode, target_idx):
         try:
-            model = WhisperModelSingleton.get(self.log, self.device_mode.get())
+            model = WhisperModelSingleton.get(self.log, self.device_mode.get(), self.whisper_model.get())
             marker = self._processed_marker()
             if mode == "single":
                 indices = [target_idx]
@@ -988,20 +987,12 @@ class WhisperGUI:
         # Обновляем главное окно для получения актуальных размеров
         self.root.update_idletasks()
         
-        # Получаем размер главного окна
         main_width = self.root.winfo_width()
         main_height = self.root.winfo_height()
-        main_x = self.root.winfo_x()
-        main_y = self.root.winfo_y()
-        
-        # Устанавливаем размер окна справки (80% от главного окна, но не меньше минимального)
         help_width = max(700, int(main_width * 0.85))
         help_height = max(600, int(main_height * 0.85))
-        
-        # Центрируем окно относительно главного
-        center_x = main_x + (main_width - help_width) // 2
-        center_y = main_y + (main_height - help_height) // 2
-        help_window.geometry(f"{help_width}x{help_height}+{center_x}+{center_y}")
+        help_window.geometry(f"{help_width}x{help_height}")
+        self._center_toplevel(help_window)
         
         # Создаем фрейм с прокруткой
         main_frame = ttk.Frame(help_window, padding=10)
@@ -1157,6 +1148,92 @@ class WhisperGUI:
                 pass
         self._persist_settings()
 
+    def _model_button_label(self):
+        """Текст кнопки выбора модели: текущая модель (короткое имя)."""
+        return self.whisper_model.get() or DEFAULT_MODEL
+
+    def _folder_size_mb(self, path):
+        """Примерный размер каталога в МБ (сумма размеров файлов)."""
+        if not path or not os.path.isdir(path):
+            return 0
+        total = 0
+        try:
+            for _dir, _subdirs, files in os.walk(path):
+                for f in files:
+                    try:
+                        total += os.path.getsize(os.path.join(_dir, f))
+                    except OSError:
+                        pass
+        except OSError:
+            return 0
+        return round(total / (1024 * 1024))
+
+    def _show_model_dialog(self):
+        """Открывает окно выбора модели Whisper: список моделей, отметка загруженных и размер."""
+        cache_root = get_whisper_cache_dir()
+        current = self.whisper_model.get() or DEFAULT_MODEL
+
+        win = tk.Toplevel(self.root)
+        win.title(t("model_dialog_title"))
+        win.transient(self.root)
+        win.grab_set()
+        win.geometry("420x380")
+        win.minsize(360, 300)
+        main_f = ttk.Frame(win, padding=10)
+        main_f.pack(fill="both", expand=True)
+        ttk.Label(main_f, text=t("model_dialog_cache", cache_dir=cache_root), wraplength=380).pack(anchor="w")
+        ttk.Label(main_f, text="").pack(anchor="w")
+
+        frame = ttk.Frame(main_f)
+        frame.pack(fill="both", expand=True)
+        lb = tk.Listbox(frame, height=12, selectmode="single", font=("Segoe UI", 9))
+        scroll = ttk.Scrollbar(frame)
+        lb.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+        lb.config(yscrollcommand=scroll.set)
+        scroll.config(command=lb.yview)
+
+        lines = []
+        for name in WHISPER_MODELS:
+            folder = get_whisper_model_cache_folder(name)
+            full_path = os.path.join(cache_root, folder)
+            if os.path.isdir(full_path):
+                size_mb = self._folder_size_mb(full_path)
+                lines.append(f"{name}  —  {t('model_dialog_downloaded')}  ~{size_mb} MB")
+            else:
+                lines.append(f"{name}  —  {t('model_dialog_not_downloaded')}")
+        lb.delete(0, "end")
+        for line in lines:
+            lb.insert("end", line)
+        try:
+            idx = WHISPER_MODELS.index(current)
+            lb.selection_set(idx)
+            lb.see(idx)
+        except ValueError:
+            pass
+
+        def on_ok():
+            sel = lb.curselection()
+            if sel:
+                chosen = WHISPER_MODELS[sel[0]]
+                self.whisper_model.set(chosen)
+                self.model_btn.config(text=self._model_button_label())
+                WhisperModelSingleton.reset()
+                self._persist_settings()
+                self.log(t("model_selected", model=chosen))
+            win.destroy()
+
+        def on_cancel():
+            win.destroy()
+
+        btn_f = ttk.Frame(main_f)
+        btn_f.pack(fill="x", pady=(10, 0))
+        ttk.Button(btn_f, text=t("ok"), command=on_ok).pack(side="left", padx=2)
+        ttk.Button(btn_f, text=t("cancel"), command=on_cancel).pack(side="left", padx=2)
+        win.protocol("WM_DELETE_WINDOW", on_cancel)
+        self._center_toplevel(win)
+        win.focus_set()
+
     def _on_tray_mode_change(self, event=None):
         """Обробник зміни перемикача Панель / Трей / Панель + Трей."""
         idx = self.tray_mode_combo.current()
@@ -1191,6 +1268,32 @@ class WhisperGUI:
             if self._on_close_request:
                 self._on_close_request()
 
+    def _center_toplevel(self, win, parent=None):
+        """Размещает Toplevel по центру родительского окна (или экрана). Не выносит за границы экрана."""
+        parent = parent or self.root
+        win.update_idletasks()
+        w = win.winfo_width()
+        h = win.winfo_height()
+        if w <= 1:
+            w = 400
+        if h <= 1:
+            h = 300
+        px = parent.winfo_rootx()
+        py = parent.winfo_rooty()
+        pw = parent.winfo_width()
+        ph = parent.winfo_height()
+        if pw <= 1:
+            pw = w
+        if ph <= 1:
+            ph = h
+        x = px + (pw - w) // 2
+        y = py + (ph - h) // 2
+        sw = win.winfo_screenwidth()
+        sh = win.winfo_screenheight()
+        x = max(0, min(x, sw - w))
+        y = max(0, min(y, sh - h))
+        win.geometry(f"+{x}+{y}")
+
     def _persist_settings(self):
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
         save_app_settings({
@@ -1202,6 +1305,7 @@ class WhisperGUI:
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
             "tray_mode": self.tray_mode.get(),
+            "whisper_model": self.whisper_model.get(),
         })
 
     def _watch_loop(self):
@@ -1328,6 +1432,10 @@ class WhisperGUI:
         self.log_menu = tk.Menu(self.root, tearoff=0)
         self.log_menu.add_command(label=t("copy"), command=self.copy_log_selection)
         self.log_box.bind("<Button-3>", lambda e: self.log_menu.tk_popup(e.x_root, e.y_root))
+        # Ctrl+C для копирования. <<Copy>> срабатывает при Ctrl+C при любой раскладке (Windows).
+        # Привязка <Control-с> с кириллической "с" убрана — на части систем даёт "bad event type or keysym".
+        self.log_box.bind("<Control-c>", self._copy_log_event)
+        self.log_box.bind("<<Copy>>", self._copy_log_event)
 
     def on_link_click(self, event):
             idx = self.log_box.index(f"@{event.x},{event.y}")
@@ -1355,6 +1463,11 @@ class WhisperGUI:
                             subprocess.run(['open', path], check=False)
                         else:
                             subprocess.run(['xdg-open', path], check=False)
+
+    def _copy_log_event(self, event=None):
+        """Обработчик Ctrl+C в логе — работает при любой раскладке (en/uk/ru)."""
+        self.copy_log_selection()
+        return "break"
 
     def copy_log_selection(self):
         try:
@@ -1388,6 +1501,7 @@ class WhisperGUI:
         self.system_btn.config(text=t("system_check"))
         self.updates_btn.config(text=t("updates"))
         self.dependencies_btn.config(text=t("dependencies"))
+        self.model_btn.config(text=self._model_button_label())
         self.output_folder_btn.config(text=t("output_folder"))
         self.watch_folder_check.config(text=t("watch_folder_label"))
         self.clear_log_btn.config(text=t("clear_log"))

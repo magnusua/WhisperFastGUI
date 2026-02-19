@@ -66,6 +66,7 @@ def load_app_settings():
         "play_sound_on_finish": False,
         "save_audio_mp3": False,
         "tray_mode": "panel",
+        "whisper_model": "large-v3-turbo",
     }
     if not os.path.exists(path):
         try:

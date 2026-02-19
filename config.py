@@ -13,6 +13,12 @@ VALID_EXTS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.mp4', '.mkv', '.avi', '
 AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg')
 VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov')
 DEFAULT_MODEL = "large-v3-turbo"
+# Список моделей faster-whisper для выбора в GUI (короткие имена, как в WhisperModel)
+WHISPER_MODELS = [
+    "tiny", "base", "small", "medium",
+    "large-v1", "large-v2", "large-v3", "large-v3-turbo",
+    "distil-large-v3",
+]
 # Значение по умолчанию для поля «Начало» в очереди
 DEFAULT_START_TIMESTAMP = "00:00:00,000"
 # Пакети, для которых проверяются обновления при нажатии кнопки «Обновления»
@@ -40,3 +46,17 @@ def load_help_text():
         return "Файл справки (README.md) не найден."
 
 # Справка загружается лениво при первом открытии Help (gui вызывает load_help_text())
+
+
+def get_whisper_cache_dir():
+    """Каталог, где Hugging Face Hub хранит загруженные модели (faster-whisper и др.)."""
+    cache = os.environ.get("HF_HUB_CACHE")
+    if cache:
+        return os.path.abspath(cache)
+    home = os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface")
+    return os.path.abspath(os.path.join(home, "hub"))
+
+
+def get_whisper_model_cache_folder(model_name):
+    """Имя папки модели в кэше HF Hub: models--Systran--faster-whisper-{model_name}."""
+    return f"models--Systran--faster-whisper-{model_name}"
