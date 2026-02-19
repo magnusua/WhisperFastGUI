@@ -256,39 +256,45 @@ def add_directory(recursive=True):
     return valid_files
 
 
-def add_files_to_queue_controller(file_paths, queue, queue_list, log_func=None):
+def _default_queue_item(path):
+    """Формирует элемент очереди (dict) с временами по умолчанию."""
+    from utils import get_audio_duration_seconds, format_timestamp
+    duration = get_audio_duration_seconds(path) or 0.0
+    end_ts = format_timestamp(duration) if duration > 0 else "00:00:00,000"
+    return {
+        "path": path,
+        "start": "00:00:00,000",
+        "end_segment_1": "",
+        "end_segment_2": "",
+        "end": end_ts,
+    }
+
+
+def add_files_to_queue_controller(file_paths, queue, queue_list_or_treeview, log_func=None):
     """
     Универсальный контроллер для добавления файлов в очередь.
-    Валидирует файлы, проверяет дубликаты и добавляет в очередь.
-    
-    Args:
-        file_paths: Список путей к файлам для добавления
-        queue: Список очереди (будет изменен)
-        queue_list: Виджет Listbox для отображения очереди
-        log_func: Функция для логирования (опционально)
-    
-    Returns:
-        Кортеж (added_count, skipped_count):
-        - added_count: Количество добавленных файлов
-        - skipped_count: Количество пропущенных файлов
+    queue — список dict с ключами path, start, end_segment_1, end_segment_2, end.
+    queue_list_or_treeview — Treeview: добавляем строки через .insert().
+    Возвращает (added_count, skipped_count), изменяет queue и виджет.
     """
     if not file_paths:
         return 0, 0
-    
-    # Валидация и фильтрация
-    valid_files, invalid_files, duplicate_files = validate_and_filter_files(file_paths, existing_files=queue)
-    
-    # Добавление валидных файлов в очередь
+
+    existing_paths = [q["path"] for q in queue] if queue else []
+    valid_files, invalid_files, duplicate_files = validate_and_filter_files(file_paths, existing_files=existing_paths)
+
     added_count = 0
     for file_path in valid_files:
-        queue.append(file_path)
-        queue_list.insert("end", os.path.basename(file_path))
+        item = _default_queue_item(file_path)
+        queue.append(item)
+        num = len(queue)
+        name = os.path.basename(file_path)
+        status_text = t("status_not_processed")
+        values = (num, name, item["start"], item["end_segment_1"], item["end_segment_2"], item["end"], status_text)
+        queue_list_or_treeview.insert("", "end", values=values)
         added_count += 1
-    
-    # Подсчет пропущенных
+
     skipped_count = len(invalid_files) + len(duplicate_files)
-    
-    # Логирование
     if log_func:
         if added_count > 0:
             log_func(t("added_to_queue", count=added_count))
@@ -298,5 +304,4 @@ def add_files_to_queue_controller(file_paths, queue, queue_list, log_func=None):
             log_func(t("skipped_invalid", count=len(invalid_files)))
         if skipped_count > 0 and added_count == 0:
             log_func(t("failed_to_add"))
-    
     return added_count, skipped_count

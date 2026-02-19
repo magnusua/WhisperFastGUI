@@ -77,11 +77,11 @@ def main():
     # 3. Инициализация и запуск интерфейса
     try:
         root = BaseTk()
-        app = WhisperGUI(root)
-        
-        # Привязываем событие закрытия к сохранению настроек и выгрузке модели
-        root.protocol("WM_DELETE_WINDOW", lambda: on_app_closing(root, app, WhisperModelSingleton))
-        
+        app = WhisperGUI(root, on_close_request=None)
+        on_close = lambda: on_app_closing(root, app, WhisperModelSingleton)
+        app._on_close_request = on_close  # закрытие из трея или при X (если не режим «Трей»)
+        root.protocol("WM_DELETE_WINDOW", app.on_window_close)
+
         # Запуск главного цикла
         root.mainloop()
     except Exception as e:

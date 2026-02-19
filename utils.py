@@ -11,6 +11,27 @@ def format_timestamp(seconds):
     ms = int((seconds % 1) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
+
+def parse_timestamp_to_seconds(s):
+    """
+    Парсит строку времени в секунды (float).
+    Форматы: HH:MM:SS или HH:MM:SS,mmm (запятая/точка для миллисекунд).
+    Пустая строка или неверный формат -> None.
+    """
+    if s is None or not str(s).strip():
+        return None
+    s = str(s).strip().replace(",", ".")
+    parts = s.split(":")
+    if len(parts) != 3:
+        return None
+    try:
+        h, m, sec = float(parts[0]), float(parts[1]), float(parts[2])
+        if h < 0 or m < 0 or sec < 0 or m >= 60 or sec >= 60:
+            return None
+        return h * 3600 + m * 60 + sec
+    except ValueError:
+        return None
+
 def get_audio_duration_seconds(path):
     """
     Возвращает длительность медиафайла в секундах без полной загрузки в память.

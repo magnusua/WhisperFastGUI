@@ -1,6 +1,9 @@
+import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -39,7 +42,7 @@ except ImportError as e:
 
 # Импорт модулей проекта
 from config import HELP_TEXT, APP_VERSION, APP_DATE
-from utils import format_timestamp, play_finish_sound, get_audio_duration_seconds
+from utils import format_timestamp, play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
 from input_files import (
@@ -54,12 +57,30 @@ from config import LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS
 # Расширения, при которых источник считается аудиофайлом (для диалога сохранения MP3)
 AUDIO_EXTENSIONS = tuple(e for e in VALID_EXTS if e in ('.mp3', '.wav', '.m4a', '.flac', '.ogg'))
 
+
+class _SegmentOffset:
+    """Сегмент с полями start, end, text (для смещения времени при обработке куска файла)."""
+    __slots__ = ("start", "end", "text")
+    def __init__(self, start, end, text):
+        self.start = start
+        self.end = end
+        self.text = text
+
 # Попытка импорта Drag & Drop
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
     DND_OK = True
 except ImportError:
     DND_OK = False
+
+# Иконка в системном трее (область уведомлений)
+try:
+    import pystray
+    from pystray import MenuItem as TrayMenuItem
+    from PIL import Image
+    TRAY_OK = True
+except ImportError:
+    TRAY_OK = False
 
 # Базовый класс окна зависит от наличия tkinterdnd2
 BaseTk = TkinterDnD.Tk if DND_OK else tk.Tk
@@ -136,8 +157,11 @@ class Tooltip:
 
 
 class WhisperGUI:
-    def __init__(self, root):
+    def __init__(self, root, on_close_request=None):
         self.root = root
+        self._on_close_request = on_close_request  # callback для закрытия из трея
+        self._tray_icon = None  # pystray Icon, останавливается в prepare_close
+
         self.root.title(t("app_title"))
         self.root.geometry("1050x950")
         self.root.minsize(400, 400)
@@ -145,14 +169,16 @@ class WhisperGUI:
         # Кастомная иконка окна и панели задач (favicon.ico)
         _base_dir = os.path.dirname(os.path.abspath(__file__))
         _icon_path = os.path.join(_base_dir, "favicon.ico")
+        self._icon_path = _icon_path
         if os.path.exists(_icon_path):
             try:
                 self.root.iconbitmap(_icon_path)
             except Exception:
                 pass
-        
-        # Состояние приложения
-        self.queue = []  # Список путей к файлам
+
+        # Состояние приложения: очередь — список dict (path, start, end_segment_1, end_segment_2, end)
+        self.queue = []
+        self._request_queue_file = os.path.join(_base_dir, "request_queue.json")
         self.cancel_requested = False
         
         # Переменные интерфейса
@@ -166,6 +192,7 @@ class WhisperGUI:
         self._watch_seen = set()  # уже учтённые файлы в каталоге слежения
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
+        self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
         
         # Загружаем сохранённые налаштування з settings.json
         saved = load_app_settings()
@@ -176,6 +203,7 @@ class WhisperGUI:
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
+        self.tray_mode.set(saved.get("tray_mode", "panel"))
         
         # Загружаем сохраненный язык или используем EN по умолчанию
         self.ui_language = tk.StringVar(value=saved_language)  # Язык интерфейса
@@ -212,6 +240,168 @@ class WhisperGUI:
 
         if not DND_OK:
             self.log(t("warning_dnd"))
+
+        # Загрузка очереди из request_queue.json
+        self._load_queue_from_file()
+
+        # Иконка в системном трее (зависит от переключателя Панель / Трей / Панель + Трей)
+        self._apply_tray_mode()
+
+    TRAY_MODE_KEYS = ("panel", "tray", "panel_tray")
+
+    def _setup_tray(self):
+        """Запуск иконки в системном трее (если доступны pystray и Pillow). Не создаёт трей в режиме «Панель»."""
+        if self.tray_mode.get() == "panel":
+            return
+        if not TRAY_OK or not os.path.exists(self._icon_path):
+            return
+        if self._tray_icon:
+            return
+        try:
+            img = Image.open(self._icon_path)
+            if img.mode != "RGBA":
+                img = img.convert("RGBA")
+            width = 64
+            height = 64
+            if img.size != (width, height):
+                img = img.resize((width, height), Image.Resampling.LANCZOS)
+        except Exception:
+            return
+
+        def show_window(icon, item):
+            self.root.after(0, self._tray_show_window)
+
+        def quit_app(icon, item):
+            self.root.after(0, self._tray_quit)
+
+        menu = pystray.Menu(
+            TrayMenuItem(t("tray_show_window"), show_window, default=True),
+            TrayMenuItem(t("exit"), quit_app),
+        )
+        self._tray_icon = pystray.Icon("whisper_fast_gui", img, t("app_title"), menu)
+        threading.Thread(target=self._tray_icon.run, daemon=True).start()
+
+    def _apply_tray_mode(self):
+        """Применяет выбранный режим: Панель (без трея), Трей (только трей), Панель + Трей."""
+        mode = self.tray_mode.get()
+        if mode == "panel":
+            if self._tray_icon:
+                try:
+                    self._tray_icon.stop()
+                except Exception:
+                    pass
+                self._tray_icon = None
+            self.root.deiconify()
+        else:
+            self._setup_tray()
+            if mode == "tray" and self._tray_icon:
+                self.root.withdraw()
+            else:
+                self.root.deiconify()
+
+    def _tray_show_window(self):
+        """Показать окно из трея (вызывается в main thread)."""
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def _tray_quit(self):
+        """Закрытие по пункту «Выход» в трее (вызывается в main thread)."""
+        if self._on_close_request:
+            self._on_close_request()
+
+    def _load_queue_from_file(self):
+        """Загружает очередь из request_queue.json и заполняет таблицу."""
+        if not os.path.exists(self._request_queue_file):
+            return
+        try:
+            with open(self._request_queue_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, list):
+                return
+            self.queue.clear()
+            for item in data:
+                path = item.get("path") or ""
+                if not path or not os.path.isfile(path):
+                    continue
+                self.queue.append({
+                    "path": path,
+                    "start": item.get("start") or "00:00:00,000",
+                    "end_segment_1": item.get("end_segment_1") or "",
+                    "end_segment_2": item.get("end_segment_2") or "",
+                    "end": item.get("end") or format_timestamp(get_audio_duration_seconds(path) or 0),
+                    "processed": item.get("processed", False),
+                })
+            self._refresh_queue_treeview()
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    def _save_queue_to_file(self):
+        """Сохраняет очередь в request_queue.json."""
+        try:
+            data = [{"path": q["path"], "start": q["start"], "end_segment_1": q.get("end_segment_1", ""),
+                    "end_segment_2": q.get("end_segment_2", ""), "end": q["end"],
+                    "processed": q.get("processed", False)} for q in self.queue]
+            with open(self._request_queue_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
+
+    def _refresh_queue_treeview(self):
+        """Перестраивает таблицу очереди по self.queue. Статус обработано/необработано — в отдельном столбце."""
+        self.queue_list.delete(*self.queue_list.get_children())
+        for i, q in enumerate(self.queue):
+            name = os.path.basename(q["path"])
+            status_text = t("status_processed") if q.get("processed") else t("status_not_processed")
+            self.queue_list.insert("", "end", values=(
+                i + 1, name, q["start"], q.get("end_segment_1", ""), q.get("end_segment_2", ""), q["end"], status_text
+            ))
+
+    def _on_queue_row_double_click(self, event):
+        """Редактирование диапазона времени по двойному клику по строке."""
+        iid = self.queue_list.identify_row(event.y)
+        if not iid:
+            return
+        try:
+            idx = self.queue_list.index(iid)
+        except tk.TclError:
+            return
+        if idx < 0 or idx >= len(self.queue):
+            return
+        row = self.queue[idx]
+        d = tk.Toplevel(self.root)
+        d.title(t("edit_row_title"))
+        d.transient(self.root)
+        d.grab_set()
+        ttk.Label(d, text=t("col_start")).grid(row=0, column=0, padx=5, pady=3)
+        e_start = ttk.Entry(d, width=14)
+        e_start.insert(0, row["start"])
+        e_start.grid(row=0, column=1, padx=5, pady=3)
+        ttk.Label(d, text=t("col_end_seg1")).grid(row=1, column=0, padx=5, pady=3)
+        e_seg1 = ttk.Entry(d, width=14)
+        e_seg1.insert(0, row.get("end_segment_1", ""))
+        e_seg1.grid(row=1, column=1, padx=5, pady=3)
+        ttk.Label(d, text=t("col_end_seg2")).grid(row=2, column=0, padx=5, pady=3)
+        e_seg2 = ttk.Entry(d, width=14)
+        e_seg2.insert(0, row.get("end_segment_2", ""))
+        e_seg2.grid(row=2, column=1, padx=5, pady=3)
+        ttk.Label(d, text=t("col_end")).grid(row=3, column=0, padx=5, pady=3)
+        e_end = ttk.Entry(d, width=14)
+        e_end.insert(0, row["end"])
+        e_end.grid(row=3, column=1, padx=5, pady=3)
+
+        def apply_and_close():
+            self.queue[idx]["start"] = e_start.get().strip() or "00:00:00,000"
+            self.queue[idx]["end_segment_1"] = e_seg1.get().strip()
+            self.queue[idx]["end_segment_2"] = e_seg2.get().strip()
+            self.queue[idx]["end"] = e_end.get().strip() or row["end"]
+            self._refresh_queue_treeview()
+            self._save_queue_to_file()
+            d.destroy()
+
+        ttk.Button(d, text=t("close"), command=d.destroy).grid(row=4, column=0, padx=5, pady=8)
+        ttk.Button(d, text="OK", command=apply_and_close).grid(row=4, column=1, padx=5, pady=8)
+        d.geometry("+%d+%d" % (self.root.winfo_rootx() + 50, self.root.winfo_rooty() + 50))
 
     def build_ui(self):
         """Создание интерфейса по блокам 1, 2, 3, 4"""
@@ -265,10 +455,28 @@ class WhisperGUI:
 
         q_frame = ttk.Frame(main)
         q_frame.pack(fill="both", pady=5)
-        self.queue_list = tk.Listbox(q_frame, height=8, selectmode="single", font=("Consolas", 10))
-        self.queue_list.pack(fill="both", expand=True, padx=2, pady=2)
-        
-        # Сортировка перетаскиванием внутри списка
+        cols = ("num", "filename", "start", "end_seg1", "end_seg2", "end", "status")
+        self.queue_list = ttk.Treeview(q_frame, columns=cols, show="headings", height=8, selectmode="browse")
+        self.queue_list.heading("num", text=t("col_num"))
+        self.queue_list.heading("filename", text=t("col_filename"))
+        self.queue_list.heading("start", text=t("col_start"))
+        self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
+        self.queue_list.heading("end_seg2", text=t("col_end_seg2"))
+        self.queue_list.heading("end", text=t("col_end"))
+        self.queue_list.heading("status", text=t("col_status"))
+        _num_w = 38
+        self.queue_list.column("num", width=_num_w, minwidth=_num_w)
+        self.queue_list.column("filename", width=220)
+        self.queue_list.column("start", width=90)
+        self.queue_list.column("end_seg1", width=90)
+        self.queue_list.column("end_seg2", width=90)
+        self.queue_list.column("end", width=90)
+        self.queue_list.column("status", width=100)
+        scroll_q = ttk.Scrollbar(q_frame, orient="vertical", command=self.queue_list.yview)
+        self.queue_list.configure(yscrollcommand=scroll_q.set)
+        self.queue_list.pack(side="left", fill="both", expand=True, padx=2, pady=2)
+        scroll_q.pack(side="right", fill="y")
+        self.queue_list.bind("<Double-1>", self._on_queue_row_double_click)
         self.queue_list.bind("<Button-1>", self.on_drag_start)
         self.queue_list.bind("<B1-Motion>", self.on_drag_motion)
 
@@ -332,6 +540,15 @@ class WhisperGUI:
         self.updates_btn.pack(side="left", padx=2)
         self.dependencies_btn = ttk.Button(log_center, text=t("dependencies"), command=self.run_install)
         self.dependencies_btn.pack(side="left", padx=2)
+        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
+        self.tray_mode_combo = ttk.Combobox(log_center, state="readonly", width=14, values=[t("tray_mode_panel"), t("tray_mode_tray"), t("tray_mode_panel_tray")])
+        self.tray_mode_combo.pack(side="left", padx=2)
+        idx = self.TRAY_MODE_KEYS.index(self.tray_mode.get()) if self.tray_mode.get() in self.TRAY_MODE_KEYS else 0
+        self.tray_mode_combo.current(idx)
+        self.tray_mode_combo.bind("<<ComboboxSelected>>", self._on_tray_mode_change)
+        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
+        self.autostart_btn = ttk.Button(log_center, text=t("autostart"), command=self._run_autostart_script)
+        self.autostart_btn.pack(side="left", padx=2)
         ttk.Frame(log_header).pack(side="left", fill="x", expand=True)
         self.cancel_btn = ttk.Button(log_header, text=t("cancel"), command=self.cancel_action, state="disabled")
         self.cancel_btn.pack(side="right")
@@ -359,6 +576,8 @@ class WhisperGUI:
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
+        tip(self.tray_mode_combo, "tooltip_tray_mode")
+        tip(self.autostart_btn, "tooltip_autostart")
         tip(self.output_dir_entry, "tooltip_output_dir")
         tip(self.output_folder_btn, "tooltip_output_folder")
         tip(self.watch_folder_check, "tooltip_watch_folder")
@@ -402,7 +621,11 @@ class WhisperGUI:
             pass
         self.queue_header_label.config(font=("Segoe UI", font_size, "bold"))
         self.version_label.config(font=("Segoe UI", font_size))
-        self.queue_list.config(font=("Consolas", max(6, int(10 * scale))))
+        try:
+            style = ttk.Style()
+            style.configure("Treeview", font=("Consolas", max(6, int(10 * scale))))
+        except tk.TclError:
+            pass
         self.log_box.config(font=("Consolas", max(6, int(9 * scale))))
         self.progress["length"] = max(200, int(900 * scale))
         self.output_dir_entry.config(width=max(15, int(45 * scale)))
@@ -414,35 +637,34 @@ class WhisperGUI:
         return t("processed")
 
     def handle_start_logic(self):
-        """Логика выбора режима обработки"""
+        """Логика выбора режима обработки. При пустой очереди — открыть диалог «Добавить файлы»."""
         if not self.queue:
-            messagebox.showerror(t("error"), t("error_empty_queue"))
+            self.add_files_action()
             return
 
-        sel = self.queue_list.curselection()
+        sel = self.queue_list.selection()
         marker = self._processed_marker()
-        
-        # Если выбран один файл
-        if sel:
-            idx = sel[0]
-            name = self.queue_list.get(idx).replace(marker, "")
-            # Диалог только когда в очереди больше одного файла; при одном файле — сразу обрабатываем его
+        idx = self.queue_list.index(sel[0]) if sel else None
+
+        if idx is not None and 0 <= idx < len(self.queue):
+            name = os.path.basename(self.queue[idx]["path"])
             if len(self.queue) == 1:
                 self.start_thread(mode="single", target_idx=idx)
                 return
             choice = self._show_file_selection_dialog(name)
-            
             if choice == "single":
                 self.start_thread(mode="single", target_idx=idx)
                 return
-            elif choice == "all":
-                # Продолжаем обработку для всех файлов
-                pass
-            else:  # choice == "cancel"
+            elif choice == "cancel":
                 return
 
-        # Если есть обработанные файлы
-        has_processed = any(marker in self.queue_list.get(i) for i in range(len(self.queue)))
+        has_processed = any(self.queue[i].get("processed") for i in range(len(self.queue)))
+        all_processed = len(self.queue) > 0 and all(self.queue[i].get("processed") for i in range(len(self.queue)))
+        if all_processed:
+            choice = messagebox.askquestion(t("queue_dialog"), t("process_again"))
+            if choice == "yes":
+                self.start_thread(mode="all")
+            return
         if has_processed:
             choice = messagebox.askquestion(t("queue_dialog"), t("process_only_new"))
             mode = "only_new" if choice == 'yes' else "all"
@@ -540,13 +762,11 @@ class WhisperGUI:
     def process_queue(self, mode, target_idx):
         try:
             model = WhisperModelSingleton.get(self.log, self.device_mode.get())
-            
-            # Фильтрация очереди
             marker = self._processed_marker()
             if mode == "single":
                 indices = [target_idx]
             elif mode == "only_new":
-                indices = [i for i, _ in enumerate(self.queue) if marker not in self.queue_list.get(i)]
+                indices = [i for i in range(len(self.queue)) if not self.queue[i].get("processed")]
             else:
                 indices = list(range(len(self.queue)))
 
@@ -554,13 +774,19 @@ class WhisperGUI:
             to_do = len(indices)
 
             for idx in indices:
-                if self.cancel_requested: break
-                
-                path = self.queue[idx]
-                name = self.queue_list.get(idx).replace(marker, "")
+                if self.cancel_requested:
+                    break
+                row = self.queue[idx]
+                path = row["path"]
+                name = os.path.basename(path)
                 self.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
 
-                # Решение о сохранении MP3: для видео — по чекбоксу; для аудио — спросить пользователя
+                start_sec = parse_timestamp_to_seconds(row.get("start")) or 0.0
+                duration = get_audio_duration_seconds(path) or 1.0
+                end_sec = parse_timestamp_to_seconds(row.get("end")) or duration
+                end_sec = min(end_sec, duration)
+                segment_duration = end_sec - start_sec if end_sec > start_sec else duration
+
                 audio = None
                 if self.save_audio_mp3.get():
                     ext = os.path.splitext(path)[1].lower()
@@ -576,30 +802,44 @@ class WhisperGUI:
                         while choice[0] is None and not self.cancel_requested:
                             time.sleep(0.05)
                         if choice[0]:
-                            audio = AudioSegment.from_file(path)
+                            full = AudioSegment.from_file(path)
+                            audio = full[int(start_sec * 1000):int(end_sec * 1000)]
                     else:
-                        audio = AudioSegment.from_file(path)
+                        full = AudioSegment.from_file(path)
+                        audio = full[int(start_sec * 1000):int(end_sec * 1000)]
+                else:
+                    full = None
 
-                # Корректная обработка языка для автоопределения
                 lang_val = self.lang_mode.get()
                 lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
 
-                duration = get_audio_duration_seconds(path) or 1.0
-
-                # Транскрибация
-                segments, _ = model.transcribe(path, language=lang_param, vad_filter=True)
+                if start_sec > 0 or end_sec < duration:
+                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                        tmp_path = tmp.name
+                    try:
+                        seg_audio = AudioSegment.from_file(path)[int(start_sec * 1000):int(end_sec * 1000)]
+                        seg_audio.export(tmp_path, format="wav")
+                        segments_iter, _ = model.transcribe(tmp_path, language=lang_param, vad_filter=True)
+                    finally:
+                        try:
+                            os.unlink(tmp_path)
+                        except OSError:
+                            pass
+                else:
+                    segments_iter, _ = model.transcribe(path, language=lang_param, vad_filter=True)
 
                 res = []
                 last_progress_update = [0.0]
                 last_log_update = [0.0]
                 segment_count = [0]
-                for s in segments:
-                    if self.cancel_requested: break
+                for s in segments_iter:
+                    if self.cancel_requested:
+                        break
                     res.append(s)
                     segment_count[0] += 1
                     now = time.time()
                     if now - last_progress_update[0] >= 0.1:
-                        self.progress["value"] = min(100, (s.end / duration) * 100)
+                        self.progress["value"] = min(100, (s.end / segment_duration) * 100) if segment_duration else 100
                         last_progress_update[0] = now
                     if now - last_log_update[0] >= 0.5 or segment_count[0] <= 2:
                         self.log(f"   [{format_timestamp(s.start)}] {s.text.strip()}")
@@ -607,7 +847,10 @@ class WhisperGUI:
 
                 if not self.cancel_requested:
                     self.progress["value"] = 100
-                    self.save_files(path, res, audio_segment=audio)
+                    if start_sec > 0 or end_sec < duration:
+                        res = [_SegmentOffset(s.start + start_sec, s.end + start_sec, s.text) for s in res]
+                    is_segment = start_sec > 0 or end_sec < duration
+                    self.save_files(path, res, audio_segment=audio, segment_start_sec=start_sec if is_segment else None, segment_end_sec=end_sec if is_segment else None)
                     self.root.after(0, lambda i=idx, n=name: self.mark_done(i, n))
                     done += 1
 
@@ -623,16 +866,27 @@ class WhisperGUI:
         finally:
             self.root.after(0, self.reset_ui)
 
-    def save_files(self, path, segments, audio_segment=None):
+    def _segment_file_suffix(self, start_sec, end_sec):
+        """Суфікс для імен файлів сегмента: HH-MM-SS_HH-MM-SS (без двокрапки)."""
+        def to_part(sec):
+            h = int(sec // 3600)
+            m = int((sec % 3600) // 60)
+            s = int(sec % 60)
+            return f"{h:02d}-{m:02d}-{s:02d}"
+        return "_" + to_part(start_sec) + "_" + to_part(end_sec)
+
+    def save_files(self, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None):
         out = self._resolve_output_dir(path)
         marker = self._processed_marker()
         base = os.path.splitext(os.path.basename(path))[0].replace(marker, "")
+        if segment_start_sec is not None and segment_end_sec is not None:
+            base = base + self._segment_file_suffix(segment_start_sec, segment_end_sec)
         txt_p = os.path.abspath(os.path.join(out, base + ".txt"))
         srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
 
         with open(txt_p, "w", encoding="utf-8") as f:
             f.write("\n".join([s.text.strip() for s in segments]))
-        
+
         with open(srt_p, "w", encoding="utf-8") as f:
             for i, s in enumerate(segments, 1):
                 timestamp = f"{format_timestamp(s.start).replace(',', '.')} --> {format_timestamp(s.end).replace(',', '.')}"
@@ -644,7 +898,6 @@ class WhisperGUI:
         self.log(t("srt_file"), None)
         self.log(srt_p, "link")
 
-        # Сохранить аудио в MP3 рядом с источником (out уже как у транскрипции: папка вывода или папка файла)
         if audio_segment is not None:
             mp3_p = os.path.abspath(os.path.join(out, base + "_audio.mp3"))
             try:
@@ -655,11 +908,10 @@ class WhisperGUI:
                 self.log(t("audio_mp3_error", error=str(e)))
 
     def mark_done(self, idx, name):
-        """Обновление статуса в списке"""
-        marker = self._processed_marker()
-        if marker not in self.queue_list.get(idx):
-            self.queue_list.delete(idx)
-            self.queue_list.insert(idx, f"{name}{marker}")
+        """Отмечает файл как обработанный в очереди."""
+        if 0 <= idx < len(self.queue):
+            self.queue[idx]["processed"] = True
+            self._refresh_queue_treeview()
 
     # --- СЕРВИСНЫЕ МЕТОДЫ ---
 
@@ -875,9 +1127,50 @@ class WhisperGUI:
         self._persist_settings()
 
     def prepare_close(self):
-        """Зупинити слідкування та зберегти налаштування перед закриттям (викликається з main.py)."""
+        """Зупинити слідкування, трей та зберегти налаштування перед закриттям (викликається з main.py)."""
         self._watch_stop.set()
+        if self._tray_icon:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
         self._persist_settings()
+
+    def _on_tray_mode_change(self, event=None):
+        """Обробник зміни перемикача Панель / Трей / Панель + Трей."""
+        idx = self.tray_mode_combo.current()
+        if 0 <= idx < len(self.TRAY_MODE_KEYS):
+            self.tray_mode.set(self.TRAY_MODE_KEYS[idx])
+            self._apply_tray_mode()
+            self._persist_settings()
+
+    def _run_autostart_script(self):
+        """Запускає autorun_delayed.bat у папці програми (додає ярлик у автозавантаження)."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bat_path = os.path.join(script_dir, "autorun_delayed.bat")
+        if not os.path.isfile(bat_path):
+            messagebox.showerror(t("error"), t("autostart_bat_not_found", path=bat_path))
+            return
+        try:
+            if sys.platform == "win32":
+                # Отдельное консольное окно, чтобы пользователь видел вывод и pause
+                subprocess.Popen(
+                    [bat_path],
+                    cwd=script_dir,
+                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                )
+            else:
+                subprocess.Popen([bat_path], cwd=script_dir)
+        except OSError as e:
+            messagebox.showerror(t("error"), f"{t('autostart_run_error')}: {e}")
+
+    def on_window_close(self):
+        """Вызывается при нажатии X на окне: в режиме «Трей» — свернуть в трей, иначе — диалог закрытия."""
+        if self.tray_mode.get() == "tray":
+            self.root.withdraw()
+        else:
+            if self._on_close_request:
+                self._on_close_request()
 
     def _persist_settings(self):
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
@@ -889,6 +1182,7 @@ class WhisperGUI:
             "device_mode": self.device_mode.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
+            "tray_mode": self.tray_mode.get(),
         })
 
     def _watch_loop(self):
@@ -914,13 +1208,28 @@ class WhisperGUI:
                     if self._watch_stop.is_set():
                         break
                     self.log(t("watch_new_file", name=os.path.basename(path)))
-                    self.process_single_file(path)
+                    self.root.after(0, lambda p=path: self._add_watch_file_to_queue(p))
             except OSError:
                 pass
             for _ in range(int(WATCH_POLL_INTERVAL / 0.25)):
                 if self._watch_stop.is_set():
                     break
                 time.sleep(0.25)
+
+    def _add_watch_file_to_queue(self, path):
+        """Додає знайдений при слідкуванні файл у чергу, зберігає request_queue.json і запускає обробку цього файлу."""
+        if not os.path.isfile(path):
+            return
+        add_files_to_queue_controller(
+            [path],
+            self.queue,
+            self.queue_list,
+            log_func=self.log
+        )
+        self._save_queue_to_file()
+        idx = len(self.queue) - 1
+        if idx >= 0:
+            self.start_thread(mode="single", target_idx=idx)
 
     def process_single_file(self, path):
         """Обработка одного файла (для слежения за каталогом): текущие настройки, без очереди."""
@@ -979,7 +1288,8 @@ class WhisperGUI:
 
     def clear_queue(self):
         self.queue.clear()
-        self.queue_list.delete(0, "end")
+        self.queue_list.delete(*self.queue_list.get_children())
+        self._save_queue_to_file()
 
     def add_files_action(self):
         """Обработчик кнопки 'Добавить файлы'"""
@@ -994,18 +1304,14 @@ class WhisperGUI:
             self.add_files_to_queue(files)
 
     def add_files_to_queue(self, file_paths):
-        """
-        Добавляет список файлов в очередь через централизованный контроллер.
-        
-        Args:
-            file_paths: Список путей к файлам для добавления
-        """
+        """Добавляет список файлов в очередь через контроллер и сохраняет в request_queue.json."""
         add_files_to_queue_controller(
             file_paths,
             self.queue,
             self.queue_list,
             log_func=self.log
         )
+        self._save_queue_to_file()
 
     # --- DRAG & DROP / LISTBOX ---
 
@@ -1019,24 +1325,35 @@ class WhisperGUI:
         file_paths = process_dropped_files(dropped_data, tk_root=self.root)
         
         if file_paths:
-            # Добавляем через централизованный контроллер
             add_files_to_queue_controller(
                 file_paths,
                 self.queue,
                 self.queue_list,
                 log_func=self.log
             )
+            self._save_queue_to_file()
 
     def on_drag_start(self, event):
-        self._drag_index = self.queue_list.nearest(event.y)
+        iid = self.queue_list.identify_row(event.y)
+        self._drag_iid = iid
+        try:
+            self._drag_index = self.queue_list.index(iid) if iid else -1
+        except tk.TclError:
+            self._drag_index = -1
 
     def on_drag_motion(self, event):
-        idx = self.queue_list.nearest(event.y)
-        if idx != self._drag_index and idx >= 0:
-            self.queue.insert(idx, self.queue.pop(self._drag_index))
-            txt = self.queue_list.get(self._drag_index)
-            self.queue_list.delete(self._drag_index)
-            self.queue_list.insert(idx, txt)
+        iid = self.queue_list.identify_row(event.y)
+        if not iid or self._drag_index < 0:
+            return
+        try:
+            idx = self.queue_list.index(iid)
+        except tk.TclError:
+            return
+        if idx != self._drag_index and 0 <= idx < len(self.queue):
+            item = self.queue.pop(self._drag_index)
+            self.queue.insert(idx, item)
+            self._refresh_queue_treeview()
+            self._save_queue_to_file()
             self._drag_index = idx
 
     def setup_log_styles(self):
@@ -1112,6 +1429,20 @@ class WhisperGUI:
         self.watch_folder_check.config(text=t("watch_folder_label"))
         self.clear_log_btn.config(text=t("clear_log"))
         self.cancel_btn.config(text=t("cancel"))
+        self.queue_list.heading("num", text=t("col_num"))
+        self.queue_list.heading("filename", text=t("col_filename"))
+        self.queue_list.heading("start", text=t("col_start"))
+        self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
+        self.queue_list.heading("end_seg2", text=t("col_end_seg2"))
+        self.queue_list.heading("end", text=t("col_end"))
+        self.queue_list.heading("status", text=t("col_status"))
+        self.tray_mode_combo["values"] = [t("tray_mode_panel"), t("tray_mode_tray"), t("tray_mode_panel_tray")]
+        self.autostart_btn.config(text=t("autostart"))
+        try:
+            idx = self.TRAY_MODE_KEYS.index(self.tray_mode.get()) if self.tray_mode.get() in self.TRAY_MODE_KEYS else 0
+            self.tray_mode_combo.current(idx)
+        except tk.TclError:
+            pass
         try:
             self.log_menu.entryconfig(0, label=t("copy"))
         except (tk.TclError, IndexError):

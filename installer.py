@@ -31,16 +31,16 @@ def get_latest_pypi_version(package):
         return None
 
 def check_updates(log_func):
-    """Проверяет наличие обновлений для ключевых компонентов."""
+    """Проверяет наличие обновлений для всех компонентов, нужных для работы программы."""
     log_func(t("checking_updates"))
     updates_found = []
-    
     for pkg in UPDATE_PACKAGES:
+        if pkg == "pyaudioop" and not needs_pyaudioop():
+            continue
         try:
             current = importlib.metadata.version(pkg)
             latest = get_latest_pypi_version(pkg)
             if latest and current != latest:
-                # Защита от некорректных мажорных обновлений (например, Torch 2.10+)
                 if pkg == "torch" and "2.10" in latest:
                     continue
                 updates_found.append((pkg, current, latest))
@@ -57,7 +57,7 @@ def _get_full_install_commands(include_nvidia=False):
     Возвращает единый список команд полной установки: [(label, cmd), ...].
     Используется в install_dependencies и run_full_installation.
     """
-    multimedia_packages = ["pygame", "pydub", "tkinterdnd2-universal"]
+    multimedia_packages = ["pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow"]
     if needs_pyaudioop():
         multimedia_packages.append("pyaudioop")
     commands = [
@@ -82,8 +82,10 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         log_func(t("updating_packages", packages=str(packages_list)))
         commands = []
         for pkg, _, _ in packages_to_update:
-            cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
-            if pkg == "torch": cmd.extend(["--index-url", CUDA_INDEX])
+            if pkg == "torch":
+                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "torch", "torchvision", "torchaudio", "--index-url", CUDA_INDEX]
+            else:
+                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
             commands.append([t("updating_package", package=pkg), cmd])
         if include_nvidia:
             commands.append([t("installing_nvidia"), [sys.executable, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
@@ -165,6 +167,8 @@ def run_full_installation():
     _check_package_verbose("pygame")
     _check_package_verbose("pydub")
     _check_package_verbose("tkinterdnd2-universal", "tkinterdnd2")
+    _check_package_verbose("pystray")
+    _check_package_verbose("Pillow", "PIL")
     if needs_pyaudioop():
         if not _check_package_verbose("pyaudioop"):
             print(t("pyaudioop_not_installed"))
@@ -194,6 +198,8 @@ def run_full_installation():
     _check_package_verbose("pygame")
     _check_package_verbose("pydub")
     _check_package_verbose("tkinterdnd2-universal", "tkinterdnd2")
+    _check_package_verbose("pystray")
+    _check_package_verbose("Pillow", "PIL")
     try:
         import tkinter
         print(t("install_tkinter_ok"))

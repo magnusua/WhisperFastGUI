@@ -7,7 +7,13 @@ APP_DATE = "01.02.2026"  # дата создания версии
 CUDA_INDEX = "https://download.pytorch.org/whl/cu121"
 VALID_EXTS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.mp4', '.mkv', '.avi', '.mov')
 DEFAULT_MODEL = "large-v3-turbo"
-UPDATE_PACKAGES = ["pip", "pygame", "torch", "faster-whisper", "ctranslate2"]
+# Пакети, для которых проверяются обновления при нажатии кнопки «Обновления»
+UPDATE_PACKAGES = [
+    "pip", "setuptools", "wheel",
+    "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
+    "torch", "faster-whisper", "ctranslate2",
+    "pyaudioop",  # для Python 3.13+; если не установлен — проверка пропускается
+]
 
 # Языки интерфейса и значение «авто» для языка транскрипции
 SUPPORTED_LANGUAGES = ("EN", "UK", "RU")
