@@ -58,5 +58,24 @@ def get_whisper_cache_dir():
 
 
 def get_whisper_model_cache_folder(model_name):
-    """Имя папки модели в кэше HF Hub: models--Systran--faster-whisper-{model_name}."""
+    """Имя папки модели в кэше HF Hub (Systran): models--Systran--faster-whisper-{model_name}."""
     return f"models--Systran--faster-whisper-{model_name}"
+
+
+def find_whisper_model_cache_path(cache_root, model_name):
+    """
+    Возвращает путь к папке модели в кэше HF Hub, если она есть.
+    Учитывает разные репозитории: Systran, h2oai, mobiuslabsgmbh и др.
+    (папки вида models--<org>--faster-whisper-{model_name})
+    """
+    if not cache_root or not os.path.isdir(cache_root):
+        return None
+    suffix = f"--faster-whisper-{model_name}"
+    try:
+        for folder in os.listdir(cache_root):
+            if folder.endswith(suffix) and os.path.isdir(os.path.join(cache_root, folder)):
+                return os.path.join(cache_root, folder)
+    except OSError:
+        pass
+    standard = os.path.join(cache_root, get_whisper_model_cache_folder(model_name))
+    return standard if os.path.isdir(standard) else None

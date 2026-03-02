@@ -909,10 +909,20 @@
     "UK": "не завантажено",
     "RU": "не загружено"
   },
+  "model_load_btn": {
+    "EN": "Load model",
+    "UK": "Завантажити модель",
+    "RU": "Загрузить модель"
+  },
   "model_selected": {
     "EN": "Model set to: {model} (will load on next transcription)",
     "UK": "Модель встановлено: {model} (завантажиться при наступній транскрипції)",
     "RU": "Модель выбрана: {model} (загрузится при следующей транскрипции)"
+  },
+  "model_loaded": {
+    "EN": "Model loaded: {model}",
+    "UK": "Модель завантажено: {model}",
+    "RU": "Модель загружена: {model}"
   },
   "ok": {
     "EN": "OK",

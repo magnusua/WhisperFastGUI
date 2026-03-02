@@ -45,7 +45,7 @@ from config import (
     APP_VERSION, APP_DATE, BASE_DIR, load_help_text,
     LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS,
     AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
-    WHISPER_MODELS, get_whisper_cache_dir, get_whisper_model_cache_folder,
+    WHISPER_MODELS, get_whisper_cache_dir, find_whisper_model_cache_path,
 )
 from utils import format_timestamp, format_timestamp_srt, play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds
 from model_manager import WhisperModelSingleton
@@ -1195,9 +1195,8 @@ class WhisperGUI:
 
         lines = []
         for name in WHISPER_MODELS:
-            folder = get_whisper_model_cache_folder(name)
-            full_path = os.path.join(cache_root, folder)
-            if os.path.isdir(full_path):
+            full_path = find_whisper_model_cache_path(cache_root, name)
+            if full_path:
                 size_mb = self._folder_size_mb(full_path)
                 lines.append(f"{name}  —  {t('model_dialog_downloaded')}  ~{size_mb} MB")
             else:
@@ -1211,6 +1210,21 @@ class WhisperGUI:
             lb.see(idx)
         except ValueError:
             pass
+
+        def on_load():
+            sel = lb.curselection()
+            if not sel:
+                return
+            chosen = WHISPER_MODELS[sel[0]]
+            self.whisper_model.set(chosen)
+            WhisperModelSingleton.reset()
+            try:
+                WhisperModelSingleton.get(self.log, self.device_mode.get(), chosen)
+            except Exception:
+                pass
+            self.model_btn.config(text=self._model_button_label())
+            self._persist_settings()
+            self.log(t("model_loaded", model=chosen))
 
         def on_ok():
             sel = lb.curselection()
@@ -1228,6 +1242,7 @@ class WhisperGUI:
 
         btn_f = ttk.Frame(main_f)
         btn_f.pack(fill="x", pady=(10, 0))
+        ttk.Button(btn_f, text=t("model_load_btn"), command=on_load).pack(side="left", padx=2)
         ttk.Button(btn_f, text=t("ok"), command=on_ok).pack(side="left", padx=2)
         ttk.Button(btn_f, text=t("cancel"), command=on_cancel).pack(side="left", padx=2)
         win.protocol("WM_DELETE_WINDOW", on_cancel)
