@@ -5,13 +5,10 @@
 """
 import os
 from tkinter import filedialog, messagebox
-from config import VALID_EXTS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, DEFAULT_START_TIMESTAMP
+from config import VALID_EXTS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 
-# Импорт менеджера языков
-try:
-    from lang_manager import t
-except ImportError:
-    from i18n_fallback import t
+from i18n import t
+from utils import make_queue_item, normalize_queue_path
 
 
 def get_file_dialog_filetypes():
@@ -253,20 +250,6 @@ def add_directory(recursive=True):
     return valid_files
 
 
-def _default_queue_item(path):
-    """Формирует элемент очереди (dict) с временами по умолчанию."""
-    from utils import get_audio_duration_seconds, format_timestamp
-    duration = get_audio_duration_seconds(path) or 0.0
-    end_ts = format_timestamp(duration) if duration > 0 else DEFAULT_START_TIMESTAMP
-    return {
-        "path": path,
-        "start": DEFAULT_START_TIMESTAMP,
-        "end_segment_1": "",
-        "end_segment_2": "",
-        "end": end_ts,
-    }
-
-
 def add_files_to_queue_controller(file_paths, queue, queue_list_or_treeview, log_func=None):
     """
     Универсальный контроллер для добавления файлов в очередь.
@@ -282,7 +265,8 @@ def add_files_to_queue_controller(file_paths, queue, queue_list_or_treeview, log
 
     added_count = 0
     for file_path in valid_files:
-        item = _default_queue_item(file_path)
+        path_norm = normalize_queue_path(file_path) or file_path
+        item = make_queue_item(path_norm)
         queue.append(item)
         num = len(queue)
         name = os.path.basename(file_path)

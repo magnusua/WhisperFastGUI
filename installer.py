@@ -6,11 +6,7 @@ import urllib.request
 import json
 from config import CUDA_INDEX, UPDATE_PACKAGES
 
-# Импорт менеджера языков
-try:
-    from lang_manager import t
-except ImportError:
-    from i18n_fallback import t
+from i18n import t
 
 def get_python_version():
     """Получает версию Python в виде кортежа (major, minor)."""

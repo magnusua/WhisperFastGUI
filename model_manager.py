@@ -3,11 +3,7 @@ import torch
 from faster_whisper import WhisperModel
 from config import DEFAULT_MODEL, WHISPER_MODELS
 
-# Импорт менеджера языков
-try:
-    from lang_manager import t
-except ImportError:
-    from i18n_fallback import t
+from i18n import t
 
 class WhisperModelSingleton:
     """

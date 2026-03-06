@@ -10,11 +10,7 @@ warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
 from tkinter import messagebox
 from installer import install_dependencies, check_system
 
-# Импорт менеджера языков (может быть недоступен на ранних этапах)
-try:
-    from lang_manager import t, set_language
-except ImportError:
-    from i18n_fallback import t, set_language
+from i18n import t, set_language
 
 def on_app_closing(root, app=None, WhisperModelSingleton=None):
     """Логика безопасного завершения работы приложения."""
@@ -82,6 +78,10 @@ def main():
             on_close_factory=lambda r, a: lambda: on_app_closing(r, a, WhisperModelSingleton),
         )
         root.protocol("WM_DELETE_WINDOW", app.on_window_close)
+
+        # При аргументе --transcribe автоматически запускаем транскрибацию текущей очереди
+        if len(sys.argv) > 1 and sys.argv[1].strip().lower() == "--transcribe":
+            root.after(500, app.auto_start_queue)
 
         # Запуск главного цикла
         root.mainloop()

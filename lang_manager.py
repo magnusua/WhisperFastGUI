@@ -6,9 +6,10 @@ import json
 import os
 
 try:
-    from config import BASE_DIR
+    from config import BASE_DIR, DEFAULT_MODEL
 except ImportError:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DEFAULT_MODEL = "large-v3-turbo"
 
 # Текущий язык по умолчанию
 _current_language = "EN"
@@ -26,9 +27,9 @@ def _settings_path():
 
 
 def load_translations():
-    """Загружает переводы из файла lang.json"""
+    """Загружает переводы из файла lang.json (путь через BASE_DIR для единообразия с приложением)."""
     global _translations
-    lang_file = os.path.join(os.path.dirname(__file__), "lang.json")
+    lang_file = os.path.join(BASE_DIR, "lang.json")
     
     try:
         with open(lang_file, "r", encoding="utf-8") as f:
@@ -66,7 +67,7 @@ def load_app_settings():
         "play_sound_on_finish": False,
         "save_audio_mp3": False,
         "tray_mode": "panel",
-        "whisper_model": "large-v3-turbo",
+        "whisper_model": DEFAULT_MODEL,
     }
     if not os.path.exists(path):
         try:
@@ -87,7 +88,7 @@ def load_app_settings():
 
 
 def save_settings(language):
-    """Сохраняет настройки в файл settings.json"""
+    """Сохраняет только язык интерфейса в settings.json (остальные ключи не трогает)."""
     path = _settings_path()
     try:
         settings = {}
@@ -105,7 +106,7 @@ def save_settings(language):
 
 
 def save_app_settings(settings_dict):
-    """Зберігає налаштування в settings.json (злиття з існуючим вмістом)."""
+    """Сохраняет настройки приложения: сливает переданный словарь с текущим содержимым settings.json и записывает файл."""
     path = _settings_path()
     try:
         settings = {}

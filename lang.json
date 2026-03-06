@@ -229,6 +229,31 @@
     "UK": "❌ Помилка: {error}",
     "RU": "❌ Ошибка: {error}"
   },
+  "error_no_audio_hint": {
+    "EN": "💡 The file may contain no audio or the audio track may be missing — please check the file.",
+    "UK": "💡 У файлі може не бути звуку або звукова доріжка відсутня — перевірте файл.",
+    "RU": "💡 В файле может не быть звука или звуковая дорожка отсутствует — проверьте файл."
+  },
+  "already_processing": {
+    "EN": "Processing is already running.",
+    "UK": "Обробка вже виконується.",
+    "RU": "Обработка уже выполняется."
+  },
+  "file_skipped": {
+    "EN": "⏭ Skipped (file not found): {name}",
+    "UK": "⏭ Пропущено (файл не знайдено): {name}",
+    "RU": "⏭ Пропущено (файл не найден): {name}"
+  },
+  "skipped_report_title": {
+    "EN": "Skipped files",
+    "UK": "Пропущені файли",
+    "RU": "Пропущенные файлы"
+  },
+  "skipped_report_message": {
+    "EN": "The following files were not found and were skipped:\n\n{files}\n\nRemove them from the queue?",
+    "UK": "Ці файли не знайдено, вони були пропущені:\n\n{files}\n\nВидалити їх із черги?",
+    "RU": "Следующие файлы не найдены и были пропущены:\n\n{files}\n\nУдалить их из очереди?"
+  },
   "files_created": {
     "EN": "✅ Files created for: {name}",
     "UK": "✅ Файли створено для: {name}",

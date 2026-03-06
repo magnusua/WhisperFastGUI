@@ -5,9 +5,10 @@ import subprocess
 import pygame
 
 try:
-    from config import BASE_DIR
+    from config import BASE_DIR, DEFAULT_START_TIMESTAMP
 except ImportError:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DEFAULT_START_TIMESTAMP = "00:00:00,000"
 
 def format_timestamp(seconds):
     h = int(seconds // 3600)
@@ -20,6 +21,50 @@ def format_timestamp(seconds):
 def format_timestamp_srt(seconds):
     """Формат времени для SRT: HH:MM:SS.mmm (точка вместо запятой)."""
     return format_timestamp(seconds).replace(",", ".")
+
+
+def format_timestamp_filename(seconds):
+    """Формат для имени файла (суффикс отрезка): HH-MM-SS, без миллисекунд."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    return f"{h:02d}-{m:02d}-{s:02d}"
+
+
+def normalize_queue_path(path):
+    """
+    Нормализует путь из элемента очереди (может быть строкой или list/tuple из JSON).
+    Возвращает os.path.normpath(str) или None, если путь пустой или невалидный.
+    """
+    if path is None:
+        return None
+    if isinstance(path, (list, tuple)):
+        path = path[0] if len(path) > 0 else None
+    if not path or not isinstance(path, str):
+        return None
+    path = str(path).strip()
+    if not path:
+        return None
+    return os.path.normpath(path)
+
+
+def make_queue_item(path, **overrides):
+    """
+    Элемент очереди (dict) с полями path, start, end_segment_1, end_segment_2, end, processed.
+    path должен быть уже нормализованной строкой. overrides подставляются поверх умолчаний.
+    """
+    duration = get_audio_duration_seconds(path) or 0.0
+    end_ts = format_timestamp(duration) if duration > 0 else DEFAULT_START_TIMESTAMP
+    item = {
+        "path": path,
+        "start": DEFAULT_START_TIMESTAMP,
+        "end_segment_1": "",
+        "end_segment_2": "",
+        "end": end_ts,
+        "processed": False,
+    }
+    item.update(overrides)
+    return item
 
 
 def parse_timestamp_to_seconds(s):

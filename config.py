@@ -21,6 +21,13 @@ WHISPER_MODELS = [
 ]
 # Значение по умолчанию для поля «Начало» в очереди
 DEFAULT_START_TIMESTAMP = "00:00:00,000"
+# Ключи элемента очереди (единая схема для gui и input_files)
+QUEUE_ITEM_KEYS = ("path", "start", "end_segment_1", "end_segment_2", "end", "processed")
+# Интервалы обновления UI в process_queue (секунды)
+PROGRESS_UPDATE_INTERVAL_S = 0.1
+LOG_UPDATE_INTERVAL_S = 0.5
+# Порог (сек): считаем обработку «отрезком» файла, если start >= EPS или (duration - end) >= EPS
+FULL_VIDEO_SEGMENT_EPS_S = 0.5
 # Пакети, для которых проверяются обновления при нажатии кнопки «Обновления»
 UPDATE_PACKAGES = [
     "pip", "setuptools", "wheel",
@@ -40,7 +47,7 @@ def load_help_text():
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
     try:
-        from lang_manager import t
+        from i18n import t
         return t("help_file_not_found")
     except ImportError:
         return "Файл справки (README.md) не найден."

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import time
+import traceback
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
@@ -46,8 +47,13 @@ from config import (
     LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS,
     AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
     WHISPER_MODELS, get_whisper_cache_dir, find_whisper_model_cache_path,
+    PROGRESS_UPDATE_INTERVAL_S, LOG_UPDATE_INTERVAL_S, FULL_VIDEO_SEGMENT_EPS_S,
 )
-from utils import format_timestamp, format_timestamp_srt, play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds
+from utils import (
+    format_timestamp, format_timestamp_srt, format_timestamp_filename,
+    play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds,
+    make_queue_item, normalize_queue_path,
+)
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
 from input_files import (
@@ -56,7 +62,8 @@ from input_files import (
     process_dropped_files,
     add_files_to_queue_controller
 )
-from lang_manager import t, set_language, get_language, load_app_settings, save_app_settings
+from i18n import t, set_language, get_language
+from lang_manager import load_app_settings, save_app_settings
 
 
 class _SegmentOffset:
@@ -97,10 +104,11 @@ LOG_MAX_LINES = 10000  # ограничение размера лога для �
 
 
 class Tooltip:
-    """Подсказка при наведении на виджет: показ через заданную задержку (по умолчанию 1 с)."""
-    def __init__(self, widget, text, delay_ms=TOOLTIP_DELAY_MS):
+    """Подсказка при наведении на виджет. text — готовый текст или ключ перевода (если is_key=True)."""
+    def __init__(self, widget, text, delay_ms=TOOLTIP_DELAY_MS, is_key=False):
         self.widget = widget
-        self.text = text
+        self._text_or_key = text
+        self._is_key = is_key
         self.delay_ms = delay_ms
         self._job = None
         self._tw = None
@@ -118,14 +126,15 @@ class Tooltip:
 
     def _show(self):
         self._job = None
-        if not self.text:
+        text = t(self._text_or_key) if self._is_key else self._text_or_key
+        if not text:
             return
         self._tw = tk.Toplevel(self.widget)
         self._tw.wm_overrideredirect(True)
         self._tw.wm_geometry("+0+0")
         label = tk.Label(
             self._tw,
-            text=self.text,
+            text=text,
             justify="left",
             background="#ffffc0",
             relief="solid",
@@ -184,6 +193,7 @@ class WhisperGUI:
         self.queue = []
         self._request_queue_file = os.path.join(BASE_DIR, "request_queue.json")
         self.cancel_requested = False
+        self._process_queue_lock = threading.Lock()  # только одна обработка очереди одновременно
         
         # Переменные интерфейса
         self.device_mode = tk.StringVar(value="AUTO")
@@ -327,7 +337,7 @@ class WhisperGUI:
             self._on_close_request()
 
     def _load_queue_from_file(self):
-        """Загружает очередь из request_queue.json и заполняет таблицу."""
+        """Загружает очередь из request_queue.json и заполняет таблицу (использует make_queue_item и normalize_queue_path)."""
         if not os.path.exists(self._request_queue_file):
             return
         try:
@@ -337,17 +347,18 @@ class WhisperGUI:
                 return
             self.queue.clear()
             for item in data:
-                path = item.get("path") or ""
+                path = normalize_queue_path(item.get("path"))
                 if not path or not os.path.isfile(path):
                     continue
-                self.queue.append({
-                    "path": path,
+                overrides = {
                     "start": item.get("start") or DEFAULT_START_TIMESTAMP,
                     "end_segment_1": item.get("end_segment_1") or "",
                     "end_segment_2": item.get("end_segment_2") or "",
-                    "end": item.get("end") or format_timestamp(get_audio_duration_seconds(path) or 0),
                     "processed": item.get("processed", False),
-                })
+                }
+                if item.get("end"):
+                    overrides["end"] = item.get("end")
+                self.queue.append(make_queue_item(path, **overrides))
             self._refresh_queue_treeview()
         except (json.JSONDecodeError, OSError):
             pass
@@ -416,7 +427,7 @@ class WhisperGUI:
             d.destroy()
 
         ttk.Button(d, text=t("close"), command=d.destroy).grid(row=4, column=0, padx=5, pady=8)
-        ttk.Button(d, text="OK", command=apply_and_close).grid(row=4, column=1, padx=5, pady=8)
+        ttk.Button(d, text=t("ok"), command=apply_and_close).grid(row=4, column=1, padx=5, pady=8)
         self._center_toplevel(d)
 
     def build_ui(self):
@@ -519,7 +530,6 @@ class WhisperGUI:
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         self.output_dir_entry = ttk.Entry(tools_center, textvariable=self.output_dir, width=45)
         self.output_dir_entry.pack(side="left", padx=2)
-        self.output_dir_entry.bind("<FocusOut>", self._on_output_dir_commit)
         self.root.bind_all("<Return>", self._on_enter_key)
         self.root.bind_all("<space>", self._on_space_key)
         self.output_folder_btn = ttk.Button(tools_center, text=t("output_folder"), command=self.pick_output_folder)
@@ -579,9 +589,9 @@ class WhisperGUI:
         self._setup_tooltips()
 
     def _setup_tooltips(self):
-        """Привязка подсказок к переключателям, кнопкам и полям (задержка 1 с)."""
+        """Привязка подсказок к переключателям, кнопкам и полям (задержка 1 с). Ключ перевода — подсказка обновится при смене языка."""
         def tip(widget, key):
-            self._tooltips.append(Tooltip(widget, t(key)))
+            self._tooltips.append(Tooltip(widget, key, is_key=True))
         tip(self.queue_header_label, "tooltip_queue_header")
         tip(self.add_files_btn, "tooltip_add_files")
         tip(self.add_directory_btn, "tooltip_add_directory")
@@ -596,7 +606,7 @@ class WhisperGUI:
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
-        self._tooltips.append(Tooltip(self.model_btn, t("tooltip_model_btn", cache_dir=get_whisper_cache_dir())))
+        self._tooltips.append(Tooltip(self.model_btn, t("tooltip_model_btn", cache_dir=get_whisper_cache_dir()), is_key=False))
         tip(self.tray_mode_combo, "tooltip_tray_mode")
         tip(self.autostart_btn, "tooltip_autostart")
         tip(self.output_dir_entry, "tooltip_output_dir")
@@ -664,7 +674,6 @@ class WhisperGUI:
             return
 
         sel = self.queue_list.selection()
-        marker = self._processed_marker()
         idx = self.queue_list.index(sel[0]) if sel else None
 
         if idx is not None and 0 <= idx < len(self.queue):
@@ -765,133 +774,181 @@ class WhisperGUI:
         
         return result["choice"]
 
+    def auto_start_queue(self):
+        """Запускает обробку всієї черги, якщо вона не порожня (для --transcribe з main.py)."""
+        if self.queue:
+            self.start_thread(mode="all")
+
     def start_thread(self, mode, target_idx=None):
+        if not self._process_queue_lock.acquire(blocking=False):
+            self.log("⚠ " + t("already_processing"))
+            return
         self.cancel_requested = False
         self.start_btn.config(state="disabled")
         self.cancel_btn.config(state="normal")
-        threading.Thread(target=self.process_queue, args=(mode, target_idx), daemon=True).start()
+        # Читаем Tk-переменные только в главном потоке и передаём в воркер
+        options = {
+            "device_mode": self.device_mode.get(),
+            "whisper_model": self.whisper_model.get(),
+            "lang_mode": self.lang_mode.get(),
+            "save_audio_mp3": self.save_audio_mp3.get(),
+            "play_sound_on_finish": self.play_sound_on_finish.get(),
+            "output_dir": (self.output_dir.get() or "").strip(),
+        }
 
-    def process_queue(self, mode, target_idx):
+        def run_and_release():
+            try:
+                self.process_queue(mode, target_idx, options)
+            finally:
+                self._process_queue_lock.release()
+        threading.Thread(target=run_and_release, daemon=True).start()
+
+    def process_queue(self, mode, target_idx, options=None):
+        opts = options or {}
         try:
-            model = WhisperModelSingleton.get(self.log, self.device_mode.get(), self.whisper_model.get())
-            marker = self._processed_marker()
+            model = WhisperModelSingleton.get(self.log, opts.get("device_mode", "AUTO"), opts.get("whisper_model", DEFAULT_MODEL))
+            # Снимок очереди, чтобы индексы не выходили за границы при изменении очереди в GUI
+            queue_snapshot = list(self.queue)
             if mode == "single":
                 indices = [target_idx]
             elif mode == "only_new":
-                indices = [i for i in range(len(self.queue)) if not self.queue[i].get("processed")]
+                indices = [i for i in range(len(queue_snapshot)) if not queue_snapshot[i].get("processed")]
             else:
-                indices = list(range(len(self.queue)))
+                indices = list(range(len(queue_snapshot)))
 
             done = 0
             to_do = len(indices)
+            skipped_paths = []
 
             for idx in indices:
                 if self.cancel_requested:
                     break
-                row = self.queue[idx]
-                path = row["path"]
+                if idx < 0 or idx >= len(queue_snapshot):
+                    continue
+                row = queue_snapshot[idx]
+                path = normalize_queue_path(row.get("path"))
+                if not path:
+                    continue
                 name = os.path.basename(path)
+                if not os.path.isfile(path):
+                    self.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
+                    self.log(t("file_skipped", name=name))
+                    skipped_paths.append(path)
+                    continue
                 self.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
 
-                start_sec = parse_timestamp_to_seconds(row.get("start")) or 0.0
-                duration = get_audio_duration_seconds(path) or 1.0
-                end_sec = parse_timestamp_to_seconds(row.get("end")) or duration
-                end_sec = min(end_sec, duration)
-                segment_duration = end_sec - start_sec if end_sec > start_sec else duration
+                try:
+                    start_sec = parse_timestamp_to_seconds(row.get("start")) or 0.0
+                    duration = get_audio_duration_seconds(path) or 1.0
+                    end_sec = parse_timestamp_to_seconds(row.get("end")) or duration
+                    end_sec = min(end_sec, duration)
+                    segment_duration = end_sec - start_sec if end_sec > start_sec else duration
 
-                audio = None
-                if self.save_audio_mp3.get():
-                    ext = os.path.splitext(path)[1].lower()
-                    is_audio_source = ext in AUDIO_EXTENSIONS
-                    if is_audio_source:
-                        choice = [None]
-                        def ask_save_mp3():
-                            choice[0] = messagebox.askyesno(
-                                t("save_audio_mp3"),
-                                t("save_mp3_confirm", filename=os.path.basename(path))
-                            )
-                        self.root.after(0, ask_save_mp3)
-                        while choice[0] is None and not self.cancel_requested:
-                            time.sleep(0.05)
-                        if choice[0]:
+                    audio = None
+                    if opts.get("save_audio_mp3"):
+                        ext = os.path.splitext(path)[1].lower()
+                        is_audio_source = ext in AUDIO_EXTENSIONS
+                        if is_audio_source:
+                            choice = [None]
+                            def ask_save_mp3():
+                                choice[0] = messagebox.askyesno(
+                                    t("save_audio_mp3"),
+                                    t("save_mp3_confirm", filename=os.path.basename(path))
+                                )
+                            self.root.after(0, ask_save_mp3)
+                            while choice[0] is None and not self.cancel_requested:
+                                time.sleep(0.05)
+                            if choice[0]:
+                                full = AudioSegment.from_file(path)
+                                audio = full[int(start_sec * 1000):int(end_sec * 1000)]
+                        else:
                             full = AudioSegment.from_file(path)
                             audio = full[int(start_sec * 1000):int(end_sec * 1000)]
                     else:
-                        full = AudioSegment.from_file(path)
-                        audio = full[int(start_sec * 1000):int(end_sec * 1000)]
-                else:
-                    full = None
+                        full = None
 
-                lang_val = self.lang_mode.get()
-                lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
+                    lang_val = opts.get("lang_mode", LANG_AUTO_VALUE)
+                    lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
 
-                if start_sec > 0 or end_sec < duration:
-                    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                        tmp_path = tmp.name
-                    try:
-                        seg_audio = AudioSegment.from_file(path)[int(start_sec * 1000):int(end_sec * 1000)]
-                        seg_audio.export(tmp_path, format="wav")
-                        segments_iter, _ = model.transcribe(tmp_path, language=lang_param, vad_filter=True)
-                    finally:
-                        try:
-                            os.unlink(tmp_path)
-                        except OSError:
-                            pass
-                else:
-                    segments_iter, _ = model.transcribe(path, language=lang_param, vad_filter=True)
-
-                res = []
-                last_progress_update = [0.0]
-                last_log_update = [0.0]
-                segment_count = [0]
-                for s in segments_iter:
-                    if self.cancel_requested:
-                        break
-                    res.append(s)
-                    segment_count[0] += 1
-                    now = time.time()
-                    if now - last_progress_update[0] >= 0.1:
-                        self.progress["value"] = min(100, (s.end / segment_duration) * 100) if segment_duration else 100
-                        last_progress_update[0] = now
-                    if now - last_log_update[0] >= 0.5 or segment_count[0] <= 2:
-                        self.log(f"   [{format_timestamp(s.start)}] {s.text.strip()}")
-                        last_log_update[0] = now
-
-                if not self.cancel_requested:
-                    self.progress["value"] = 100
                     if start_sec > 0 or end_sec < duration:
-                        res = [_SegmentOffset(s.start + start_sec, s.end + start_sec, s.text) for s in res]
-                    # Суффикс в имени файла только при явной обработке отрезка (не всего видео)
-                    # Порог 0.5 с устраняет ложное срабатывание из-за погрешности float при полной длительности
-                    FULL_VIDEO_EPS = 0.5
-                    is_segment = start_sec >= FULL_VIDEO_EPS or (duration - end_sec) >= FULL_VIDEO_EPS
-                    self.save_files(path, res, audio_segment=audio, segment_start_sec=start_sec if is_segment else None, segment_end_sec=end_sec if is_segment else None)
-                    self.root.after(0, lambda i=idx, n=name: self.mark_done(i, n))
-                    done += 1
+                        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                            tmp_path = tmp.name
+                        try:
+                            seg_audio = AudioSegment.from_file(path)[int(start_sec * 1000):int(end_sec * 1000)]
+                            seg_audio.export(tmp_path, format="wav")
+                            segments_iter, _ = model.transcribe(tmp_path, language=lang_param, vad_filter=True)
+                        finally:
+                            try:
+                                os.unlink(tmp_path)
+                            except OSError:
+                                pass
+                    else:
+                        segments_iter, _ = model.transcribe(path, language=lang_param, vad_filter=True)
 
+                    res = []
+                    last_progress_update = [0.0]
+                    last_log_update = [0.0]
+                    segment_count = [0]
+                    for s in segments_iter:
+                        if self.cancel_requested:
+                            break
+                        res.append(s)
+                        segment_count[0] += 1
+                        now = time.time()
+                        if now - last_progress_update[0] >= PROGRESS_UPDATE_INTERVAL_S:
+                            val = min(100, (s.end / segment_duration) * 100) if (segment_duration and segment_duration > 0) else 100
+                            self.root.after(0, lambda v=val: self._set_progress_value(v))
+                            last_progress_update[0] = now
+                        if now - last_log_update[0] >= LOG_UPDATE_INTERVAL_S or segment_count[0] <= 2:
+                            seg_text = (s.text or "").strip()
+                            self.log(f"   [{format_timestamp(s.start)}] {seg_text}")
+                            last_log_update[0] = now
+
+                    if not self.cancel_requested:
+                        self.root.after(0, lambda: self._set_progress_value(100))
+                        if start_sec > 0 or end_sec < duration:
+                            res = [_SegmentOffset(s.start + start_sec, s.end + start_sec, s.text or "") for s in res]
+                        is_segment = start_sec >= FULL_VIDEO_SEGMENT_EPS_S or (duration - end_sec) >= FULL_VIDEO_SEGMENT_EPS_S
+                        self.save_files(path, res, audio_segment=audio, segment_start_sec=start_sec if is_segment else None, segment_end_sec=end_sec if is_segment else None, output_dir_raw=opts.get("output_dir"))
+                        self.root.after(0, lambda p=path: self._mark_done_by_path(p))
+                        done += 1
+                except OSError:
+                    self.log(t("file_skipped", name=name))
+                    skipped_paths.append(path)
+
+            if skipped_paths:
+                paths_copy = list(skipped_paths)
+                self.root.after(0, lambda: self._report_skipped_and_offer_remove(paths_copy))
             if self.cancel_requested:
                 self.log(f"\n{t('cancelled', count=to_do - done)}")
             else:
                 self.log(f"\n{t('all_tasks_complete')}")
-                if self.play_sound_on_finish.get():
+                if opts.get("play_sound_on_finish"):
                     play_finish_sound()
 
+        except (OSError, IndexError, RuntimeError) as e:
+            err_msg = str(e)
+            self.log(t("error_occurred", error=err_msg))
+            if isinstance(e, IndexError) or "list index out of range" in err_msg.lower():
+                self.log(t("error_no_audio_hint"))
+            if os.environ.get("DEBUG"):
+                self.log(traceback.format_exc())
         except Exception as e:
-            self.log(t("error_occurred", error=str(e)))
+            err_msg = str(e)
+            self.log(t("error_occurred", error=err_msg))
+            if "list index out of range" in err_msg.lower():
+                self.log(t("error_no_audio_hint"))
+            if os.environ.get("DEBUG"):
+                self.log(traceback.format_exc())
         finally:
             self.root.after(0, self.reset_ui)
 
     def _segment_file_suffix(self, start_sec, end_sec):
-        """Суфікс для імен файлів сегмента: HH-MM-SS_HH-MM-SS (без двокрапки)."""
-        def to_part(sec):
-            h = int(sec // 3600)
-            m = int((sec % 3600) // 60)
-            s = int(sec % 60)
-            return f"{h:02d}-{m:02d}-{s:02d}"
-        return "_" + to_part(start_sec) + "_" + to_part(end_sec)
+        """Суфікс для імен файлів сегмента: HH-MM-SS_HH-MM-SS (через format_timestamp_filename)."""
+        return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
-    def save_files(self, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None):
-        out = self._resolve_output_dir(path)
+    def save_files(self, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_dir_raw=None):
+        out = self._resolve_output_dir(path, output_dir_raw)
         marker = self._processed_marker()
         base = os.path.splitext(os.path.basename(path))[0].replace(marker, "")
         if segment_start_sec is not None and segment_end_sec is not None:
@@ -900,12 +957,12 @@ class WhisperGUI:
         srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
 
         with open(txt_p, "w", encoding="utf-8") as f:
-            f.write("\n".join([s.text.strip() for s in segments]))
+            f.write("\n".join([(s.text or "").strip() for s in segments]))
 
         with open(srt_p, "w", encoding="utf-8") as f:
             for i, s in enumerate(segments, 1):
                 timestamp = f"{format_timestamp_srt(s.start)} --> {format_timestamp_srt(s.end)}"
-                f.write(f"{i}\n{timestamp}\n{s.text.strip()}\n\n")
+                f.write(f"{i}\n{timestamp}\n{(s.text or '').strip()}\n\n")
 
         self.log(t("files_created", name=base))
         self.log(t("txt_file"), None)
@@ -926,6 +983,27 @@ class WhisperGUI:
         """Отмечает файл как обработанный в очереди и сохраняет очередь в request_queue.json."""
         if 0 <= idx < len(self.queue):
             self.queue[idx]["processed"] = True
+            self._refresh_queue_treeview()
+            self._save_queue_to_file()
+
+    def _mark_done_by_path(self, path):
+        """Отмечает файл как обработанный по пути (безопасно при изменении очереди)."""
+        for q in self.queue:
+            if q.get("path") == path:
+                q["processed"] = True
+                break
+        self._refresh_queue_treeview()
+        self._save_queue_to_file()
+
+    def _report_skipped_and_offer_remove(self, skipped_paths):
+        """Показывает отчёт о пропущенных файлах и предлагает удалить их из очереди."""
+        if not skipped_paths:
+            return
+        files_list = "\n".join(os.path.basename(p) for p in skipped_paths)
+        msg = t("skipped_report_message", files=files_list)
+        if messagebox.askyesno(t("skipped_report_title"), msg):
+            skipped_set = set(skipped_paths)
+            self.queue[:] = [q for q in self.queue if q["path"] not in skipped_set]
             self._refresh_queue_treeview()
             self._save_queue_to_file()
 
@@ -957,7 +1035,12 @@ class WhisperGUI:
             self.log_box.config(state="normal")
             self.log_box.insert("end", str(msg) + ("" if str(msg).endswith("\n") else "\n"), tag or None)
             # Ограничение размера лога: удаляем старые строки сверху
-            line_count = int(self.log_box.index("end-1c").split(".")[0])
+            try:
+                index_str = self.log_box.index("end-1c")
+                parts = index_str.split(".")
+                line_count = int(parts[0]) if parts else 0
+            except (ValueError, tk.TclError, IndexError):
+                line_count = 0
             if line_count > LOG_MAX_LINES:
                 self.log_box.delete("1.0", f"{line_count - LOG_MAX_LINES}.0")
             self.log_box.see("end")
@@ -968,6 +1051,13 @@ class WhisperGUI:
         self.log_box.config(state="normal")
         self.log_box.delete("1.0", "end")
         self.log_box.config(state="disabled")
+
+    def _set_progress_value(self, value):
+        """Установка значения прогресс-бара (вызывать из главного потока)."""
+        try:
+            self.progress["value"] = value
+        except (tk.TclError, Exception):
+            pass
 
     def reset_ui(self):
         self.start_btn.config(state="normal")
@@ -1035,10 +1125,6 @@ class WhisperGUI:
         
         text_widget.bind("<MouseWheel>", on_mousewheel)
 
-    def _on_output_dir_commit(self, event=None):
-        """При потере фокуса — поле каталога уже сохранено в StringVar."""
-        pass
-
     def _on_enter_key(self, event=None):
         """Глобальный Enter: при пустой очереди — добавить файлы, иначе — начать транскрибацию."""
         if not self.queue:
@@ -1064,15 +1150,12 @@ class WhisperGUI:
         s = s.strip().rstrip(". ")
         return s if s else "_"
 
-    def _resolve_output_dir(self, path):
+    def _resolve_output_dir(self, path, output_dir_raw=None):
         """
         Определяет каталог сохранения для файла path.
-        — Пустое поле → рядом с исходным файлом.
-        — Полный путь (например D:\\...) → проверка/создание каталога, сохранение туда.
-        — Не полный путь (имя подкаталога) → санитизация, создание рядом с исходным, сохранение туда.
-        Указанный каталог применяется ко всем файлам в очереди.
+        output_dir_raw — значение из главного потока (опции); если None, читается self.output_dir.get().
         """
-        raw = (self.output_dir.get() or "").strip()
+        raw = (output_dir_raw if output_dir_raw is not None else (self.output_dir.get() or "")).strip()
         if not raw:
             return os.path.dirname(path)
         if os.path.isabs(raw):
