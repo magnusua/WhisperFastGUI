@@ -344,6 +344,11 @@
     "UK": "Не вдалося завантажити модулі GUI: {error}",
     "RU": "Не удалось загрузить модули GUI: {error}"
   },
+  "deps_install_incomplete_msg": {
+    "EN": "Dependencies are still missing after install (e.g. pydub).\n\nOpen a terminal in the project folder and run:\n\n{py} -m pip install pydub pygame tkinterdnd2-universal pystray Pillow\n\nOr run install.bat again. Also install FFmpeg if not in PATH.",
+    "UK": "Після встановлення залежності все ще відсутні (наприклад pydub).\n\nУ терміналі в папці проєкту:\n\n{py} -m pip install pydub pygame tkinterdnd2-universal pystray Pillow\n\nАбо знову install.bat. Потрібен FFmpeg у PATH.",
+    "RU": "После установки зависимостей чего-то всё ещё не хватает (часто pydub).\n\nВ терминале в папке проекта выполните:\n\n{py} -m pip install pydub pygame tkinterdnd2-universal pystray Pillow\n\nИли снова запустите install.bat. Нужен FFmpeg в PATH."
+  },
   "critical_error": {
     "EN": "Critical Error",
     "UK": "Критична помилка",
@@ -353,6 +358,16 @@
     "EN": "Error starting interface: {error}",
     "UK": "Помилка запуску інтерфейсу: {error}",
     "RU": "Ошибка при запуске интерфейса: {error}"
+  },
+  "python_unsupported_title": {
+    "EN": "Python version",
+    "UK": "Версія Python",
+    "RU": "Версия Python"
+  },
+  "python_unsupported_msg": {
+    "EN": "You are using Python {major}.{minor}.\n\nPyTorch, ctranslate2 and faster-whisper usually have no ready-made wheels for this version yet — pip install fails (\"No matching distribution\").\n\nRecommended: install Python 3.12 (or 3.11) from python.org, create a venv in the project folder and run install.bat / pip install again.\n\nOK = try to start anyway. Cancel = exit.",
+    "UK": "Ви використовуєте Python {major}.{minor}.\n\nДля цієї версії часто немає готових коліс PyTorch, ctranslate2, faster-whisper — pip install падає.\n\nРекомендовано: Python 3.12 або 3.11 з python.org, віртуальне середовище в папці проєкту, потім install.bat.\n\nOK — спробувати запуск. Скасувати — вийти.",
+    "RU": "У вас Python {major}.{minor}.\n\nДля этой версии обычно ещё нет готовых колёс PyTorch, ctranslate2, faster-whisper — установка через pip падает (No matching distribution).\n\nРекомендуется: установить Python 3.12 или 3.11 с python.org, создать venv в папке проекта и снова запустить install.bat / установить зависимости.\n\nOK — попробовать запуск. Отмена — выход."
   },
   "python_detected": {
     "EN": ">> Python {major}.{minor} detected - pyaudioop required",

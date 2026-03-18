@@ -22,6 +22,14 @@ def on_app_closing(root, app=None, WhisperModelSingleton=None):
         root.destroy()
 
 def main():
+    # Python 3.14+: PyTorch / ctranslate2 / faster-whisper часто без колёс на PyPI — установка падает
+    if sys.version_info >= (3, 14):
+        if not messagebox.askokcancel(
+            t("python_unsupported_title"),
+            t("python_unsupported_msg", major=sys.version_info.major, minor=sys.version_info.minor),
+        ):
+            sys.exit(0)
+
     # Иконка на панели задач Windows: задаём AppUserModelID до создания окна
     if sys.platform == "win32":
         try:
@@ -48,18 +56,30 @@ def main():
                 print(t("pyaudioop_manual"))
     
     # 1. Проверка наличия критических библиотек перед импортом GUI
-    try:
-        import pydub
-        import faster_whisper
-        import torch
-        # Если импорт прошел успешно, проверяем систему в логах (опционально)
-        print(t("all_dependencies_found"))
-    except ImportError as e:
-        # Если чего-то не хватает, запускаем процесс установки
-        print(t("missing_components", error=str(e)))
+    def _check_deps():
+        try:
+            import pydub  # noqa: F401
+            import faster_whisper  # noqa: F401
+            import torch  # noqa: F401
+            return True, None
+        except ImportError as e:
+            return False, str(e)
+
+    ok, dep_err = _check_deps()
+    if not ok:
+        print(t("missing_components", error=dep_err or ""))
         print(t("starting_installation"))
         install_dependencies(log_func=print)
+        ok, _ = _check_deps()
+        if not ok:
+            messagebox.showerror(
+                t("import_error"),
+                t("deps_install_incomplete_msg", py=sys.executable),
+            )
+            return
         messagebox.showinfo(t("installation"), t("dependencies_installed"))
+    else:
+        print(t("all_dependencies_found"))
 
     # 2. Локальный импорт компонентов проекта после проверки зависимостей
     # Это предотвращает ошибку ModuleNotFoundError при старте
