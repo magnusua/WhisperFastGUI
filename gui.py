@@ -1348,8 +1348,9 @@ class WhisperGUI:
             return
         try:
             if sys.platform == "win32":
+                # Run via cmd /c with quoted path so paths with spaces and special chars work
                 subprocess.Popen(
-                    [bat_path],
+                    ["cmd", "/c", f'"{bat_path}"'],
                     cwd=BASE_DIR,
                     creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
                 )

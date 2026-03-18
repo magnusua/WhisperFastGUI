@@ -2,9 +2,11 @@
 chcp 65001 >nul
 setlocal
 set "SCRIPT_DIR=%~dp0"
-set "VBS_PATH=%SCRIPT_DIR%start_delayed.vbs"
+set "VBS_NAME=start_delayed.vbs"
+set "VBS_PATH=%SCRIPT_DIR%%VBS_NAME%"
 set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "LNK_PATH=%STARTUP_FOLDER%\Whisper Fast GUI (delayed).lnk"
+set "LNK_NAME=Whisper Fast GUI delayed.lnk"
+set "LNK_PATH=%STARTUP_FOLDER%\%LNK_NAME%"
 
 if not exist "%VBS_PATH%" (
     echo Помилка: у папці скрипта не знайдено start_delayed.vbs
