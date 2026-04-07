@@ -203,6 +203,7 @@ class WhisperGUI:
         self.watch_enabled = tk.BooleanVar(value=False)
         self._watch_stop = threading.Event()
         self._watch_thread = None
+        self._watch_lock = threading.Lock()
         self._watch_seen = set()  # уже учтённые файлы в каталоге слежения
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
@@ -947,6 +948,27 @@ class WhisperGUI:
         """Суфікс для імен файлів сегмента: HH-MM-SS_HH-MM-SS (через format_timestamp_filename)."""
         return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
+    def _watch_register_output_paths(self, paths):
+        """Пути файлов, которые создаёт транскрибация (txt/srt/mp3), сразу помечаем как «уже виденные»,
+        чтобы слежение за каталогом не ставило их в очередь (особенно *_audio.mp3)."""
+        norm = []
+        for p in paths:
+            if not p:
+                continue
+            try:
+                norm.append(os.path.normpath(os.path.abspath(p)))
+            except OSError:
+                continue
+        if not norm:
+            return
+        with self._watch_lock:
+            self._watch_seen.update(norm)
+
+    @staticmethod
+    def _watch_filename_is_program_output(name):
+        """Эвристика: экспортированное приложением аудио всегда оканчивается на _audio.mp3."""
+        return name.lower().endswith("_audio.mp3")
+
     def save_files(self, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_dir_raw=None):
         out = self._resolve_output_dir(path, output_dir_raw)
         marker = self._processed_marker()
@@ -955,6 +977,10 @@ class WhisperGUI:
             base = base + self._segment_file_suffix(segment_start_sec, segment_end_sec)
         txt_p = os.path.abspath(os.path.join(out, base + ".txt"))
         srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
+        out_paths = [txt_p, srt_p]
+        if audio_segment is not None:
+            out_paths.append(os.path.abspath(os.path.join(out, base + "_audio.mp3")))
+        self._watch_register_output_paths(out_paths)
 
         with open(txt_p, "w", encoding="utf-8") as f:
             f.write("\n".join([(s.text or "").strip() for s in segments]))
@@ -971,7 +997,7 @@ class WhisperGUI:
         self.log(srt_p, "link")
 
         if audio_segment is not None:
-            mp3_p = os.path.abspath(os.path.join(out, base + "_audio.mp3"))
+            mp3_p = os.path.abspath(os.path.join(out, base + "_audio.mp3"))  # совпадает с out_paths выше
             try:
                 audio_segment.export(mp3_p, format="mp3")
                 self.log(t("audio_mp3_file"), None)
@@ -1192,10 +1218,16 @@ class WhisperGUI:
         """Запуск потоку слідкування за каталогом (без діалогів)."""
         self._watch_stop.clear()
         try:
-            self._watch_seen = {os.path.normpath(os.path.join(watch_path, f)) for f in os.listdir(watch_path)
-                               if os.path.isfile(os.path.join(watch_path, f)) and f.lower().endswith(VALID_EXTS)}
+            initial = set()
+            for f in os.listdir(watch_path):
+                full = os.path.normpath(os.path.join(watch_path, f))
+                if os.path.isfile(full) and f.lower().endswith(VALID_EXTS):
+                    initial.add(full)
+            with self._watch_lock:
+                self._watch_seen = initial
         except OSError:
-            self._watch_seen = set()
+            with self._watch_lock:
+                self._watch_seen = set()
         self._watch_thread = threading.Thread(target=self._watch_loop, daemon=True)
         self._watch_thread.start()
         self.log(t("watch_started", path=watch_path))
@@ -1420,12 +1452,22 @@ class WhisperGUI:
                 current = set()
                 for f in os.listdir(watch_path):
                     full = os.path.normpath(os.path.join(watch_path, f))
-                    if os.path.isfile(full) and f.lower().endswith(VALID_EXTS):
-                        current.add(full)
-                new_files = current - self._watch_seen
+                    if not (os.path.isfile(full) and f.lower().endswith(VALID_EXTS)):
+                        continue
+                    with self._watch_lock:
+                        if full in self._watch_seen:
+                            continue
+                    if self._watch_filename_is_program_output(f):
+                        with self._watch_lock:
+                            self._watch_seen.add(full)
+                        continue
+                    current.add(full)
+                with self._watch_lock:
+                    new_files = current - self._watch_seen
                 if new_files:
                     path = next(iter(new_files))
-                    self._watch_seen.add(path)
+                    with self._watch_lock:
+                        self._watch_seen.add(path)
                     time.sleep(FILE_STABLE_DELAY)
                     if self._watch_stop.is_set():
                         break
