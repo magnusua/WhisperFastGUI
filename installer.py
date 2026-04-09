@@ -8,6 +8,13 @@ from config import CUDA_INDEX, UPDATE_PACKAGES
 
 from i18n import t
 
+
+def _win_no_window_kwargs():
+    if sys.platform == "win32":
+        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    return {}
+
+
 def get_python_version():
     """Получает версию Python в виде кортежа (major, minor)."""
     return sys.version_info[:2]
@@ -100,7 +107,7 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         if force and not packages_to_update:
             cmd.extend(["--force-reinstall", "--no-cache-dir"])
         log_func(f"📦 {name}...")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, **_win_no_window_kwargs())
         if result.returncode != 0 and result.stderr:
             log_func(t("install_step_failed", name=name))
             err = result.stderr.strip()
@@ -140,7 +147,7 @@ def check_system(log_func):
     # Проверка FFmpeg (необходим для работы pydub и декодирования аудио/видео)
     try:
         # Пытаемся запустить ffmpeg для проверки его наличия в PATH
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **_win_no_window_kwargs())
         log_func(t("ffmpeg_found"))
     except FileNotFoundError:
         log_func(t("ffmpeg_not_found"))
@@ -196,7 +203,7 @@ def run_full_installation():
         print(t(step_msg))
         if i == 3 and needs_pyaudioop():
             print(t("install_multimedia_pyaudioop"))
-        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **_win_no_window_kwargs())
         print(t(ok_msg) if result.returncode == 0 else t(err_msg))
         print()
     print(t("install_step_verify"))
@@ -219,7 +226,7 @@ def run_full_installation():
     print()
     print(t("install_step_ffmpeg"))
     try:
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, **_win_no_window_kwargs())
         print(t("install_ffmpeg_ok"))
     except (FileNotFoundError, subprocess.CalledProcessError):
         print(t("install_ffmpeg_missing"))

@@ -47,8 +47,10 @@ def main():
             print(t("python_detected", major=python_version[0], minor=python_version[1]))
             print(t("installing_pyaudioop"))
             import subprocess
-            result = subprocess.run([sys.executable, "-m", "pip", "install", "pyaudioop"], 
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+            if sys.platform == "win32":
+                kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            result = subprocess.run([sys.executable, "-m", "pip", "install", "pyaudioop"], **kwargs)
             if result.returncode == 0:
                 print(t("pyaudioop_installed"))
             else:

@@ -41,6 +41,23 @@ except ImportError as e:
     else:
         raise
 
+# На Windows pydub запускает ffmpeg/ffprobe через subprocess.Popen.
+# Патчим вызов, чтобы дочерние процессы не открывали консольные окна.
+if sys.platform == "win32":
+    try:
+        import pydub.audio_segment as _pydub_audio_segment
+        if not getattr(_pydub_audio_segment, "_wf_no_window_patch", False):
+            _orig_pydub_popen = _pydub_audio_segment.subprocess.Popen
+
+            def _pydub_popen_no_window(*args, **kwargs):
+                kwargs["creationflags"] = kwargs.get("creationflags", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                return _orig_pydub_popen(*args, **kwargs)
+
+            _pydub_audio_segment.subprocess.Popen = _pydub_popen_no_window
+            _pydub_audio_segment._wf_no_window_patch = True
+    except Exception:
+        pass
+
 # Импорт модулей проекта
 from config import (
     APP_VERSION, APP_DATE, BASE_DIR, load_help_text,
@@ -1380,11 +1397,12 @@ class WhisperGUI:
             return
         try:
             if sys.platform == "win32":
-                # Run via cmd /c with quoted path so paths with spaces and special chars work
+                # Run via cmd /c with quoted path so paths with spaces and special chars work.
+                # CREATE_NO_WINDOW prevents flashing cmd windows on Windows.
                 subprocess.Popen(
                     ["cmd", "/c", f'"{bat_path}"'],
                     cwd=BASE_DIR,
-                    creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
             else:
                 subprocess.Popen([bat_path], cwd=BASE_DIR)
