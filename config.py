@@ -5,8 +5,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Системные константы
 # Версия приложения и дата создания этой версии
-APP_VERSION = "1.0.8"
-APP_DATE = "19.02.2026"  # дата создания версии
+APP_VERSION = "1.0.9"
+APP_DATE = "28.04.2026"  # дата создания версии
 CUDA_INDEX = "https://download.pytorch.org/whl/cu121"
 VALID_EXTS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.mp4', '.mkv', '.avi', '.mov')
 # Расширения по типам (единый источник для gui и input_files)

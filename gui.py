@@ -1562,6 +1562,14 @@ class WhisperGUI:
 
     def on_drag_start(self, event):
         iid = self.queue_list.identify_row(event.y)
+        if iid and (event.state & 0x0001):
+            try:
+                idx = self.queue_list.index(iid)
+            except tk.TclError:
+                idx = -1
+            if 0 <= idx < len(self.queue):
+                self._open_file_location(self.queue[idx]["path"])
+                return "break"
         self._drag_iid = iid
         try:
             self._drag_index = self.queue_list.index(iid) if iid else -1
@@ -1596,6 +1604,21 @@ class WhisperGUI:
         self.log_box.bind("<Control-c>", self._copy_log_event)
         self.log_box.bind("<<Copy>>", self._copy_log_event)
 
+    def _open_file_location(self, path):
+        """Открывает расположение файла в файловом менеджере."""
+        if not path or not os.path.exists(path):
+            return
+        if sys.platform == "win32":
+            subprocess.run(
+                ['explorer', '/select,', os.path.normpath(path)],
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+            )
+        elif sys.platform == "darwin":
+            subprocess.run(['open', '-R', path], check=False)
+        else:
+            # Linux: открыть родительскую папку в файловом менеджере
+            subprocess.run(['xdg-open', os.path.dirname(path)], check=False)
+
     def on_link_click(self, event):
             idx = self.log_box.index(f"@{event.x},{event.y}")
             rng = self.log_box.tag_prevrange("link", idx)
@@ -1604,16 +1627,7 @@ class WhisperGUI:
                 if os.path.exists(path):
                     # Shift — открыть папку и выделить файл
                     if event.state & 0x0001:
-                        if sys.platform == "win32":
-                            subprocess.run(
-                                ['explorer', '/select,', os.path.normpath(path)],
-                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
-                            )
-                        elif sys.platform == "darwin":
-                            subprocess.run(['open', '-R', path], check=False)
-                        else:
-                            # Linux: открыть родительскую папку в файловом менеджере
-                            subprocess.run(['xdg-open', os.path.dirname(path)], check=False)
+                        self._open_file_location(path)
                     else:
                         # Обычное открытие файла программой по умолчанию
                         if sys.platform == "win32":
