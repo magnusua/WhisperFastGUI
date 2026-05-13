@@ -31,6 +31,19 @@ def format_timestamp_filename(seconds):
     return f"{h:02d}-{m:02d}-{s:02d}"
 
 
+def normalize_display_path(path):
+    """
+    Приводит путь к виду, принятому на текущей ОС (\\ на Windows, / на Linux/macOS).
+    Пустая строка возвращается без изменений.
+    """
+    if not path or not isinstance(path, str):
+        return ""
+    path = path.strip()
+    if not path:
+        return ""
+    return os.path.normpath(path)
+
+
 def normalize_queue_path(path):
     """
     Нормализует путь из элемента очереди (может быть строкой или list/tuple из JSON).

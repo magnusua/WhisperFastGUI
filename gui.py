@@ -69,7 +69,7 @@ from config import (
 from utils import (
     format_timestamp, format_timestamp_srt, format_timestamp_filename,
     play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds,
-    make_queue_item, normalize_queue_path,
+    make_queue_item, normalize_queue_path, normalize_display_path,
 )
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
@@ -230,8 +230,8 @@ class WhisperGUI:
         # Загружаем сохранённые налаштування з settings.json
         saved = load_app_settings()
         saved_language = saved.get("language", "EN")
-        self.output_dir.set(saved.get("output_dir", "") or "")
-        self.watch_dir.set(saved.get("watch_dir", "") or "")
+        self.output_dir.set(normalize_display_path(saved.get("output_dir", "") or ""))
+        self.watch_dir.set(normalize_display_path(saved.get("watch_dir", "") or ""))
         self.watch_enabled.set(bool(saved.get("watch_enabled", False)))
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
@@ -558,7 +558,8 @@ class WhisperGUI:
         self.watch_dir_entry = ttk.Entry(tools_center, textvariable=self.watch_dir, width=25)
         self.watch_dir_entry.pack(side="left", padx=2)
         self.watch_dir_entry.bind("<Control-v>", self._paste_into_watch_dir)
-        self.watch_dir_entry.bind("<FocusOut>", lambda e: self._persist_settings())
+        self.watch_dir_entry.bind("<FocusOut>", self._on_watch_dir_focus_out)
+        self.output_dir_entry.bind("<FocusOut>", self._on_output_dir_focus_out)
         ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
 
         # Прогресс
@@ -1228,8 +1229,24 @@ class WhisperGUI:
         except tk.TclError:
             return
         if text:
-            self.watch_dir_entry.insert(tk.INSERT, text)
+            self.watch_dir_entry.insert(tk.INSERT, normalize_display_path(text))
         return "break"
+
+    def _on_watch_dir_focus_out(self, event=None):
+        raw = (self.watch_dir.get() or "").strip()
+        if raw:
+            normalized = normalize_display_path(raw)
+            if normalized != self.watch_dir.get():
+                self.watch_dir.set(normalized)
+        self._persist_settings()
+
+    def _on_output_dir_focus_out(self, event=None):
+        raw = (self.output_dir.get() or "").strip()
+        if raw:
+            normalized = normalize_display_path(raw)
+            if normalized != self.output_dir.get():
+                self.output_dir.set(normalized)
+        self._persist_settings()
 
     def _start_watch(self, watch_path):
         """Запуск потоку слідкування за каталогом (без діалогів)."""
@@ -1252,7 +1269,9 @@ class WhisperGUI:
     def _on_watch_toggled(self):
         """Включение/выключение слежения за каталогом."""
         if self.watch_enabled.get():
-            watch_path = (self.watch_dir.get() or "").strip()
+            watch_path = normalize_display_path((self.watch_dir.get() or "").strip())
+            if watch_path != (self.watch_dir.get() or "").strip():
+                self.watch_dir.set(watch_path)
             if not watch_path:
                 d = filedialog.askdirectory()
                 if not d:
@@ -1447,8 +1466,8 @@ class WhisperGUI:
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
         save_app_settings({
             "language": self.ui_language.get(),
-            "output_dir": (self.output_dir.get() or "").strip(),
-            "watch_dir": (self.watch_dir.get() or "").strip(),
+            "output_dir": normalize_display_path((self.output_dir.get() or "").strip()),
+            "watch_dir": normalize_display_path((self.watch_dir.get() or "").strip()),
             "watch_enabled": self.watch_enabled.get(),
             "device_mode": self.device_mode.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
