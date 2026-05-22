@@ -73,6 +73,13 @@ from utils import (
 )
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
+from model_updates import (
+    apply_whisper_model_updates,
+    is_model_downloaded,
+    model_needs_update,
+    update_whisper_model,
+)
+from gpu_info import refresh_gpu_settings
 from input_files import (
     add_multiple_files,
     add_directory,
@@ -238,7 +245,12 @@ class WhisperGUI:
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
         self.tray_mode.set(saved.get("tray_mode", "panel"))
         self.whisper_model.set(saved.get("whisper_model", DEFAULT_MODEL) or DEFAULT_MODEL)
-        
+        self.has_nvidia = bool(saved.get("has_nvidia", False))
+        self.gpu_model = (saved.get("gpu_model") or "").strip()
+        has_nvidia, gpu_name = refresh_gpu_settings()
+        self.has_nvidia = has_nvidia
+        self.gpu_model = (gpu_name or "").strip()
+
         # Загружаем сохраненный язык или используем EN по умолчанию
         self.ui_language = tk.StringVar(value=saved_language)  # Язык интерфейса
         
@@ -1055,12 +1067,24 @@ class WhisperGUI:
 
     def run_updates_check(self):
         def worker():
-            updates = check_updates(self.log)
-            if updates:
-                updates_str = "\n".join([f"{p}: {c or 'not installed'} -> {l}" for p, c, l in updates])
-                msg = t("updates_available", updates=updates_str)
+            result = check_updates(self.log)
+            packages = result.get("packages", []) if isinstance(result, dict) else result
+            models = result.get("models", []) if isinstance(result, dict) else []
+            if packages or models:
+                lines = [f"{p}: {c or 'not installed'} -> {l}" for p, c, l in packages]
+                for name, cur, lat in models:
+                    lines.append(t("model_update_line", model=name, current=cur, latest=lat))
+                msg = t("updates_available", updates="\n".join(lines))
                 if messagebox.askyesno(t("update"), msg):
-                    install_dependencies(log_func=self.log, packages_to_update=updates, include_nvidia=True)
+                    if packages:
+                        install_dependencies(
+                            log_func=self.log,
+                            packages_to_update=packages,
+                            include_nvidia=True,
+                        )
+                    if models:
+                        apply_whisper_model_updates([m[0] for m in models], log_func=self.log)
+                        WhisperModelSingleton.reset()
             else:
                 self.log(t("all_components_up_to_date"))
         threading.Thread(target=worker, daemon=True).start()
@@ -1319,6 +1343,20 @@ class WhisperGUI:
             return 0
         return round(total / (1024 * 1024))
 
+    def _model_dialog_refresh_listbox(self, lb, cache_root):
+        """Оновлює рядки списку моделей (статус завантаження та оновлення)."""
+        lb.delete(0, "end")
+        for name in WHISPER_MODELS:
+            full_path = find_whisper_model_cache_path(cache_root, name)
+            if full_path:
+                size_mb = self._folder_size_mb(full_path)
+                line = f"{name}  —  {t('model_dialog_downloaded')}  ~{size_mb} MB"
+                if model_needs_update(name, cache_root):
+                    line += f"  ({t('model_dialog_update_available')})"
+            else:
+                line = f"{name}  —  {t('model_dialog_not_downloaded')}"
+            lb.insert("end", line)
+
     def _show_model_dialog(self):
         """Открывает окно выбора модели Whisper: список моделей, отметка загруженных и размер."""
         cache_root = get_whisper_cache_dir()
@@ -1328,12 +1366,17 @@ class WhisperGUI:
         win.title(t("model_dialog_title"))
         win.transient(self.root)
         win.grab_set()
-        win.geometry("420x380")
-        win.minsize(360, 300)
+        win.geometry("460x380")
+        win.minsize(400, 300)
         main_f = ttk.Frame(win, padding=10)
         main_f.pack(fill="both", expand=True)
-        ttk.Label(main_f, text=t("model_dialog_cache", cache_dir=cache_root), wraplength=380).pack(anchor="w")
-        ttk.Label(main_f, text="").pack(anchor="w")
+        header_f = ttk.Frame(main_f)
+        header_f.pack(fill="x")
+        ttk.Label(
+            header_f,
+            text=t("model_dialog_cache", cache_dir=cache_root),
+            wraplength=300,
+        ).pack(side="left", fill="x", expand=True)
 
         frame = ttk.Frame(main_f)
         frame.pack(fill="both", expand=True)
@@ -1344,23 +1387,51 @@ class WhisperGUI:
         lb.config(yscrollcommand=scroll.set)
         scroll.config(command=lb.yview)
 
-        lines = []
-        for name in WHISPER_MODELS:
-            full_path = find_whisper_model_cache_path(cache_root, name)
-            if full_path:
-                size_mb = self._folder_size_mb(full_path)
-                lines.append(f"{name}  —  {t('model_dialog_downloaded')}  ~{size_mb} MB")
-            else:
-                lines.append(f"{name}  —  {t('model_dialog_not_downloaded')}")
-        lb.delete(0, "end")
-        for line in lines:
-            lb.insert("end", line)
+        self._model_dialog_refresh_listbox(lb, cache_root)
         try:
             idx = WHISPER_MODELS.index(current)
             lb.selection_set(idx)
             lb.see(idx)
         except ValueError:
             pass
+
+        def on_update_model():
+            sel = lb.curselection()
+            if not sel:
+                messagebox.showwarning(t("model_update_btn"), t("model_update_select"), parent=win)
+                return
+            chosen = WHISPER_MODELS[sel[0]]
+            if not is_model_downloaded(chosen, cache_root):
+                messagebox.showinfo(t("model_update_btn"), t("model_update_not_downloaded", model=chosen), parent=win)
+                return
+            if not model_needs_update(chosen, cache_root):
+                if not messagebox.askyesno(
+                    t("model_update_btn"),
+                    t("model_update_already_latest", model=chosen),
+                    parent=win,
+                ):
+                    return
+            update_btn.config(state="disabled")
+
+            def worker():
+                try:
+                    update_whisper_model(chosen, log_func=self.log, force=True)
+                    WhisperModelSingleton.reset()
+                    if self.whisper_model.get() == chosen:
+                        try:
+                            WhisperModelSingleton.get(self.log, self.device_mode.get(), chosen)
+                        except Exception:
+                            pass
+                finally:
+                    def done():
+                        self._model_dialog_refresh_listbox(lb, cache_root)
+                        update_btn.config(state="normal")
+                    win.after(0, done)
+
+            threading.Thread(target=worker, daemon=True).start()
+
+        update_btn = ttk.Button(header_f, text=t("model_update_btn"), command=on_update_model)
+        update_btn.pack(side="right", padx=(8, 0))
 
         def on_load():
             sel = lb.curselection()
@@ -1474,6 +1545,8 @@ class WhisperGUI:
             "save_audio_mp3": self.save_audio_mp3.get(),
             "tray_mode": self.tray_mode.get(),
             "whisper_model": self.whisper_model.get(),
+            "has_nvidia": self.has_nvidia,
+            "gpu_model": self.gpu_model,
         })
 
     def _watch_loop(self):

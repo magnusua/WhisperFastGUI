@@ -519,6 +519,16 @@
     "UK": "✅ GPU: {name}",
     "RU": "✅ GPU: {name}"
   },
+  "gpu_detected_unknown": {
+    "EN": "NVIDIA GPU (model unknown)",
+    "UK": "NVIDIA GPU (модель невідома)",
+    "RU": "NVIDIA GPU (модель неизвестна)"
+  },
+  "torch_update_index_cu121": {
+    "EN": "▶ Torch updates: PyTorch CUDA 12.1 index (cu121)",
+    "UK": "▶ Оновлення Torch: індекс PyTorch CUDA 12.1 (cu121)",
+    "RU": "▶ Обновление Torch: индекс PyTorch CUDA 12.1 (cu121)"
+  },
   "cuda_unavailable": {
     "EN": "⚠ CUDA is not available — running on CPU (NVIDIA GPU not detected; AMD Radeon and other GPUs work in CPU mode).",
     "UK": "⚠ CUDA недоступна — робота на CPU (NVIDIA GPU не виявлено; AMD Radeon та інші GPU працюють у режимі CPU).",
@@ -900,9 +910,9 @@
     "RU": "Проверить наличие GPU (CUDA) и FFmpeg."
   },
   "tooltip_updates": {
-    "EN": "Check for updates on PyPI and install newer packages (including NVIDIA libraries).",
-    "UK": "Перевірити оновлення на PyPI та встановити новіші пакети (включно з NVIDIA).",
-    "RU": "Проверить обновления на PyPI и установить новые пакеты (включая NVIDIA)."
+    "EN": "Check updates: PyPI packages, Torch (CUDA 12.1 if NVIDIA), and downloaded Whisper models on Hugging Face.",
+    "UK": "Перевірити оновлення: пакети PyPI, Torch (CUDA 12.1 при NVIDIA) та завантажені моделі Whisper на Hugging Face.",
+    "RU": "Проверить обновления: пакеты PyPI, Torch (CUDA 12.1 при NVIDIA) и загруженные модели Whisper на Hugging Face."
   },
   "tray_mode_panel": {
     "EN": "Panel",
@@ -963,6 +973,81 @@
     "EN": "Model loaded: {model}",
     "UK": "Модель завантажено: {model}",
     "RU": "Модель загружена: {model}"
+  },
+  "model_update_btn": {
+    "EN": "Update model",
+    "UK": "Оновити модель",
+    "RU": "Обновить модель"
+  },
+  "model_dialog_update_available": {
+    "EN": "update available",
+    "UK": "є оновлення",
+    "RU": "есть обновление"
+  },
+  "checking_model_updates": {
+    "EN": "▶ Checking Whisper model updates (Hugging Face)...",
+    "UK": "▶ Перевірка оновлень моделей Whisper (Hugging Face)...",
+    "RU": "▶ Проверка обновлений моделей Whisper (Hugging Face)..."
+  },
+  "model_update_available": {
+    "EN": "⚠ Model {model}: {current} -> {latest}",
+    "UK": "⚠ Модель {model}: {current} -> {latest}",
+    "RU": "⚠ Модель {model}: {current} -> {latest}"
+  },
+  "model_update_ok": {
+    "EN": "✓ Model {model}: up to date ({revision})",
+    "UK": "✓ Модель {model}: актуальна ({revision})",
+    "RU": "✓ Модель {model}: актуальна ({revision})"
+  },
+  "model_update_check_failed": {
+    "EN": "⚠ Could not check model {model} online",
+    "UK": "⚠ Не вдалося перевірити модель {model} онлайн",
+    "RU": "⚠ Не удалось проверить модель {model} онлайн"
+  },
+  "model_update_line": {
+    "EN": "model {model}: {current} -> {latest}",
+    "UK": "модель {model}: {current} -> {latest}",
+    "RU": "модель {model}: {current} -> {latest}"
+  },
+  "model_updating": {
+    "EN": "📥 Updating model: {model}...",
+    "UK": "📥 Оновлення моделі: {model}...",
+    "RU": "📥 Обновление модели: {model}..."
+  },
+  "model_update_done": {
+    "EN": "✅ Model updated: {model}",
+    "UK": "✅ Модель оновлено: {model}",
+    "RU": "✅ Модель обновлена: {model}"
+  },
+  "model_update_error": {
+    "EN": "❌ Model update failed ({model}): {error}",
+    "UK": "❌ Помилка оновлення моделі ({model}): {error}",
+    "RU": "❌ Ошибка обновления модели ({model}): {error}"
+  },
+  "model_update_no_hub": {
+    "EN": "❌ huggingface_hub is not available",
+    "UK": "❌ huggingface_hub недоступний",
+    "RU": "❌ huggingface_hub недоступен"
+  },
+  "model_update_unknown": {
+    "EN": "❌ Unknown model: {model}",
+    "UK": "❌ Невідома модель: {model}",
+    "RU": "❌ Неизвестная модель: {model}"
+  },
+  "model_update_select": {
+    "EN": "Select a model in the list first.",
+    "UK": "Спочатку виберіть модель у списку.",
+    "RU": "Сначала выберите модель в списке."
+  },
+  "model_update_not_downloaded": {
+    "EN": "Model «{model}» is not downloaded yet. Use «Load model» first.",
+    "UK": "Модель «{model}» ще не завантажена. Спочатку натисніть «Завантажити модель».",
+    "RU": "Модель «{model}» ещё не загружена. Сначала нажмите «Загрузить модель»."
+  },
+  "model_update_already_latest": {
+    "EN": "Model «{model}» matches the latest version on Hugging Face.\nRe-download anyway?",
+    "UK": "Модель «{model}» відповідає останній версії на Hugging Face.\nВсе одно перезавантажити?",
+    "RU": "Модель «{model}» соответствует последней версии на Hugging Face.\nВсё равно перезагрузить?"
   },
   "ok": {
     "EN": "OK",

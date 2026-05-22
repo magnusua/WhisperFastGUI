@@ -1,4 +1,5 @@
 # installer.py
+import re
 import sys
 import subprocess
 import importlib.metadata
@@ -6,7 +7,14 @@ import urllib.request
 import json
 from config import CUDA_INDEX, UPDATE_PACKAGES
 
+from gpu_info import refresh_gpu_settings
+from model_updates import check_downloaded_whisper_model_updates
 from i18n import t
+
+try:
+    from packaging.version import Version
+except ImportError:
+    Version = None
 
 
 def _win_no_window_kwargs():
@@ -33,44 +41,127 @@ def get_latest_pypi_version(package):
     except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError):
         return None
 
+
+def get_latest_pip_index_version(package, index_url):
+    """Последняя версия пакета з індексу pip (наприклад PyTorch cu121)."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "index", "versions", package, "--index-url", index_url],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            **_win_no_window_kwargs(),
+        )
+        if result.returncode != 0:
+            return None
+        for line in (result.stdout or "").splitlines():
+            line = line.strip()
+            if line.startswith("LATEST:"):
+                return line.split(":", 1)[1].strip()
+            m = re.match(rf"^{re.escape(package)}\s+\(([^)]+)\)", line)
+            if m:
+                return m.group(1)
+        for line in (result.stdout or "").splitlines():
+            if "Available versions:" in line:
+                part = line.split(":", 1)[-1].strip()
+                if part:
+                    return part.split(",")[0].strip()
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    return None
+
+
+def _torch_needs_update(current, latest):
+    """Порівняння версій torch (з урахуванням +cu121)."""
+    if not latest:
+        return False
+    if current == latest:
+        return False
+    if Version is not None:
+        try:
+            cur_v = Version(current)
+            lat_v = Version(latest)
+            if cur_v == lat_v:
+                return False
+            if cur_v.base_version != lat_v.base_version:
+                return True
+            return str(cur_v) != str(lat_v)
+        except Exception:
+            pass
+    cur_base = (current or "").split("+")[0]
+    lat_base = latest.split("+")[0]
+    if cur_base != lat_base:
+        return True
+    return current != latest
+
+
+def _torch_install_cmd(use_cuda_index):
+    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "torch", "torchvision", "torchaudio"]
+    if use_cuda_index:
+        cmd.extend(["--index-url", CUDA_INDEX])
+    return cmd
+
+
 def check_updates(log_func):
     """Проверяет наличие обновлений для всех компонентов, нужных для работы программы.
     Пакеты, которые не установлены, добавляются в список для установки (например pystray, Pillow)."""
     log_func(t("checking_updates"))
+    has_nvidia, gpu_name = refresh_gpu_settings()
+    if gpu_name:
+        log_func(t("gpu_info", name=gpu_name))
+    elif has_nvidia:
+        log_func(t("gpu_info", name=t("gpu_detected_unknown")))
+    if has_nvidia:
+        log_func(t("torch_update_index_cu121"))
     updates_found = []
     for pkg in UPDATE_PACKAGES:
         if pkg == "pyaudioop" and not needs_pyaudioop():
             continue
         try:
             current = importlib.metadata.version(pkg)
-            latest = get_latest_pypi_version(pkg)
-            if latest and current != latest:
-                if pkg == "torch" and "2.10" in latest:
-                    continue
+            if pkg == "torch":
+                if has_nvidia:
+                    latest = get_latest_pip_index_version(pkg, CUDA_INDEX)
+                else:
+                    latest = get_latest_pypi_version(pkg)
+                needs = _torch_needs_update(current, latest)
+            else:
+                latest = get_latest_pypi_version(pkg)
+                needs = bool(latest and current != latest)
+            if needs:
                 updates_found.append((pkg, current, latest))
                 log_func(t("package_update", package=pkg, current=current, latest=latest))
             else:
                 log_func(t("package_ok", package=pkg, version=current))
         except (importlib.metadata.PackageNotFoundError, TypeError):
-            # Пакет не установлен — предлагаем установить (важно для pystray, Pillow і т.д.)
-            latest = get_latest_pypi_version(pkg)
+            if pkg == "torch":
+                latest = (
+                    get_latest_pip_index_version(pkg, CUDA_INDEX)
+                    if has_nvidia
+                    else get_latest_pypi_version(pkg)
+                )
+            else:
+                latest = get_latest_pypi_version(pkg)
             if latest:
                 updates_found.append((pkg, None, latest))
                 log_func(t("package_not_installed", package=pkg, latest=latest))
-    return updates_found
+    model_updates = check_downloaded_whisper_model_updates(log_func=log_func)
+    return {"packages": updates_found, "models": model_updates}
 
 
-def _get_full_install_commands(include_nvidia=False):
+def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     """
     Возвращает единый список команд полной установки: [(label, cmd), ...].
     Используется в install_dependencies и run_full_installation.
     """
+    if use_cuda_torch is None:
+        use_cuda_torch, _ = refresh_gpu_settings()
     multimedia_packages = ["pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow"]
     if needs_pyaudioop():
         multimedia_packages.append("pyaudioop")
     commands = [
         [t("installing_tools"), [sys.executable, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"]],
-        [t("installing_torch"), [sys.executable, "-m", "pip", "install", "--upgrade", "torch", "torchvision", "torchaudio", "--index-url", CUDA_INDEX]],
+        [t("installing_torch"), _torch_install_cmd(use_cuda_torch)],
         [t("installing_whisper"), [sys.executable, "-m", "pip", "install", "--upgrade", "faster-whisper", "ctranslate2"]],
         [t("installing_multimedia"), [sys.executable, "-m", "pip", "install", "--upgrade"] + multimedia_packages],
     ]
@@ -85,23 +176,27 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
     include_nvidia: ставить nvidia-* только при вызове из GUI (кнопки «Обновления» / «Зависимости»).
     При первом запуске (install.bat или автоустановка из main) nvidia не ставится.
     """
+    has_nvidia, gpu_name = refresh_gpu_settings()
+    if gpu_name:
+        log_func(t("gpu_info", name=gpu_name))
+    use_cuda_torch = has_nvidia
     if packages_to_update:
         packages_list = [p[0] for p in packages_to_update]
         log_func(t("updating_packages", packages=str(packages_list)))
         commands = []
         for pkg, _, _ in packages_to_update:
             if pkg == "torch":
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "torch", "torchvision", "torchaudio", "--index-url", CUDA_INDEX]
+                cmd = _torch_install_cmd(use_cuda_torch)
             else:
                 cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
             commands.append([t("updating_package", package=pkg), cmd])
-        if include_nvidia:
+        if include_nvidia and has_nvidia:
             commands.append([t("installing_nvidia"), [sys.executable, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
     else:
         log_func(t("full_install", force=force))
         if needs_pyaudioop():
             log_func(t("python_detected_info", major=sys.version_info.major, minor=sys.version_info.minor))
-        commands = _get_full_install_commands(include_nvidia=include_nvidia)
+        commands = _get_full_install_commands(include_nvidia=include_nvidia, use_cuda_torch=use_cuda_torch)
 
     for name, cmd in commands:
         if force and not packages_to_update:
@@ -119,6 +214,12 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
 
 def check_system(log_func):
     """Проверяет состояние системы: Torch, CUDA и наличие FFmpeg."""
+    has_nvidia, gpu_name = refresh_gpu_settings()
+    if gpu_name:
+        log_func(t("gpu_info", name=gpu_name))
+    elif has_nvidia:
+        log_func(t("gpu_info", name=t("gpu_detected_unknown")))
+
     # Информация о версии Python
     python_version = get_python_version()
     log_func(t("python_version", major=sys.version_info.major, minor=sys.version_info.minor, micro=sys.version_info.micro))

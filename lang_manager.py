@@ -68,6 +68,8 @@ def load_app_settings():
         "save_audio_mp3": False,
         "tray_mode": "panel",
         "whisper_model": DEFAULT_MODEL,
+        "has_nvidia": False,
+        "gpu_model": "",
     }
     if not os.path.exists(path):
         try:
