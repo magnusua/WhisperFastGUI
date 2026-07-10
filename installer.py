@@ -8,6 +8,7 @@ import json
 from config import CUDA_INDEX, UPDATE_PACKAGES
 
 from gpu_info import refresh_gpu_settings
+from app_updates import check_app_update
 from model_updates import check_downloaded_whisper_model_updates
 from i18n import t
 
@@ -146,7 +147,8 @@ def check_updates(log_func):
                 updates_found.append((pkg, None, latest))
                 log_func(t("package_not_installed", package=pkg, latest=latest))
     model_updates = check_downloaded_whisper_model_updates(log_func=log_func)
-    return {"packages": updates_found, "models": model_updates}
+    app_update = check_app_update(log_func=log_func)
+    return {"packages": updates_found, "models": model_updates, "app": app_update}
 
 
 def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):

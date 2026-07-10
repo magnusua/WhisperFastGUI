@@ -12,6 +12,11 @@ env/
 settings.json
 request_queue.json
 
+# Тимчасові файли оновлення програми
+_update_staging/
+_apply_update.bat
+_apply_update.sh
+
 # IDE / OS
 .idea/
 .vscode/

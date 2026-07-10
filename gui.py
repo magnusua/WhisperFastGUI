@@ -73,6 +73,7 @@ from utils import (
 )
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
+from app_updates import apply_app_update
 from model_updates import (
     apply_whisper_model_updates,
     is_model_downloaded,
@@ -229,6 +230,7 @@ class WhisperGUI:
         self._watch_thread = None
         self._watch_lock = threading.Lock()
         self._watch_seen = set()  # уже учтённые файлы в каталоге слежения
+        self._watch_pending_continue = False  # файлы из слежения ждут обработки после текущей задачи
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
         self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
@@ -810,9 +812,11 @@ class WhisperGUI:
         if self.queue:
             self.start_thread(mode="all")
 
-    def start_thread(self, mode, target_idx=None):
+    def start_thread(self, mode, target_idx=None, from_watch=False):
         if not self._process_queue_lock.acquire(blocking=False):
             self.log("⚠ " + t("already_processing"))
+            if from_watch:
+                self._watch_pending_continue = True
             return
         self.cancel_requested = False
         self.start_btn.config(state="disabled")
@@ -832,7 +836,22 @@ class WhisperGUI:
                 self.process_queue(mode, target_idx, options)
             finally:
                 self._process_queue_lock.release()
+                self.root.after(0, self._continue_watch_queue)
         threading.Thread(target=run_and_release, daemon=True).start()
+
+    def _continue_watch_queue(self):
+        """Після завершення обробки запускає наступні файли, додані слідкуванням під час зайнятості."""
+        if self.cancel_requested:
+            self._watch_pending_continue = False
+            return
+        if not self._watch_pending_continue:
+            return
+        if not any(not q.get("processed") for q in self.queue):
+            self._watch_pending_continue = False
+            return
+        self._watch_pending_continue = False
+        self.log(t("watch_continue_queue"))
+        self.start_thread(mode="only_new", from_watch=True)
 
     def process_queue(self, mode, target_idx, options=None):
         opts = options or {}
@@ -954,7 +973,11 @@ class WhisperGUI:
                 self.log(f"\n{t('cancelled', count=to_do - done)}")
             else:
                 self.log(f"\n{t('all_tasks_complete')}")
-                if opts.get("play_sound_on_finish"):
+                will_continue = (
+                    self._watch_pending_continue
+                    and any(not q.get("processed") for q in self.queue)
+                )
+                if opts.get("play_sound_on_finish") and not will_continue:
                     play_finish_sound()
 
         except (OSError, IndexError, RuntimeError) as e:
@@ -1070,10 +1093,15 @@ class WhisperGUI:
             result = check_updates(self.log)
             packages = result.get("packages", []) if isinstance(result, dict) else result
             models = result.get("models", []) if isinstance(result, dict) else []
-            if packages or models:
-                lines = [f"{p}: {c or 'not installed'} -> {l}" for p, c, l in packages]
-                for name, cur, lat in models:
-                    lines.append(t("model_update_line", model=name, current=cur, latest=lat))
+            app_info = result.get("app", {}) if isinstance(result, dict) else {}
+            lines = [f"{p}: {c or 'not installed'} -> {l}" for p, c, l in packages]
+            for name, cur, lat in models:
+                lines.append(t("model_update_line", model=name, current=cur, latest=lat))
+            if app_info.get("needs_update"):
+                lines.append(
+                    t("app_update_line", current=app_info.get("current", ""), latest=app_info.get("remote", ""))
+                )
+            if lines:
                 msg = t("updates_available", updates="\n".join(lines))
                 if messagebox.askyesno(t("update"), msg):
                     if packages:
@@ -1085,9 +1113,39 @@ class WhisperGUI:
                     if models:
                         apply_whisper_model_updates([m[0] for m in models], log_func=self.log)
                         WhisperModelSingleton.reset()
+                    if app_info.get("needs_update"):
+                        app_result = apply_app_update(log_func=self.log)
+                        if app_result.get("success") and app_result.get("needs_restart"):
+                            def ask_restart():
+                                if messagebox.askyesno(
+                                    t("app_update_restart_title"),
+                                    t("app_update_restart_msg"),
+                                ):
+                                    self._restart_after_app_update(app_result.get("restart_script"))
+                            self.root.after(0, ask_restart)
             else:
                 self.log(t("all_components_up_to_date"))
         threading.Thread(target=worker, daemon=True).start()
+
+    def _restart_after_app_update(self, restart_script=None):
+        """Закриває програму та перезапускає після оновлення файлів."""
+        try:
+            self.prepare_close()
+        except Exception:
+            pass
+        WhisperModelSingleton.unload()
+        kwargs = {}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        if restart_script and os.path.isfile(restart_script):
+            subprocess.Popen([restart_script], cwd=BASE_DIR, **kwargs)
+        else:
+            vbs = os.path.join(BASE_DIR, "run_whisper.vbs")
+            if sys.platform == "win32" and os.path.isfile(vbs):
+                subprocess.Popen(["wscript.exe", vbs], cwd=BASE_DIR, **kwargs)
+            else:
+                subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "main.py")], cwd=BASE_DIR, **kwargs)
+        self.root.destroy()
 
     def run_install(self):
         choice = messagebox.askyesnocancel(t("installation"), t("force_reinstall"))
@@ -1603,7 +1661,11 @@ class WhisperGUI:
         self._save_queue_to_file()
         idx = len(self.queue) - 1
         if idx >= 0:
-            self.start_thread(mode="single", target_idx=idx)
+            if self._process_queue_lock.locked():
+                self._watch_pending_continue = True
+                self.log(t("watch_queued_for_later", name=os.path.basename(path)))
+            else:
+                self.start_thread(mode="single", target_idx=idx, from_watch=True)
 
     def clear_queue(self):
         self.queue.clear()

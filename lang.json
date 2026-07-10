@@ -419,6 +419,76 @@
     "UK": "▶ Перевірка оновлень компонентів...",
     "RU": "▶ Проверка обновлений компонентов..."
   },
+  "checking_app_update": {
+    "EN": "▶ Checking app version on {url}...",
+    "UK": "▶ Перевірка версії програми на {url}...",
+    "RU": "▶ Проверка версии программы на {url}..."
+  },
+  "app_update_ok": {
+    "EN": "✓ WhisperFastGUI: up to date (v{version})",
+    "UK": "✓ WhisperFastGUI: актуальна версія (v{version})",
+    "RU": "✓ WhisperFastGUI: актуальная версия (v{version})"
+  },
+  "app_update_available": {
+    "EN": "⚠ WhisperFastGUI: {current} -> {latest}",
+    "UK": "⚠ WhisperFastGUI: {current} -> {latest}",
+    "RU": "⚠ WhisperFastGUI: {current} -> {latest}"
+  },
+  "app_update_line": {
+    "EN": "WhisperFastGUI: {current} -> {latest}",
+    "UK": "WhisperFastGUI: {current} -> {latest}",
+    "RU": "WhisperFastGUI: {current} -> {latest}"
+  },
+  "app_update_check_failed": {
+    "EN": "⚠ Could not check app version on GitHub (no network or repo unavailable)",
+    "UK": "⚠ Не вдалося перевірити версію програми на GitHub (немає мережі або репозиторій недоступний)",
+    "RU": "⚠ Не удалось проверить версию программы на GitHub (нет сети или репозиторий недоступен)"
+  },
+  "app_updating": {
+    "EN": "📥 Updating WhisperFastGUI...",
+    "UK": "📥 Оновлення WhisperFastGUI...",
+    "RU": "📥 Обновление WhisperFastGUI..."
+  },
+  "app_updating_git": {
+    "EN": "📥 git pull from GitHub...",
+    "UK": "📥 git pull з GitHub...",
+    "RU": "📥 git pull из GitHub..."
+  },
+  "app_updating_download": {
+    "EN": "📥 Downloading latest version from GitHub...",
+    "UK": "📥 Завантаження останньої версії з GitHub...",
+    "RU": "📥 Загрузка последней версии с GitHub..."
+  },
+  "app_update_done": {
+    "EN": "✅ WhisperFastGUI updated successfully",
+    "UK": "✅ WhisperFastGUI успішно оновлено",
+    "RU": "✅ WhisperFastGUI успешно обновлено"
+  },
+  "app_update_error": {
+    "EN": "❌ App update failed: {error}",
+    "UK": "❌ Помилка оновлення програми: {error}",
+    "RU": "❌ Ошибка обновления программы: {error}"
+  },
+  "app_update_copy_failed": {
+    "EN": "⚠ Could not copy {name}: {error}",
+    "UK": "⚠ Не вдалося скопіювати {name}: {error}",
+    "RU": "⚠ Не удалось скопировать {name}: {error}"
+  },
+  "app_update_staged_restart": {
+    "EN": "✓ Update downloaded. Restart required to apply files.",
+    "UK": "✓ Оновлення завантажено. Потрібен перезапуск для застосування файлів.",
+    "RU": "✓ Обновление загружено. Требуется перезапуск для применения файлов."
+  },
+  "app_update_restart_title": {
+    "EN": "Restart required",
+    "UK": "Потрібен перезапуск",
+    "RU": "Требуется перезапуск"
+  },
+  "app_update_restart_msg": {
+    "EN": "The program will close and restart to apply the update.\nContinue?",
+    "UK": "Програма закриється та перезапуститься для застосування оновлення.\nПродовжити?",
+    "RU": "Программа закроется и перезапустится для применения обновления.\nПродолжить?"
+  },
   "package_update": {
     "EN": "⚠ {package}: {current} -> {latest}",
     "UK": "⚠ {package}: {current} -> {latest}",
@@ -910,9 +980,9 @@
     "RU": "Проверить наличие GPU (CUDA) и FFmpeg."
   },
   "tooltip_updates": {
-    "EN": "Check updates: PyPI packages, Torch (CUDA 12.1 if NVIDIA), and downloaded Whisper models on Hugging Face.",
-    "UK": "Перевірити оновлення: пакети PyPI, Torch (CUDA 12.1 при NVIDIA) та завантажені моделі Whisper на Hugging Face.",
-    "RU": "Проверить обновления: пакеты PyPI, Torch (CUDA 12.1 при NVIDIA) и загруженные модели Whisper на Hugging Face."
+    "EN": "Check updates: PyPI packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, and WhisperFastGUI app on GitHub.",
+    "UK": "Перевірити оновлення: пакети PyPI, Torch (CUDA 12.1 при NVIDIA), моделі Whisper та саму програму на GitHub.",
+    "RU": "Проверить обновления: пакеты PyPI, Torch (CUDA 12.1 при NVIDIA), модели Whisper и саму программу на GitHub."
   },
   "tray_mode_panel": {
     "EN": "Panel",
@@ -1123,6 +1193,16 @@
     "EN": "New file detected: {name}",
     "UK": "Виявлено новий файл: {name}",
     "RU": "Обнаружен новый файл: {name}"
+  },
+  "watch_queued_for_later": {
+    "EN": "⏳ {name} queued — will process after the current task",
+    "UK": "⏳ {name} у черзі — обробиться після поточного завдання",
+    "RU": "⏳ {name} в очереди — обработается после текущей задачи"
+  },
+  "watch_continue_queue": {
+    "EN": "▶ Continuing queue: processing pending files from folder watch...",
+    "UK": "▶ Продовження черги: обробка файлів із слідкування за каталогом...",
+    "RU": "▶ Продолжение очереди: обработка файлов из слежения за каталогом..."
   },
   "tooltip_clear_log": {
     "EN": "Clear the log window.",
