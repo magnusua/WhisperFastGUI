@@ -5,7 +5,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Системные константы
 # Версия приложения и дата создания этой версии
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.1.1"
 APP_DATE = "15.07.2026"  # дата создания версии
 GITHUB_REPO = "magnusua/WhisperFastGUI"
 GITHUB_BRANCH = "main"
@@ -43,19 +43,40 @@ UPDATE_PACKAGES = [
 SUPPORTED_LANGUAGES = ("EN", "UK", "RU")
 LANG_AUTO_VALUE = "None"
 
-# Функция для загрузки справки из внешнего файла (README.md); путь относительно BASE_DIR
-def load_help_text():
-    file_path = os.path.join(BASE_DIR, "README.md")
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            return f.read()
+# Справка: README_{EN|UK|RU}.md по языку интерфейса; запасной вариант — README.md
+_HELP_FILENAMES = {
+    "EN": "README_EN.md",
+    "UK": "README_UK.md",
+    "RU": "README_RU.md",
+}
+
+
+def load_help_text(lang_code=None):
+    """Загружает текст справки на языке интерфейса (EN/UK/RU)."""
+    if not lang_code:
+        try:
+            from i18n import get_language
+            lang_code = get_language()
+        except ImportError:
+            lang_code = "EN"
+    lang_code = (lang_code or "EN").upper()
+    candidates = []
+    if lang_code in _HELP_FILENAMES:
+        candidates.append(_HELP_FILENAMES[lang_code])
+    candidates.append("README.md")
+    for name in candidates:
+        file_path = os.path.join(BASE_DIR, name)
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
     try:
         from i18n import t
         return t("help_file_not_found")
     except ImportError:
-        return "Файл справки (README.md) не найден."
+        return "Help file (README.md) not found."
 
-# Справка загружается лениво при первом открытии Help (gui вызывает load_help_text())
+
+# Справка загружается лениво при открытии Help (gui вызывает load_help_text())
 
 
 def get_whisper_cache_dir():

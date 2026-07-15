@@ -1231,8 +1231,8 @@ class WhisperGUI:
         )
         text_widget.pack(fill="both", expand=True)
         
-        # Вставляем текст справки (ленивая загрузка при первом открытии)
-        text_widget.insert("1.0", load_help_text())
+        # Текст справки на языке интерфейса (README_EN / README_UK / README_RU)
+        text_widget.insert("1.0", load_help_text(self.ui_language.get()))
         text_widget.config(state="disabled")  # Делаем только для чтения
         
         # Прокрутка в начало
