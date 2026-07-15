@@ -515,7 +515,7 @@ class WhisperGUI:
         q_frame = ttk.Frame(main)
         q_frame.pack(fill="both", pady=5)
         cols = ("num", "filename", "start", "end_seg1", "end_seg2", "end", "status")
-        self.queue_list = ttk.Treeview(q_frame, columns=cols, show="headings", height=8, selectmode="browse")
+        self.queue_list = ttk.Treeview(q_frame, columns=cols, show="headings", height=8, selectmode="extended")
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("start", text=t("col_start"))
@@ -538,6 +538,10 @@ class WhisperGUI:
         self.queue_list.bind("<Double-1>", self._on_queue_row_double_click)
         self.queue_list.bind("<Button-1>", self.on_drag_start)
         self.queue_list.bind("<B1-Motion>", self.on_drag_motion)
+        self.queue_list.bind("<Delete>", self.delete_selected_queue_items)
+        self.queue_list.bind("<Button-3>", self._on_queue_context_menu)
+        self.queue_menu = tk.Menu(self.root, tearoff=0)
+        self.queue_menu.add_command(label=t("delete_from_queue"), command=self.delete_selected_queue_items)
 
         # === БЛОК 2: Переключатель языка слева + кнопка «Начать транскрибацию» ===
         start_f = ttk.Frame(main)
@@ -1672,6 +1676,52 @@ class WhisperGUI:
         self.queue_list.delete(*self.queue_list.get_children())
         self._save_queue_to_file()
 
+    def delete_selected_queue_items(self, event=None):
+        """Удаляет выделенные строки из очереди и сохраняет изменения."""
+        selected = self.queue_list.selection()
+        if not selected:
+            return "break" if event is not None else None
+
+        indices = []
+        for iid in selected:
+            try:
+                indices.append(self.queue_list.index(iid))
+            except tk.TclError:
+                continue
+        if not indices:
+            return "break" if event is not None else None
+
+        next_index = min(indices)
+        for idx in sorted(set(indices), reverse=True):
+            if 0 <= idx < len(self.queue):
+                del self.queue[idx]
+
+        self._refresh_queue_treeview()
+        self._save_queue_to_file()
+
+        remaining = self.queue_list.get_children()
+        if remaining:
+            iid = remaining[min(next_index, len(remaining) - 1)]
+            self.queue_list.selection_set(iid)
+            self.queue_list.focus(iid)
+            self.queue_list.see(iid)
+        return "break" if event is not None else None
+
+    def _on_queue_context_menu(self, event):
+        """Показывает меню строки, сохраняя групповое выделение."""
+        iid = self.queue_list.identify_row(event.y)
+        if not iid:
+            return "break"
+        if iid not in self.queue_list.selection():
+            self.queue_list.selection_set(iid)
+            self.queue_list.focus(iid)
+        self.queue_list.focus_set()
+        try:
+            self.queue_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.queue_menu.grab_release()
+        return "break"
+
     def add_files_action(self):
         """Обработчик кнопки 'Добавить файлы'"""
         files = add_multiple_files()
@@ -1849,5 +1899,9 @@ class WhisperGUI:
             pass
         try:
             self.log_menu.entryconfig(0, label=t("copy"))
+        except (tk.TclError, IndexError):
+            pass
+        try:
+            self.queue_menu.entryconfig(0, label=t("delete_from_queue"))
         except (tk.TclError, IndexError):
             pass

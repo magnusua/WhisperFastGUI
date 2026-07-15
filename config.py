@@ -5,8 +5,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Системные константы
 # Версия приложения и дата создания этой версии
-APP_VERSION = "1.1.0"
-APP_DATE = "22.05.2026"  # дата создания версии
+APP_VERSION = "1.2.0"
+APP_DATE = "15.07.2026"  # дата создания версии
 GITHUB_REPO = "magnusua/WhisperFastGUI"
 GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
