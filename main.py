@@ -22,6 +22,10 @@ def on_app_closing(root, app=None, WhisperModelSingleton=None):
         root.destroy()
 
 def main():
+    # Перший запуск: вибір Python серед встановлених версій → settings.json → за потреби re-exec
+    from python_selector import ensure_preferred_python
+    ensure_preferred_python()
+
     # Python 3.14+: PyTorch / ctranslate2 / faster-whisper часто без колёс на PyPI — установка падает
     if sys.version_info >= (3, 14):
         if not messagebox.askokcancel(

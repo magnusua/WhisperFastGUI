@@ -10,6 +10,22 @@ echo.
 :: Переход в директорию скрипта
 cd /d "%~dp0"
 
+:: Python з settings.json (python_path), інакше — python з PATH
+set "PYEXE="
+if exist "settings.json" (
+    for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "try { (Get-Content -Raw 'settings.json' | ConvertFrom-Json).python_path } catch { '' }"`) do set "PYEXE=%%A"
+)
+if defined PYEXE if exist "!PYEXE!" (
+    echo Використовується Python з settings.json:
+    echo   !PYEXE!
+    echo.
+    "!PYEXE!" installer.py
+    if not errorlevel 1 (
+        pause
+        exit /b 0
+    )
+)
+
 :: Попытка запуска установщика
 echo Запуск установщика зависимостей...
 echo.

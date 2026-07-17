@@ -72,6 +72,8 @@ def load_app_settings():
         "gpu_model": "",
         "send_txt_to_cursor": False,
         "cursor_api_key": "",
+        "python_path": "",
+        "python_version": "",
     }
     if not os.path.exists(path):
         try:

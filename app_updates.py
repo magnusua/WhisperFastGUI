@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 import subprocess
-import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -28,7 +27,7 @@ except ImportError:
 
 _UPDATE_STAGING_DIR = "_update_staging"
 _PRESERVE_FILES = frozenset({"settings.json", "request_queue.json", "redactor1.md"})
-_RAW_CONFIG_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/config.py"
+_RAW_README_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/README.md"
 _ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
 
 
@@ -42,18 +41,22 @@ def get_local_app_version() -> str:
     return APP_VERSION
 
 
-def _parse_config_version(config_text: str) -> tuple[Optional[str], Optional[str]]:
-    version_match = re.search(r'APP_VERSION\s*=\s*["\']([^"\']+)["\']', config_text)
-    date_match = re.search(r'APP_DATE\s*=\s*["\']([^"\']+)["\']', config_text)
-    version = version_match.group(1).strip() if version_match else None
-    date = date_match.group(1).strip() if date_match else None
+def _parse_readme_metadata(readme_text: str) -> tuple[Optional[str], Optional[str]]:
+    version_match = re.search(
+        r"^\*\*Версія:\*\*\s*(\S+)\s*$", readme_text, re.MULTILINE
+    )
+    date_match = re.search(
+        r"^\*\*Дата публікації:\*\*\s*(\S+)\s*$", readme_text, re.MULTILINE
+    )
+    version = version_match.group(1) if version_match else None
+    date = date_match.group(1) if date_match else None
     return version, date
 
 
 def fetch_remote_app_version(timeout: int = 15) -> tuple[Optional[str], Optional[str]]:
-    """Читає APP_VERSION / APP_DATE з config.py на GitHub (гілка main)."""
+    """Читає версію та дату публікації з README.md на GitHub."""
     request = urllib.request.Request(
-        _RAW_CONFIG_URL,
+        _RAW_README_URL,
         headers={"User-Agent": "WhisperFastGUI-Updater"},
     )
     try:
@@ -61,7 +64,7 @@ def fetch_remote_app_version(timeout: int = 15) -> tuple[Optional[str], Optional
             text = response.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, OSError, TimeoutError):
         return None, None
-    return _parse_config_version(text)
+    return _parse_readme_metadata(text)
 
 
 def _version_is_newer(remote: str, current: str) -> bool:
@@ -84,7 +87,7 @@ def is_git_repo(base_dir: Optional[str] = None) -> bool:
 
 def check_app_update(log_func: Optional[Callable[[str], None]] = None) -> Dict:
     """
-    Порівнює локальну версію з config.py на GitHub.
+    Порівнює локальну версію з README.md на GitHub.
     Повертає словник: needs_update, current, remote, remote_date, url.
     """
     current = get_local_app_version()

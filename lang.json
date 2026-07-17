@@ -120,19 +120,34 @@
     "RU": "Сохранить Mp3"
   },
   "send_txt_to_cursor": {
-    "EN": "Send TXT to Cursor",
-    "UK": "Надіслати TXT у Cursor",
-    "RU": "Отправить TXT в Cursor"
+    "EN": "To Cursor",
+    "UK": "У Cursor",
+    "RU": "В Cursor"
   },
   "edit_redactor": {
-    "EN": "Edit redactor1.md",
-    "UK": "Редагувати redactor1.md",
-    "RU": "Редактировать redactor1.md"
+    "EN": "Change prompt",
+    "UK": "Змінити промпт",
+    "RU": "Изменить промт"
   },
-  "cursor_api_key_label": {
+  "cursor_api_key_button": {
+    "EN": "api_key",
+    "UK": "api_key",
+    "RU": "api_key"
+  },
+  "cursor_api_key_title": {
     "EN": "Cursor API key",
     "UK": "Cursor API ключ",
     "RU": "Cursor API ключ"
+  },
+  "cursor_api_key_prompt": {
+    "EN": "Enter or paste the Cursor API key:",
+    "UK": "Введіть або вставте Cursor API ключ:",
+    "RU": "Введите или вставьте Cursor API ключ:"
+  },
+  "save": {
+    "EN": "Save",
+    "UK": "Зберегти",
+    "RU": "Сохранить"
   },
   "tooltip_send_txt_to_cursor": {
     "EN": "After creating a TXT file, wait 5 s and process it with Cursor using prompts from redactor1.md. With API key: automatic SDK chain. Without key: open Cursor Chat (manual confirm).",
@@ -140,14 +155,14 @@
     "RU": "После создания TXT подождать 5 с и обработать файл в Cursor по промптам из redactor1.md. С API-ключом: автоматическая цепочка SDK. Без ключа: открыть Cursor Chat (подтверждение вручную)."
   },
   "tooltip_edit_redactor": {
-    "EN": "Open redactor1.md in the system text editor. Numbered prompts: ## Prompt #1 / ## Промпт №1.",
-    "UK": "Відкрити redactor1.md у системному текстовому редакторі. Нумеровані промпти: ## Промпт №1 / ## Prompt #1.",
-    "RU": "Открыть redactor1.md в системном текстовом редакторе. Нумерованные промпты: ## Промпт №1 / ## Prompt #1."
+    "EN": "Open redactor1.md to change numbered prompts: ## Prompt #1 / ## Промпт №1.",
+    "UK": "Відкрити redactor1.md, щоб змінити нумеровані промпти: ## Промпт №1 / ## Prompt #1.",
+    "RU": "Открыть redactor1.md для изменения нумерованных промтов: ## Промпт №1 / ## Prompt #1."
   },
   "tooltip_cursor_api_key": {
-    "EN": "Optional. Saved in settings.json (not committed to git). Env CURSOR_API_KEY overrides this field. Empty = Chat fallback.",
-    "UK": "Необов’язково. Зберігається в settings.json (не потрапляє в git). Змінна CURSOR_API_KEY має пріоритет. Порожнє = режим Chat.",
-    "RU": "Необязательно. Сохраняется в settings.json (не попадает в git). Переменная CURSOR_API_KEY имеет приоритет. Пусто = режим Chat."
+    "EN": "Open the API key window. The key is saved only after pressing Save. Empty = Chat fallback.",
+    "UK": "Відкрити вікно API-ключа. Ключ зберігається лише після натискання «Зберегти». Порожнє = режим Chat.",
+    "RU": "Открыть окно API-ключа. Ключ сохраняется только после нажатия «Сохранить». Пусто = режим Chat."
   },
   "cursor_waiting": {
     "EN": "⏳ Waiting {seconds}s before Cursor post-process…",
@@ -285,9 +300,9 @@
     "RU": "Очередь"
   },
   "process_only_new": {
-    "EN": "Process only new (unprocessed) files?",
-    "UK": "Обробити тільки нові (необроблені) файли?",
-    "RU": "Обработать только новые (необработанные) файлы?"
+    "EN": "Process only new (unprocessed) files? ({count})",
+    "UK": "Обробити тільки нові (необроблені) файли? ({count})",
+    "RU": "Обработать только новые (необработанные) файлы? ({count})"
   },
   "file_selection_title": {
     "EN": "Processing Mode Selection",
@@ -468,6 +483,46 @@
     "EN": "Error starting interface: {error}",
     "UK": "Помилка запуску інтерфейсу: {error}",
     "RU": "Ошибка при запуске интерфейса: {error}"
+  },
+  "python_select_title": {
+    "EN": "Choose Python",
+    "UK": "Вибір Python",
+    "RU": "Выбор Python"
+  },
+  "python_select_msg": {
+    "EN": "Several Python installations were found.\nSelect which version Whisper Fast GUI should use by default (saved in settings.json):",
+    "UK": "Знайдено кілька встановлених версій Python.\nОберіть, з якою версією Whisper Fast GUI має запускатися за замовчуванням (зберігається в settings.json):",
+    "RU": "Найдено несколько установленных версий Python.\nВыберите, с какой версией Whisper Fast GUI должна запускаться по умолчанию (сохраняется в settings.json):"
+  },
+  "python_select_ok": {
+    "EN": "OK",
+    "UK": "OK",
+    "RU": "OK"
+  },
+  "python_select_cancel": {
+    "EN": "Cancel",
+    "UK": "Скасувати",
+    "RU": "Отмена"
+  },
+  "python_select_not_recommended": {
+    "EN": "not recommended",
+    "UK": "не рекомендовано",
+    "RU": "не рекомендуется"
+  },
+  "python_no_suitable_title": {
+    "EN": "No suitable Python version",
+    "UK": "Немає підходящої версії Python",
+    "RU": "Нет подходящей версии Python"
+  },
+  "python_no_suitable_msg": {
+    "EN": "No Python version suitable for Whisper Fast GUI was found.\nSupported range: {min_ver}–{max_ver}.\n\nFunctionality on Python {version} has not been tested.",
+    "UK": "Для Whisper Fast GUI не знайдено підходящої версії Python.\nРобочий діапазон: {min_ver}–{max_ver}.\n\nПрацездатність на Python {version} не тестувалась.",
+    "RU": "Для Whisper Fast GUI не найдена подходящая версия Python.\nРабочий диапазон: {min_ver}–{max_ver}.\n\nРаботоспособность на Python {version} не тестировалась."
+  },
+  "python_reexec_failed": {
+    "EN": "Could not restart with the selected Python:\n{error}",
+    "UK": "Не вдалося перезапустити з обраним Python:\n{error}",
+    "RU": "Не удалось перезапустить с выбранным Python:\n{error}"
   },
   "python_unsupported_title": {
     "EN": "Python version",
@@ -860,9 +915,9 @@
     "RU": "❌ Ошибка загрузки модели: {error}"
   },
   "help_file_not_found": {
-    "EN": "Help file (README_EN.md / README.md) not found.",
-    "UK": "Файл довідки (README_UK.md / README.md) не знайдено.",
-    "RU": "Файл справки (README_RU.md / README.md) не найден."
+    "EN": "Help file (Help_EN.md / README.md) not found.",
+    "UK": "Файл довідки (Help_UK.md / README.md) не знайдено.",
+    "RU": "Файл справки (Help_RU.md / README.md) не найден."
   },
   "copy": {
     "EN": "Copy",
@@ -1050,14 +1105,14 @@
     "RU": "Удалить все файлы из очереди."
   },
   "tooltip_play_sound": {
-    "EN": "Play a sound when all files in the queue have been processed.",
-    "UK": "Відтворити звук після обробки всіх файлів у черзі.",
-    "RU": "Воспроизвести звук после обработки всех файлов в очереди."
+    "EN": "Play a sound when the transcription queue is finished. If «To Cursor» is enabled, the sound waits until Cursor post-processing of all files is finished too.",
+    "UK": "Відтворити звук після завершення черги транскрибації. Якщо увімкнено «У Cursor», звук чекає також завершення постпроцесингу всіх файлів у Cursor.",
+    "RU": "Воспроизвести звук после завершения очереди транскрибации. Если включено «В Cursor», звук ждёт также завершения постобработки всех файлов в Cursor."
   },
   "tooltip_help": {
-    "EN": "Open help in the current interface language (README_EN.md / README_UK.md / README_RU.md).",
-    "UK": "Відкрити довідку мовою інтерфейсу (README_EN.md / README_UK.md / README_RU.md).",
-    "RU": "Открыть справку на языке интерфейса (README_EN.md / README_UK.md / README_RU.md)."
+    "EN": "Open help in the current interface language (Help_EN.md / Help_UK.md / Help_RU.md).",
+    "UK": "Відкрити довідку мовою інтерфейсу (Help_EN.md / Help_UK.md / Help_RU.md).",
+    "RU": "Открыть справку на языке интерфейса (Help_EN.md / Help_UK.md / Help_RU.md)."
   },
   "tooltip_ui_language": {
     "EN": "Interface language: EN (English), UK (Ukrainian), RU (Russian). Saved in settings.json.",

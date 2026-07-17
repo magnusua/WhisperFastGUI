@@ -22,6 +22,163 @@ _PROMPT_HEADER_RE = re.compile(
 LogFunc = Callable[..., None]
 
 
+def _ensure_os_blocking_compat() -> None:
+    """cursor-sdk викликає os.get_blocking/set_blocking (на Windows є з Python 3.12+).
+
+    На Python 3.10/3.11 Windows також перетворюємо EINVAL від non-blocking
+    os.read у BlockingIOError, як очікує cursor_sdk._bridge.
+    """
+    if getattr(os, "_wf_blocking_compat", False):
+        return
+
+    need_get_set = not (hasattr(os, "get_blocking") and hasattr(os, "set_blocking"))
+    need_read_wrap = sys.platform == "win32" and sys.version_info < (3, 12)
+    if not need_get_set and not need_read_wrap:
+        return
+    if sys.platform != "win32":
+        return
+
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.SetNamedPipeHandleState.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.DWORD),
+        ctypes.POINTER(wintypes.DWORD),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    kernel32.SetNamedPipeHandleState.restype = wintypes.BOOL
+
+    PIPE_WAIT = 0x00000000
+    PIPE_NOWAIT = 0x00000001
+    _state: dict[int, bool] = {}
+
+    if need_get_set:
+        def get_blocking(fd: int) -> bool:
+            return _state.get(fd, True)
+
+        def set_blocking(fd: int, blocking: bool) -> None:
+            handle = msvcrt.get_osfhandle(fd)
+            mode = wintypes.DWORD(PIPE_NOWAIT if not blocking else PIPE_WAIT)
+            if not kernel32.SetNamedPipeHandleState(handle, ctypes.byref(mode), None, None):
+                err = ctypes.get_last_error()
+                if err not in (0, 1, 87):
+                    raise OSError(err, f"SetNamedPipeHandleState failed ({err})")
+            _state[fd] = bool(blocking)
+
+        os.get_blocking = get_blocking  # type: ignore[attr-defined]
+        os.set_blocking = set_blocking  # type: ignore[attr-defined]
+    else:
+        # Є нативні get/set_blocking, але все одно відстежуємо стан для os.read shim.
+        _orig_get = os.get_blocking
+        _orig_set = os.set_blocking
+
+        def get_blocking(fd: int) -> bool:
+            val = _orig_get(fd)
+            _state[fd] = bool(val)
+            return val
+
+        def set_blocking(fd: int, blocking: bool) -> None:
+            _orig_set(fd, blocking)
+            _state[fd] = bool(blocking)
+
+        os.get_blocking = get_blocking  # type: ignore[attr-defined]
+        os.set_blocking = set_blocking  # type: ignore[attr-defined]
+
+    if need_read_wrap:
+        _orig_read = os.read
+
+        def read(fd: int, n: int) -> bytes:
+            try:
+                return _orig_read(fd, n)
+            except OSError as e:
+                # Python < 3.12: порожній non-blocking pipe часто дає EINVAL замість BlockingIOError
+                if (not _state.get(fd, True)) and e.errno in (11, 22, 35):
+                    raise BlockingIOError(e.errno, e.strerror) from None
+                raise
+
+        os.read = read  # type: ignore[assignment]
+
+    os._wf_blocking_compat = True  # type: ignore[attr-defined]
+
+
+def _prepare_cursor_sdk() -> None:
+    """Імпорт cursor_sdk + Windows-сумісність (blocking API і pipe discovery без selectors)."""
+    _ensure_os_blocking_compat()
+    if sys.platform != "win32":
+        return
+    if getattr(sys, "_wf_cursor_sdk_bridge_patched", False):
+        return
+
+    import codecs
+    import time
+    from typing import Any, Mapping
+
+    import cursor_sdk._bridge as bridge
+
+    def _read_discovery_windows(process, timeout: float) -> Mapping[str, Any]:
+        if process.stderr is None:
+            raise bridge.CursorSDKError("Bridge process stderr is unavailable")
+        stderr_fd = process.stderr.fileno()
+        was_blocking = os.get_blocking(stderr_fd)
+        os.set_blocking(stderr_fd, False)
+        try:
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            deadline = time.monotonic() + timeout
+            stderr_lines: list[str] = []
+            pending = ""
+
+            def drain_available():
+                nonlocal pending
+                while True:
+                    try:
+                        chunk = os.read(stderr_fd, 8192)
+                    except BlockingIOError:
+                        return None
+                    if not chunk:
+                        final_text = decoder.decode(b"", final=True)
+                        if final_text:
+                            pending += final_text
+                        if pending:
+                            line = pending
+                            pending = ""
+                            stderr_lines.append(line)
+                            return bridge.parse_discovery_line(line)
+                        return None
+                    pending += decoder.decode(chunk)
+                    while "\n" in pending:
+                        line, pending = pending.split("\n", 1)
+                        line += "\n"
+                        stderr_lines.append(line)
+                        discovery = bridge.parse_discovery_line(line)
+                        if discovery is not None:
+                            return discovery
+
+            while time.monotonic() < deadline:
+                discovery = drain_available()
+                if discovery is not None:
+                    return discovery
+                exit_code = process.poll()
+                if exit_code is not None:
+                    discovery = drain_available()
+                    if discovery is not None:
+                        return discovery
+                    raise bridge.CursorSDKError(
+                        f"Bridge exited before discovery with status {exit_code}: "
+                        + "".join(stderr_lines)
+                        + pending
+                    )
+                time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+            raise bridge.CursorSDKError("Timed out waiting for bridge discovery")
+        finally:
+            os.set_blocking(stderr_fd, was_blocking)
+
+    bridge._read_discovery = _read_discovery_windows  # type: ignore[assignment]
+    sys._wf_cursor_sdk_bridge_patched = True  # type: ignore[attr-defined]
+
+
 def redactor_path() -> str:
     return os.path.join(BASE_DIR, REDACTOR_FILENAME)
 
@@ -209,6 +366,7 @@ def _run_sdk_one(
     prompt_text: str,
     api_key: str,
 ) -> None:
+    _prepare_cursor_sdk()
     from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
 
     cwd = os.path.dirname(os.path.abspath(input_path)) or BASE_DIR
@@ -255,6 +413,7 @@ def run_sdk_chain(
         return created
 
     try:
+        _prepare_cursor_sdk()
         import cursor_sdk  # noqa: F401
     except ImportError:
         if log_func:
@@ -361,6 +520,7 @@ def start_txt_postprocess_async(
     api_key_from_settings: str = "",
     log_func: Optional[LogFunc] = None,
     on_file_created: Optional[Callable[[str], None]] = None,
+    on_complete: Optional[Callable[[], None]] = None,
     delay_s: float = CURSOR_POSTPROCESS_DELAY_S,
 ) -> None:
     """Запускає process_txt_with_cursor у daemon-потоці."""
@@ -380,5 +540,11 @@ def start_txt_postprocess_async(
                     log_func(t("cursor_unexpected_error", error=str(e)))
                 except ImportError:
                     log_func(f"❌ Cursor postprocess error: {e}")
+        finally:
+            if on_complete:
+                try:
+                    on_complete()
+                except Exception:
+                    pass
 
     threading.Thread(target=_run, daemon=True).start()

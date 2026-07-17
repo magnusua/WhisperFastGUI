@@ -1,12 +1,32 @@
 import os
+import re
 
 # Корневая папка приложения (каталог, где лежит config.py) — единая база для путей
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Системные константы
-# Версия приложения и дата создания этой версии
-APP_VERSION = "1.1.3"
-APP_DATE = "17.07.2026"  # дата создания версии
+README_PATH = os.path.join(BASE_DIR, "README.md")
+
+
+def parse_app_metadata(text):
+    """Читает версию и дату публикации из блока метаданных README.md."""
+    version_match = re.search(r"^\*\*Версія:\*\*\s*(\S+)\s*$", text, re.MULTILINE)
+    date_match = re.search(r"^\*\*Дата публікації:\*\*\s*(\S+)\s*$", text, re.MULTILINE)
+    version = version_match.group(1) if version_match else "unknown"
+    publication_date = date_match.group(1) if date_match else "unknown"
+    return version, publication_date
+
+
+def load_app_metadata():
+    """Загружает метаданные приложения из единственного источника — README.md."""
+    try:
+        with open(README_PATH, "r", encoding="utf-8") as readme:
+            return parse_app_metadata(readme.read())
+    except OSError:
+        return "unknown", "unknown"
+
+
+APP_VERSION, APP_DATE = load_app_metadata()
 GITHUB_REPO = "magnusua/WhisperFastGUI"
 GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
@@ -44,11 +64,11 @@ UPDATE_PACKAGES = [
 SUPPORTED_LANGUAGES = ("EN", "UK", "RU")
 LANG_AUTO_VALUE = "None"
 
-# Справка: README_{EN|UK|RU}.md по языку интерфейса; запасной вариант — README.md
+# Справка: Help_{EN|UK|RU}.md по языку интерфейса; запасной вариант — README.md
 _HELP_FILENAMES = {
-    "EN": "README_EN.md",
-    "UK": "README_UK.md",
-    "RU": "README_RU.md",
+    "EN": "Help_EN.md",
+    "UK": "Help_UK.md",
+    "RU": "Help_RU.md",
 }
 
 

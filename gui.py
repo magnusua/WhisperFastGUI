@@ -236,6 +236,9 @@ class WhisperGUI:
         self._watch_lock = threading.Lock()
         self._watch_seen = set()  # уже учтённые файлы в каталоге слежения
         self._watch_pending_continue = False  # файлы из слежения ждут обработки после текущей задачи
+        self._cursor_postprocess_lock = threading.Lock()
+        self._cursor_postprocess_pending = 0  # активні / заплановані Cursor-постобробки
+        self._finish_sound_deferred = False  # звук чекає завершення Cursor-черги
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
         self.send_txt_to_cursor = tk.BooleanVar(value=False)
@@ -563,7 +566,7 @@ class WhisperGUI:
         self.start_btn = ttk.Button(start_f, text=t("start_transcription"), command=self.handle_start_logic)
         self.start_btn.pack(side="left", fill="x", expand=True, padx=5, ipady=10)
 
-        # Строка: Сохранить Mp3 + каталог сохранения (по центру)
+        # Одна компактная строка: MP3, каталоги и Cursor
         tools_row = ttk.Frame(main)
         tools_row.pack(fill="x", pady=10)
         ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
@@ -573,7 +576,7 @@ class WhisperGUI:
                        variable=self.save_audio_mp3)
         self.save_audio_check.pack(side="left", padx=5)
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
-        self.output_dir_entry = ttk.Entry(tools_center, textvariable=self.output_dir, width=45)
+        self.output_dir_entry = ttk.Entry(tools_center, textvariable=self.output_dir, width=15)
         self.output_dir_entry.pack(side="left", padx=2)
         self.root.bind_all("<Return>", self._on_enter_key)
         self.root.bind_all("<space>", self._on_space_key)
@@ -582,39 +585,30 @@ class WhisperGUI:
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         self.watch_folder_check = ttk.Checkbutton(tools_center, text=t("watch_folder_label"), variable=self.watch_enabled, command=self._on_watch_toggled)
         self.watch_folder_check.pack(side="left", padx=5)
-        self.watch_dir_entry = ttk.Entry(tools_center, textvariable=self.watch_dir, width=25)
+        self.watch_dir_entry = ttk.Entry(tools_center, textvariable=self.watch_dir, width=16)
         self.watch_dir_entry.pack(side="left", padx=2)
         self.watch_dir_entry.bind("<Control-v>", self._paste_into_watch_dir)
         self.watch_dir_entry.bind("<FocusOut>", self._on_watch_dir_focus_out)
         self.output_dir_entry.bind("<FocusOut>", self._on_output_dir_focus_out)
-        ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
-
-        # Строка: Cursor постпроцесинг TXT
-        cursor_row = ttk.Frame(main)
-        cursor_row.pack(fill="x", pady=(0, 5))
-        ttk.Frame(cursor_row).pack(side="left", fill="x", expand=True)
-        cursor_center = ttk.Frame(cursor_row)
-        cursor_center.pack(side="left")
+        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         self.send_txt_cursor_check = ttk.Checkbutton(
-            cursor_center,
+            tools_center,
             text=t("send_txt_to_cursor"),
             variable=self.send_txt_to_cursor,
             command=self._on_send_txt_to_cursor_toggled,
         )
-        self.send_txt_cursor_check.pack(side="left", padx=5)
+        self.send_txt_cursor_check.pack(side="left", padx=2)
         self.edit_redactor_btn = ttk.Button(
-            cursor_center, text=t("edit_redactor"), command=self._edit_redactor_file
+            tools_center, text=t("edit_redactor"), command=self._edit_redactor_file
         )
-        self.edit_redactor_btn.pack(side="left", padx=5)
-        ttk.Label(cursor_center, text=" | ").pack(side="left", padx=5)
-        self.cursor_api_key_label = ttk.Label(cursor_center, text=t("cursor_api_key_label"))
-        self.cursor_api_key_label.pack(side="left", padx=2)
-        self.cursor_api_key_entry = ttk.Entry(
-            cursor_center, textvariable=self.cursor_api_key, width=28, show="*"
+        self.edit_redactor_btn.pack(side="left", padx=2)
+        self.cursor_api_key_btn = ttk.Button(
+            tools_center,
+            text=t("cursor_api_key_button"),
+            command=self._show_cursor_api_key_dialog,
         )
-        self.cursor_api_key_entry.pack(side="left", padx=2)
-        self.cursor_api_key_entry.bind("<FocusOut>", self._on_cursor_api_key_focus_out)
-        ttk.Frame(cursor_row).pack(side="left", fill="x", expand=True)
+        self.cursor_api_key_btn.pack(side="left", padx=2)
+        ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
         ensure_redactor_file()
 
         # Прогресс
@@ -679,7 +673,7 @@ class WhisperGUI:
         tip(self.save_audio_check, "tooltip_save_mp3")
         tip(self.send_txt_cursor_check, "tooltip_send_txt_to_cursor")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
-        tip(self.cursor_api_key_entry, "tooltip_cursor_api_key")
+        tip(self.cursor_api_key_btn, "tooltip_cursor_api_key")
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
@@ -736,7 +730,8 @@ class WhisperGUI:
             pass
         self.log_box.config(font=("Consolas", max(6, int(9 * scale))))
         self.progress["length"] = max(200, int(900 * scale))
-        self.output_dir_entry.config(width=max(15, int(45 * scale)))
+        self.output_dir_entry.config(width=max(8, int(15 * scale)))
+        self.watch_dir_entry.config(width=max(10, int(16 * scale)))
 
     # --- ЛОГИКА ЗАПУСКА ---
 
@@ -773,7 +768,11 @@ class WhisperGUI:
                 self.start_thread(mode="all")
             return
         if has_processed:
-            choice = messagebox.askquestion(t("queue_dialog"), t("process_only_new"))
+            unprocessed_count = sum(1 for q in self.queue if not q.get("processed"))
+            choice = messagebox.askquestion(
+                t("queue_dialog"),
+                t("process_only_new", count=unprocessed_count),
+            )
             mode = "only_new" if choice == 'yes' else "all"
             self.start_thread(mode=mode)
         else:
@@ -1032,8 +1031,11 @@ class WhisperGUI:
                     self._watch_pending_continue
                     and any(not q.get("processed") for q in self.queue)
                 )
-                if opts.get("play_sound_on_finish") and not will_continue:
-                    play_finish_sound()
+                self._maybe_play_finish_sound(
+                    play_requested=bool(opts.get("play_sound_on_finish")),
+                    send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
+                    will_continue=will_continue,
+                )
 
         except (OSError, IndexError, RuntimeError) as e:
             err_msg = str(e)
@@ -1295,7 +1297,7 @@ class WhisperGUI:
         )
         text_widget.pack(fill="both", expand=True)
         
-        # Текст справки на языке интерфейса (README_EN / README_UK / README_RU)
+        # Текст справки на языке интерфейса (Help_EN / Help_UK / Help_RU)
         text_widget.insert("1.0", load_help_text(self.ui_language.get()))
         text_widget.config(state="disabled")  # Делаем только для чтения
         
@@ -1697,20 +1699,89 @@ class WhisperGUI:
             else:
                 self.log(t("cursor_sdk_missing"))
 
-    def _on_cursor_api_key_focus_out(self, event=None):
-        self._persist_settings()
+    def _show_cursor_api_key_dialog(self):
+        """Окреме модальне вікно API-ключа; закриття через X не зберігає зміни."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("cursor_api_key_title"))
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog, padding=15)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=t("cursor_api_key_prompt")).pack(anchor="w", pady=(0, 6))
+
+        draft_key = tk.StringVar(value=self.cursor_api_key.get())
+        entry = ttk.Entry(frame, textvariable=draft_key, width=52, show="*")
+        entry.pack(fill="x", pady=(0, 12))
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x")
+
+        def close_without_saving():
+            dialog.destroy()
+
+        def save_key():
+            self.cursor_api_key.set((draft_key.get() or "").strip())
+            self._persist_settings()
+            dialog.destroy()
+
+        ttk.Button(buttons, text=t("cancel_btn"), command=close_without_saving).pack(
+            side="right", padx=(5, 0)
+        )
+        ttk.Button(buttons, text=t("save"), command=save_key).pack(side="right")
+
+        dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
+        dialog.bind("<Escape>", lambda event: close_without_saving())
+        dialog.bind("<Return>", lambda event: save_key())
+        self._center_toplevel(dialog)
+        entry.focus_set()
 
     def _edit_redactor_file(self):
         open_redactor_file(log_func=self.log)
+
+    def _cursor_job_begin(self):
+        with self._cursor_postprocess_lock:
+            self._cursor_postprocess_pending += 1
+
+    def _cursor_job_end(self):
+        play_now = False
+        with self._cursor_postprocess_lock:
+            self._cursor_postprocess_pending = max(0, self._cursor_postprocess_pending - 1)
+            if self._cursor_postprocess_pending == 0 and self._finish_sound_deferred:
+                self._finish_sound_deferred = False
+                play_now = True
+        if play_now:
+            will_continue = (
+                self._watch_pending_continue
+                and any(not q.get("processed") for q in self.queue)
+            )
+            if not will_continue:
+                play_finish_sound()
+
+    def _maybe_play_finish_sound(self, play_requested, send_txt_to_cursor, will_continue):
+        """Звук лише після всієї транскрибації і (якщо увімкнено) всієї Cursor-постобробки."""
+        if not play_requested or will_continue:
+            return
+        if send_txt_to_cursor:
+            with self._cursor_postprocess_lock:
+                if self._cursor_postprocess_pending > 0:
+                    self._finish_sound_deferred = True
+                    return
+        play_finish_sound()
 
     def _schedule_cursor_postprocess(self, txt_path, cursor_api_key=""):
         """Після створення TXT: за потреби встановити cursor-sdk, затримка 5 с, постпроцесинг."""
         from cursor_postprocess import resolve_cursor_api_key
 
         api_key = resolve_cursor_api_key((cursor_api_key or "").strip())
+        self._cursor_job_begin()
 
         def on_created(path):
             self._watch_register_output_paths([path])
+
+        def on_complete():
+            self._cursor_job_end()
 
         def start():
             start_txt_postprocess_async(
@@ -1718,6 +1789,7 @@ class WhisperGUI:
                 api_key_from_settings=api_key,
                 log_func=self.log,
                 on_file_created=on_created,
+                on_complete=on_complete,
             )
 
         def maybe_install_then_start():
@@ -1732,12 +1804,16 @@ class WhisperGUI:
                 pass
             if messagebox.askyesno(t("installation"), t("cursor_sdk_install_prompt")):
                 def install_then():
-                    install_dependencies(
-                        log_func=self.log,
-                        packages_to_update=[("cursor-sdk", None, None)],
-                        include_nvidia=False,
-                    )
-                    start()
+                    try:
+                        install_dependencies(
+                            log_func=self.log,
+                            packages_to_update=[("cursor-sdk", None, None)],
+                            include_nvidia=False,
+                        )
+                        start()
+                    except Exception:
+                        on_complete()
+                        raise
                 threading.Thread(target=install_then, daemon=True).start()
             else:
                 self.log(t("cursor_sdk_missing"))
@@ -2011,7 +2087,7 @@ class WhisperGUI:
         self.save_audio_check.config(text=t("save_audio_mp3"))
         self.send_txt_cursor_check.config(text=t("send_txt_to_cursor"))
         self.edit_redactor_btn.config(text=t("edit_redactor"))
-        self.cursor_api_key_label.config(text=t("cursor_api_key_label"))
+        self.cursor_api_key_btn.config(text=t("cursor_api_key_button"))
         self.system_btn.config(text=t("system_check"))
         self.updates_btn.config(text=t("updates"))
         self.dependencies_btn.config(text=t("dependencies"))
