@@ -1,6 +1,6 @@
 # Whisper Fast GUI
 
-**Version 1.1.1** (15.07.2026)
+**Version 1.1.3** (17.07.2026)
 
 A graphical interface for audio and video transcription based on Faster-Whisper (OpenAI Whisper).
 
@@ -62,8 +62,10 @@ WhisperFastGUI/
 ├── gpu_info.py          — NVIDIA GPU detection, GPU model saved in settings.json
 ├── model_updates.py     — Whisper weight checks and updates on Hugging Face Hub
 ├── app_updates.py       — application self-update checks and updates from GitHub
+├── cursor_postprocess.py — TXT post-processing via Cursor SDK or Chat
+├── redactor1.md         — numbered Cursor prompts (editable from the GUI)
 ├── lang.json            — UI texts in three languages
-├── settings.json        — saved settings (language, directories, device, GPU model, whisper_model, etc.)
+├── settings.json        — saved settings (language, directories, device, GPU model, whisper_model, Cursor, etc.)
 ├── request_queue.json   — saved file queue (path, start/end, processed flag)
 ├── README.md            — project readme (Ukrainian)
 ├── README_EN.md / README_UK.md / README_RU.md — Help texts by UI language
@@ -212,6 +214,23 @@ When "Save Mp3" is enabled, each segment gets its own `name_..._audio.mp3` for t
 **Additional options:**
 - Play sound when the queue finishes.
 - Save extracted audio (MP3) — one `<name>_audio.mp3` for a full file; a separate file with a time suffix for a segment (for example `<name>_00-20-00_01-00-00_audio.mp3`).
+- **Send TXT to Cursor** — after creating `.txt` (5 s delay), process it with prompts from `redactor1.md`.
+
+---
+
+## Cursor TXT post-processing
+
+1. Enable the **“Send TXT to Cursor”** checkbox.
+2. Edit prompts with **“Edit redactor1.md”** (sections `## Prompt #1`, `## Prompt #2`, … / `## Промпт №N`).
+3. API key (optional): GUI field → `settings.json` (`cursor_api_key`) or env `CURSOR_API_KEY` (takes priority). `settings.json` is gitignored.
+
+**With key (Cursor SDK):** automatic chain. Install `cursor-sdk` via [Dependencies] / [Updates] (or `pip install cursor-sdk`).
+If the package is missing, you will be prompted to install it; otherwise Chat mode is used.
+- Prompt #1 → `<name>_edited.md`
+- Prompt #N → `<name>_edited_N.md` (input = previous result)
+Each created file is logged with a clickable link.
+
+**Without key:** opens **Cursor Chat** with the TXT; prompt #1 is copied to the clipboard — manual confirm required. Prompts 2..N are not auto-run in this mode.
 
 ---
 
@@ -241,8 +260,9 @@ When "Save Mp3" is enabled, each segment gets its own `name_..._audio.mp3` for t
 | [Autostart]         | Runs `autorun_delayed.bat`: adds the program to Windows startup with a 25 s delay (Windows only) |
 | [Save directory]    | Output directory (empty field — save next to the source file) |
 | [Help]              | This help text |
+| [Edit redactor1.md] | Open Cursor prompts file in the system editor |
 
-**Checkboxes:** "Play sound when queue finishes", "Save extracted audio (MP3)".
+**Checkboxes:** "Play sound when queue finishes", "Save extracted audio (MP3)", "Send TXT to Cursor".
 
 **Directory watch:** when enabled, the program watches the specified directory. Each **new** supported file:
 1. **Is added to the queue** (table) with range 00:00:00 — file duration.
@@ -280,10 +300,11 @@ Files the program creates in that directory (`.txt`, `.srt`, `*_audio.mp3` expor
 
 ---
 
-## What's new in 1.1.1
+## What's new in 1.1.3
 
 - **Queue removal:** selected files can be removed with the Delete key or via the context menu (right-click → "Delete"); multi-select with Ctrl/Shift is supported.
 - **Help in interface language:** the [Help] button opens `README_EN.md` / `README_UK.md` / `README_RU.md` according to the selected UI language (EN / UK / RU).
+- **Cursor TXT post-processing:** “Send TXT to Cursor” checkbox, prompts in `redactor1.md`, API key in `settings.json` / `CURSOR_API_KEY`; without a key — open Chat.
 
 ---
 
@@ -311,7 +332,7 @@ Files the program creates in that directory (`.txt`, `.srt`, `*_audio.mp3` expor
    - updates pip, setuptools, wheel;
    - installs PyTorch (CUDA 12.1), faster-whisper, ctranslate2;
    - skips nvidia-cublas-cu12 and nvidia-cudnn-cu12 on first install (they can be installed from the GUI: [Updates] or [Dependencies]);
-   - installs pygame, pydub, tkinterdnd2-universal, pystray, Pillow;
+   - installs pygame, pydub, tkinterdnd2-universal, pystray, Pillow, cursor-sdk;
    - checks packages, FFmpeg, and CUDA.
 
 4. **Launch:**
@@ -350,6 +371,7 @@ All packages required for the program and what each one does:
 | **tkinterdnd2-universal** | File drag-and-drop (Drag & Drop) into the window and within the queue table. |
 | **pystray** | Program icon in the system tray (notification area). |
 | **Pillow** | Load and prepare the tray icon image (favicon.ico). |
+| **cursor-sdk** | Cursor SDK for automatic TXT post-processing ([Updates] / [Dependencies]). |
 | **pyaudioop** | Replacement for the removed `audioop` module in Python 3.13+ (required for pydub). |
 | **ffmpeg** | System program (not pip): audio/video decoding, duration checks. Must be installed separately and added to PATH. |
 

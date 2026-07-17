@@ -87,6 +87,11 @@ from input_files import (
     process_dropped_files,
     add_files_to_queue_controller
 )
+from cursor_postprocess import (
+    ensure_redactor_file,
+    open_redactor_file,
+    start_txt_postprocess_async,
+)
 from i18n import t, set_language, get_language
 from lang_manager import load_app_settings, save_app_settings
 
@@ -233,6 +238,8 @@ class WhisperGUI:
         self._watch_pending_continue = False  # файлы из слежения ждут обработки после текущей задачи
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
+        self.send_txt_to_cursor = tk.BooleanVar(value=False)
+        self.cursor_api_key = tk.StringVar(value="")
         self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
         self.whisper_model = tk.StringVar(value=DEFAULT_MODEL)
         
@@ -245,6 +252,8 @@ class WhisperGUI:
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
+        self.send_txt_to_cursor.set(bool(saved.get("send_txt_to_cursor", False)))
+        self.cursor_api_key.set((saved.get("cursor_api_key") or "").strip())
         self.tray_mode.set(saved.get("tray_mode", "panel"))
         self.whisper_model.set(saved.get("whisper_model", DEFAULT_MODEL) or DEFAULT_MODEL)
         self.has_nvidia = bool(saved.get("has_nvidia", False))
@@ -580,6 +589,34 @@ class WhisperGUI:
         self.output_dir_entry.bind("<FocusOut>", self._on_output_dir_focus_out)
         ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
 
+        # Строка: Cursor постпроцесинг TXT
+        cursor_row = ttk.Frame(main)
+        cursor_row.pack(fill="x", pady=(0, 5))
+        ttk.Frame(cursor_row).pack(side="left", fill="x", expand=True)
+        cursor_center = ttk.Frame(cursor_row)
+        cursor_center.pack(side="left")
+        self.send_txt_cursor_check = ttk.Checkbutton(
+            cursor_center,
+            text=t("send_txt_to_cursor"),
+            variable=self.send_txt_to_cursor,
+            command=self._on_send_txt_to_cursor_toggled,
+        )
+        self.send_txt_cursor_check.pack(side="left", padx=5)
+        self.edit_redactor_btn = ttk.Button(
+            cursor_center, text=t("edit_redactor"), command=self._edit_redactor_file
+        )
+        self.edit_redactor_btn.pack(side="left", padx=5)
+        ttk.Label(cursor_center, text=" | ").pack(side="left", padx=5)
+        self.cursor_api_key_label = ttk.Label(cursor_center, text=t("cursor_api_key_label"))
+        self.cursor_api_key_label.pack(side="left", padx=2)
+        self.cursor_api_key_entry = ttk.Entry(
+            cursor_center, textvariable=self.cursor_api_key, width=28, show="*"
+        )
+        self.cursor_api_key_entry.pack(side="left", padx=2)
+        self.cursor_api_key_entry.bind("<FocusOut>", self._on_cursor_api_key_focus_out)
+        ttk.Frame(cursor_row).pack(side="left", fill="x", expand=True)
+        ensure_redactor_file()
+
         # Прогресс
         self.progress = ttk.Progressbar(main, length=900)
         self.progress.pack(fill="x", pady=(10, 5))
@@ -640,6 +677,9 @@ class WhisperGUI:
         tip(self.dev_f, "tooltip_device")
         tip(self.lang_f, "tooltip_language_switcher")
         tip(self.save_audio_check, "tooltip_save_mp3")
+        tip(self.send_txt_cursor_check, "tooltip_send_txt_to_cursor")
+        tip(self.edit_redactor_btn, "tooltip_edit_redactor")
+        tip(self.cursor_api_key_entry, "tooltip_cursor_api_key")
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
@@ -833,6 +873,8 @@ class WhisperGUI:
             "save_audio_mp3": self.save_audio_mp3.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "output_dir": (self.output_dir.get() or "").strip(),
+            "send_txt_to_cursor": self.send_txt_to_cursor.get(),
+            "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
         }
 
         def run_and_release():
@@ -963,7 +1005,16 @@ class WhisperGUI:
                         if start_sec > 0 or end_sec < duration:
                             res = [_SegmentOffset(s.start + start_sec, s.end + start_sec, s.text or "") for s in res]
                         is_segment = start_sec >= FULL_VIDEO_SEGMENT_EPS_S or (duration - end_sec) >= FULL_VIDEO_SEGMENT_EPS_S
-                        self.save_files(path, res, audio_segment=audio, segment_start_sec=start_sec if is_segment else None, segment_end_sec=end_sec if is_segment else None, output_dir_raw=opts.get("output_dir"))
+                        self.save_files(
+                            path,
+                            res,
+                            audio_segment=audio,
+                            segment_start_sec=start_sec if is_segment else None,
+                            segment_end_sec=end_sec if is_segment else None,
+                            output_dir_raw=opts.get("output_dir"),
+                            send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
+                            cursor_api_key=opts.get("cursor_api_key") or "",
+                        )
                         self.root.after(0, lambda p=path: self._mark_done_by_path(p))
                         done += 1
                 except OSError:
@@ -1026,7 +1077,17 @@ class WhisperGUI:
         """Эвристика: экспортированное приложением аудио всегда оканчивается на _audio.mp3."""
         return name.lower().endswith("_audio.mp3")
 
-    def save_files(self, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_dir_raw=None):
+    def save_files(
+        self,
+        path,
+        segments,
+        audio_segment=None,
+        segment_start_sec=None,
+        segment_end_sec=None,
+        output_dir_raw=None,
+        send_txt_to_cursor=False,
+        cursor_api_key="",
+    ):
         out = self._resolve_output_dir(path, output_dir_raw)
         marker = self._processed_marker()
         base = os.path.splitext(os.path.basename(path))[0].replace(marker, "")
@@ -1061,6 +1122,9 @@ class WhisperGUI:
                 self.log(mp3_p, "link")
             except Exception as e:
                 self.log(t("audio_mp3_error", error=str(e)))
+
+        if send_txt_to_cursor:
+            self._schedule_cursor_postprocess(txt_p, cursor_api_key=cursor_api_key)
 
     def mark_done(self, idx, name):
         """Отмечает файл как обработанный в очереди и сохраняет очередь в request_queue.json."""
@@ -1605,11 +1669,81 @@ class WhisperGUI:
             "device_mode": self.device_mode.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
+            "send_txt_to_cursor": self.send_txt_to_cursor.get(),
+            "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
             "tray_mode": self.tray_mode.get(),
             "whisper_model": self.whisper_model.get(),
             "has_nvidia": self.has_nvidia,
             "gpu_model": self.gpu_model,
         })
+
+    def _on_send_txt_to_cursor_toggled(self):
+        self._persist_settings()
+        if not self.send_txt_to_cursor.get():
+            return
+        try:
+            import cursor_sdk  # noqa: F401
+        except ImportError:
+            if messagebox.askyesno(t("installation"), t("cursor_sdk_install_prompt")):
+                threading.Thread(
+                    target=install_dependencies,
+                    kwargs={
+                        "log_func": self.log,
+                        "packages_to_update": [("cursor-sdk", None, None)],
+                        "include_nvidia": False,
+                    },
+                    daemon=True,
+                ).start()
+            else:
+                self.log(t("cursor_sdk_missing"))
+
+    def _on_cursor_api_key_focus_out(self, event=None):
+        self._persist_settings()
+
+    def _edit_redactor_file(self):
+        open_redactor_file(log_func=self.log)
+
+    def _schedule_cursor_postprocess(self, txt_path, cursor_api_key=""):
+        """Після створення TXT: за потреби встановити cursor-sdk, затримка 5 с, постпроцесинг."""
+        from cursor_postprocess import resolve_cursor_api_key
+
+        api_key = resolve_cursor_api_key((cursor_api_key or "").strip())
+
+        def on_created(path):
+            self._watch_register_output_paths([path])
+
+        def start():
+            start_txt_postprocess_async(
+                txt_path,
+                api_key_from_settings=api_key,
+                log_func=self.log,
+                on_file_created=on_created,
+            )
+
+        def maybe_install_then_start():
+            if not api_key:
+                start()
+                return
+            try:
+                import cursor_sdk  # noqa: F401
+                start()
+                return
+            except ImportError:
+                pass
+            if messagebox.askyesno(t("installation"), t("cursor_sdk_install_prompt")):
+                def install_then():
+                    install_dependencies(
+                        log_func=self.log,
+                        packages_to_update=[("cursor-sdk", None, None)],
+                        include_nvidia=False,
+                    )
+                    start()
+                threading.Thread(target=install_then, daemon=True).start()
+            else:
+                self.log(t("cursor_sdk_missing"))
+                start()
+
+        self.root.after(0, maybe_install_then_start)
 
     def _watch_loop(self):
         """Фоновый цикл: опрос каталога, при появлении нового файла — обработка, затем снова ожидание."""
@@ -1875,6 +2009,9 @@ class WhisperGUI:
         self.lang_f.config(text=t("language_switcher"))
         self.play_sound_check.config(text=t("play_sound_finish"))
         self.save_audio_check.config(text=t("save_audio_mp3"))
+        self.send_txt_cursor_check.config(text=t("send_txt_to_cursor"))
+        self.edit_redactor_btn.config(text=t("edit_redactor"))
+        self.cursor_api_key_label.config(text=t("cursor_api_key_label"))
         self.system_btn.config(text=t("system_check"))
         self.updates_btn.config(text=t("updates"))
         self.dependencies_btn.config(text=t("dependencies"))

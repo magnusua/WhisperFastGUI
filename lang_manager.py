@@ -70,6 +70,8 @@ def load_app_settings():
         "whisper_model": DEFAULT_MODEL,
         "has_nvidia": False,
         "gpu_model": "",
+        "send_txt_to_cursor": False,
+        "cursor_api_key": "",
     }
     if not os.path.exists(path):
         try:
@@ -81,9 +83,17 @@ def load_app_settings():
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        missing = False
         for k, v in defaults.items():
             if k not in data:
                 data[k] = v
+                missing = True
+        if missing:
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except OSError:
+                pass
         return data
     except (json.JSONDecodeError, TypeError):
         return defaults.copy()

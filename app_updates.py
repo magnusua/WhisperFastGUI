@@ -27,7 +27,7 @@ except ImportError:
     Version = None
 
 _UPDATE_STAGING_DIR = "_update_staging"
-_PRESERVE_FILES = frozenset({"settings.json", "request_queue.json"})
+_PRESERVE_FILES = frozenset({"settings.json", "request_queue.json", "redactor1.md"})
 _RAW_CONFIG_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/config.py"
 _ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
 

@@ -158,7 +158,9 @@ def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     """
     if use_cuda_torch is None:
         use_cuda_torch, _ = refresh_gpu_settings()
-    multimedia_packages = ["pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow"]
+    multimedia_packages = [
+        "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow", "cursor-sdk",
+    ]
     if needs_pyaudioop():
         multimedia_packages.append("pyaudioop")
     commands = [
@@ -286,6 +288,7 @@ def run_full_installation():
     _check_package_verbose("tkinterdnd2-universal", "tkinterdnd2")
     _check_package_verbose("pystray")
     _check_package_verbose("Pillow", "PIL")
+    _check_package_verbose("cursor-sdk", "cursor_sdk")
     if needs_pyaudioop():
         if not _check_package_verbose("pyaudioop"):
             print(t("pyaudioop_not_installed"))
@@ -319,6 +322,7 @@ def run_full_installation():
     _check_package_verbose("tkinterdnd2-universal", "tkinterdnd2")
     _check_package_verbose("pystray")
     _check_package_verbose("Pillow", "PIL")
+    _check_package_verbose("cursor-sdk", "cursor_sdk")
     try:
         import tkinter
         print(t("install_tkinter_ok"))

@@ -119,6 +119,111 @@
     "UK": "Зберегти Mp3",
     "RU": "Сохранить Mp3"
   },
+  "send_txt_to_cursor": {
+    "EN": "Send TXT to Cursor",
+    "UK": "Надіслати TXT у Cursor",
+    "RU": "Отправить TXT в Cursor"
+  },
+  "edit_redactor": {
+    "EN": "Edit redactor1.md",
+    "UK": "Редагувати redactor1.md",
+    "RU": "Редактировать redactor1.md"
+  },
+  "cursor_api_key_label": {
+    "EN": "Cursor API key",
+    "UK": "Cursor API ключ",
+    "RU": "Cursor API ключ"
+  },
+  "tooltip_send_txt_to_cursor": {
+    "EN": "After creating a TXT file, wait 5 s and process it with Cursor using prompts from redactor1.md. With API key: automatic SDK chain. Without key: open Cursor Chat (manual confirm).",
+    "UK": "Після створення TXT зачекати 5 с і обробити файл у Cursor за промптами з redactor1.md. З API-ключем: автоматичний ланцюжок SDK. Без ключа: відкрити Cursor Chat (підтвердження вручну).",
+    "RU": "После создания TXT подождать 5 с и обработать файл в Cursor по промптам из redactor1.md. С API-ключом: автоматическая цепочка SDK. Без ключа: открыть Cursor Chat (подтверждение вручную)."
+  },
+  "tooltip_edit_redactor": {
+    "EN": "Open redactor1.md in the system text editor. Numbered prompts: ## Prompt #1 / ## Промпт №1.",
+    "UK": "Відкрити redactor1.md у системному текстовому редакторі. Нумеровані промпти: ## Промпт №1 / ## Prompt #1.",
+    "RU": "Открыть redactor1.md в системном текстовом редакторе. Нумерованные промпты: ## Промпт №1 / ## Prompt #1."
+  },
+  "tooltip_cursor_api_key": {
+    "EN": "Optional. Saved in settings.json (not committed to git). Env CURSOR_API_KEY overrides this field. Empty = Chat fallback.",
+    "UK": "Необов’язково. Зберігається в settings.json (не потрапляє в git). Змінна CURSOR_API_KEY має пріоритет. Порожнє = режим Chat.",
+    "RU": "Необязательно. Сохраняется в settings.json (не попадает в git). Переменная CURSOR_API_KEY имеет приоритет. Пусто = режим Chat."
+  },
+  "cursor_waiting": {
+    "EN": "⏳ Waiting {seconds}s before Cursor post-process…",
+    "UK": "⏳ Очікування {seconds} с перед постпроцесингом Cursor…",
+    "RU": "⏳ Ожидание {seconds} с перед постпроцессингом Cursor…"
+  },
+  "cursor_no_prompts": {
+    "EN": "❌ No numbered prompts found in redactor1.md (use ## Prompt #1 / ## Промпт №1).",
+    "UK": "❌ У redactor1.md не знайдено нумерованих промптів (використовуйте ## Промпт №1 / ## Prompt #1).",
+    "RU": "❌ В redactor1.md не найдены нумерованные промпты (используйте ## Промпт №1 / ## Prompt #1)."
+  },
+  "cursor_no_api_key_fallback": {
+    "EN": "⚠ No Cursor API key — opening Chat (confirm the prompt manually).",
+    "UK": "⚠ Немає Cursor API ключа — відкриваю Chat (підтвердіть промпт вручну).",
+    "RU": "⚠ Нет Cursor API ключа — открываю Chat (подтвердите промпт вручную)."
+  },
+  "cursor_sdk_missing": {
+    "EN": "❌ cursor-sdk is not installed. Use [Updates] or [Dependencies], or: pip install cursor-sdk — falling back to Chat.",
+    "UK": "❌ cursor-sdk не встановлено. Використайте [Оновлення] або [Залежності], або: pip install cursor-sdk — перехід у режим Chat.",
+    "RU": "❌ cursor-sdk не установлен. Используйте [Обновление] или [Зависимости], или: pip install cursor-sdk — переход в режим Chat."
+  },
+  "cursor_sdk_install_prompt": {
+    "EN": "Package cursor-sdk is not installed.\nIt is required for automatic TXT post-processing in Cursor.\n\nInstall now?",
+    "UK": "Пакет cursor-sdk не встановлено.\nВін потрібен для автоматичного постпроцесингу TXT у Cursor.\n\nВстановити зараз?",
+    "RU": "Пакет cursor-sdk не установлен.\nОн нужен для автоматического постпроцессинга TXT в Cursor.\n\nУстановить сейчас?"
+  },
+  "cursor_processing_prompt": {
+    "EN": "▶ Cursor: processing prompt #{num}…",
+    "UK": "▶ Cursor: обробка промпту №{num}…",
+    "RU": "▶ Cursor: обработка промпта №{num}…"
+  },
+  "cursor_file_created": {
+    "EN": "✅ Cursor processed prompt #{num} and created: {name}",
+    "UK": "✅ Cursor обробив промпт №{num} і створив: {name}",
+    "RU": "✅ Cursor обработал промпт №{num} и создал: {name}"
+  },
+  "cursor_prompt_error": {
+    "EN": "❌ Cursor prompt #{num} failed: {error}",
+    "UK": "❌ Помилка Cursor (промпт №{num}): {error}",
+    "RU": "❌ Ошибка Cursor (промпт №{num}): {error}"
+  },
+  "cursor_output_missing": {
+    "EN": "❌ Cursor did not create the output file: {path}",
+    "UK": "❌ Cursor не створив вихідний файл: {path}",
+    "RU": "❌ Cursor не создал выходной файл: {path}"
+  },
+  "cursor_not_found": {
+    "EN": "❌ Cursor executable not found. Install Cursor or add it to PATH.",
+    "UK": "❌ Виконуваний файл Cursor не знайдено. Встановіть Cursor або додайте його в PATH.",
+    "RU": "❌ Исполняемый файл Cursor не найден. Установите Cursor или добавьте его в PATH."
+  },
+  "cursor_chat_opened": {
+    "EN": "💬 Cursor Chat opened for: {name}",
+    "UK": "💬 Відкрито Cursor Chat для: {name}",
+    "RU": "💬 Открыт Cursor Chat для: {name}"
+  },
+  "cursor_chat_prompt_copied": {
+    "EN": "📋 Prompt #1 copied to clipboard — paste it into Chat and confirm.",
+    "UK": "📋 Промпт №1 скопійовано в буфер — вставте в Chat і підтвердіть.",
+    "RU": "📋 Промпт №1 скопирован в буфер — вставьте в Chat и подтвердите."
+  },
+  "cursor_chat_manual_hint": {
+    "EN": "💡 Open Chat and paste prompt #1 from redactor1.md, then confirm.",
+    "UK": "💡 Відкрийте Chat, вставте промпт №1 з redactor1.md і підтвердіть.",
+    "RU": "💡 Откройте Chat, вставьте промпт №1 из redactor1.md и подтвердите."
+  },
+  "cursor_chat_error": {
+    "EN": "❌ Failed to open Cursor Chat: {error}",
+    "UK": "❌ Не вдалося відкрити Cursor Chat: {error}",
+    "RU": "❌ Не удалось открыть Cursor Chat: {error}"
+  },
+  "cursor_unexpected_error": {
+    "EN": "❌ Cursor post-process error: {error}",
+    "UK": "❌ Помилка постпроцесингу Cursor: {error}",
+    "RU": "❌ Ошибка постпроцессинга Cursor: {error}"
+  },
   "save_mp3_confirm": {
     "EN": "Save MP3 for this audio file?\n{filename}",
     "UK": "Зберегти MP3 для цього аудіофайлу?\n{filename}",

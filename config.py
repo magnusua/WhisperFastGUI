@@ -5,8 +5,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Системные константы
 # Версия приложения и дата создания этой версии
-APP_VERSION = "1.1.1"
-APP_DATE = "15.07.2026"  # дата создания версии
+APP_VERSION = "1.1.3"
+APP_DATE = "17.07.2026"  # дата создания версии
 GITHUB_REPO = "magnusua/WhisperFastGUI"
 GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
@@ -35,6 +35,7 @@ FULL_VIDEO_SEGMENT_EPS_S = 0.5
 UPDATE_PACKAGES = [
     "pip", "setuptools", "wheel",
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
+    "cursor-sdk",
     "torch", "faster-whisper", "ctranslate2",
     "pyaudioop",  # для Python 3.13+; если не установлен — проверка пропускается
 ]
