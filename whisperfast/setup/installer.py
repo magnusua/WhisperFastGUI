@@ -111,6 +111,7 @@ def check_updates(log_func):
         log_func(t("gpu_info", name=t("gpu_detected_unknown")))
     if has_nvidia:
         log_func(t("torch_update_index_cu121"))
+    app_update = check_app_update(log_func=log_func)
     updates_found = []
     for pkg in UPDATE_PACKAGES:
         if pkg == "pyaudioop" and not needs_pyaudioop():
@@ -144,7 +145,6 @@ def check_updates(log_func):
                 updates_found.append((pkg, None, latest))
                 log_func(t("package_not_installed", package=pkg, latest=latest))
     model_updates = check_downloaded_whisper_model_updates(log_func=log_func)
-    app_update = check_app_update(log_func=log_func)
     return {"packages": updates_found, "models": model_updates, "app": app_update}
 
 
