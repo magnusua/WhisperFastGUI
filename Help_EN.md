@@ -63,7 +63,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 
 ## Directory watch
 
-Enable directory watch and select a directory. New supported files are automatically added and processed. Files created by Whisper Fast GUI are ignored to prevent processing loops.
+Enable **Watch** and use **Folder** to set one or more directories (saved in `settings.json`, comma-separated). New supported files go to pending first: age ≥ 10 s, size stable ~15 s, and the file must be openable. Then they are queued and processed. App-created outputs are ignored. On decode errors — up to 2 retries from pending.
 
 If another task is running, new files wait in the queue and start automatically afterward.
 
@@ -73,7 +73,7 @@ Enable **To Cursor** to process generated `.txt` files using prompts from `redac
 
 - **Change prompt** opens the prompt file.
 - **api_key** saves a Cursor API key for automatic processing.
-- With a working API key and Cursor SDK, prompts run in sequence and create `_edited.md` files.
+- With a working API key and Cursor SDK, prompts run in sequence and create files named after the prompt (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`).
 - Without an API key, Cursor Chat opens and the first prompt is copied for manual confirmation.
 
 ## Buttons
@@ -101,7 +101,7 @@ Enable **To Cursor** to process generated `.txt` files using prompts from `redac
 - **Enter** — add files when the queue is empty, otherwise start processing.
 - **Space** — toggle **Save MP3** when focus is not in a text field.
 - **Delete** — remove selected queue items.
-- **Ctrl+V** — paste a directory path into the watch field.
+- **Ctrl+V** — paste a directory path into the save-folder field (or a row in the watch-folders dialog).
 - **Double-click a queue row** — edit its time range.
 - **Shift+click a queue row** — show the source file.
 

@@ -155,9 +155,9 @@
     "RU": "После создания TXT подождать 5 с и обработать файл в Cursor по промптам из redactor1.md. С API-ключом: автоматическая цепочка SDK. Без ключа: открыть Cursor Chat (подтверждение вручную)."
   },
   "tooltip_edit_redactor": {
-    "EN": "Open redactor1.md to change numbered prompts: ## Prompt #1 / ## Промпт №1.",
-    "UK": "Відкрити redactor1.md, щоб змінити нумеровані промпти: ## Промпт №1 / ## Prompt #1.",
-    "RU": "Открыть redactor1.md для изменения нумерованных промтов: ## Промпт №1 / ## Prompt #1."
+    "EN": "Open redactor1.md to change numbered prompts: ## Prompt #1 \"name\" / ## Промпт №1 \"name\". Output files use the prompt name (e.g. *_TW_core.md).",
+    "UK": "Відкрити redactor1.md, щоб змінити нумеровані промпти: ## Промпт №1 \"name\" / ## Prompt #1 \"name\". Ім'я файлу = назва промпта (напр. *_TW_core.md).",
+    "RU": "Открыть redactor1.md для изменения нумерованных промтов: ## Промпт №1 \"name\" / ## Prompt #1 \"name\". Имя файла = название промпта (напр. *_TW_core.md)."
   },
   "tooltip_cursor_api_key": {
     "EN": "Open the API key window. The key is saved only after pressing Save. Empty = Chat fallback.",
@@ -170,9 +170,9 @@
     "RU": "⏳ Ожидание {seconds} с перед постпроцессингом Cursor…"
   },
   "cursor_no_prompts": {
-    "EN": "❌ No numbered prompts found in redactor1.md (use ## Prompt #1 / ## Промпт №1).",
-    "UK": "❌ У redactor1.md не знайдено нумерованих промптів (використовуйте ## Промпт №1 / ## Prompt #1).",
-    "RU": "❌ В redactor1.md не найдены нумерованные промпты (используйте ## Промпт №1 / ## Prompt #1)."
+    "EN": "❌ No numbered prompts found in redactor1.md (use ## Prompt #1 \"name\" / ## Промпт №1 \"name\").",
+    "UK": "❌ У redactor1.md не знайдено нумерованих промптів (використовуйте ## Промпт №1 \"name\" / ## Prompt #1 \"name\").",
+    "RU": "❌ В redactor1.md не найдены нумерованные промпты (используйте ## Промпт №1 \"name\" / ## Prompt #1 \"name\")."
   },
   "cursor_no_api_key_fallback": {
     "EN": "⚠ No Cursor API key — opening Chat (confirm the prompt manually).",
@@ -190,9 +190,9 @@
     "RU": "Пакет cursor-sdk не установлен.\nОн нужен для автоматического постпроцессинга TXT в Cursor.\n\nУстановить сейчас?"
   },
   "cursor_processing_prompt": {
-    "EN": "▶ Cursor: processing prompt #{num}…",
-    "UK": "▶ Cursor: обробка промпту №{num}…",
-    "RU": "▶ Cursor: обработка промпта №{num}…"
+    "EN": "▶ Cursor: processing prompt #{num} ({name})…",
+    "UK": "▶ Cursor: обробка промпту №{num} ({name})…",
+    "RU": "▶ Cursor: обработка промпта №{num} ({name})…"
   },
   "cursor_file_created": {
     "EN": "✅ Cursor processed prompt #{num} and created: {name}",
@@ -1325,39 +1325,69 @@
     "RU": "Открыть выбор папки для каталога сохранения."
   },
   "watch_folder_label": {
-    "EN": "Watch folder",
-    "UK": "Слідкування за каталогом",
-    "RU": "Слежение за каталогом"
+    "EN": "Watch",
+    "UK": "Слідкування",
+    "RU": "Слежение"
+  },
+  "watch_dirs_btn": {
+    "EN": "Folder",
+    "UK": "Каталог",
+    "RU": "Каталог"
   },
   "watch_folder_btn": {
     "EN": "Select folder",
     "UK": "Вибрати каталог",
     "RU": "Выбрать каталог"
   },
+  "watch_dirs_dialog_title": {
+    "EN": "Watch folders",
+    "UK": "Каталоги слідкування",
+    "RU": "Каталоги слежения"
+  },
+  "watch_dirs_dialog_hint": {
+    "EN": "Enter folder paths (one per row). Use + to add more rows. Save to apply; closing the window cancels.",
+    "UK": "Вкажіть шляхи до каталогів (по одному в рядку). Кнопка + додає рядки. Зберегти — застосувати; закриття вікна — скасування.",
+    "RU": "Укажите пути к каталогам (по одному в строке). Кнопка + добавляет строки. Сохранить — применить; закрытие окна — отмена."
+  },
+  "watch_dir_invalid": {
+    "EN": "Not a valid folder:\n{path}",
+    "UK": "Це не каталог:\n{path}",
+    "RU": "Это не каталог:\n{path}"
+  },
   "tooltip_watch_folder": {
-    "EN": "Watch this folder for new files; new files are transcribed automatically with current settings.",
-    "UK": "Слідкувати за цим каталогом на появу нових файлів; нові файли транскрибуються автоматично.",
-    "RU": "Следить за каталогом: новые файлы автоматически обрабатываются с текущими настройками."
+    "EN": "Watch selected folders for new files; new files are transcribed automatically with current settings.",
+    "UK": "Слідкувати за обраними каталогами: нові файли транскрибуються автоматично з поточними налаштуваннями.",
+    "RU": "Следить за выбранными каталогами: новые файлы автоматически обрабатываются с текущими настройками."
+  },
+  "tooltip_watch_dirs": {
+    "EN": "Open the list of folders to watch (saved in settings).",
+    "UK": "Відкрити список каталогів для слідкування (зберігається в налаштуваннях).",
+    "RU": "Открыть список каталогов для слежения (сохраняется в настройках)."
   },
   "watch_folder_empty_error": {
-    "EN": "Specify the folder to watch.",
-    "UK": "Вкажіть каталог для слідкування.",
-    "RU": "Укажите каталог для слежения."
+    "EN": "Specify at least one folder to watch.",
+    "UK": "Вкажіть принаймні один каталог для слідкування.",
+    "RU": "Укажите хотя бы один каталог для слежения."
   },
   "watch_started": {
-    "EN": "Watching folder: {path}",
-    "UK": "Слідкування за каталогом: {path}",
-    "RU": "Слежение за каталогом: {path}"
+    "EN": "Watching folder(s): {path}",
+    "UK": "Слідкування за каталогом(ами): {path}",
+    "RU": "Слежение за каталогом(ами): {path}"
   },
   "watch_stopped": {
     "EN": "Folder watch stopped.",
     "UK": "Слідкування за каталогом зупинено.",
     "RU": "Слежение за каталогом остановлено."
   },
+  "watch_pending": {
+    "EN": "⏳ New file pending (waiting until stable): {name}",
+    "UK": "⏳ Новий файл у очікуванні (поки стабілізується): {name}",
+    "RU": "⏳ Новый файл в ожидании (пока стабилизируется): {name}"
+  },
   "watch_new_file": {
-    "EN": "New file detected: {name}",
-    "UK": "Виявлено новий файл: {name}",
-    "RU": "Обнаружен новый файл: {name}"
+    "EN": "New file ready: {name}",
+    "UK": "Новий файл готовий: {name}",
+    "RU": "Новый файл готов: {name}"
   },
   "watch_queued_for_later": {
     "EN": "⏳ {name} queued — will process after the current task",
@@ -1368,6 +1398,16 @@
     "EN": "▶ Continuing queue: processing pending files from folder watch...",
     "UK": "▶ Продовження черги: обробка файлів із слідкування за каталогом...",
     "RU": "▶ Продолжение очереди: обработка файлов из слежения за каталогом..."
+  },
+  "watch_decode_retry": {
+    "EN": "⚠ Decode failed for {name} — retry {attempt} from pending",
+    "UK": "⚠ Помилка декодування {name} — повтор {attempt} з pending",
+    "RU": "⚠ Ошибка декодирования {name} — повтор {attempt} из pending"
+  },
+  "watch_decode_give_up": {
+    "EN": "⚠ Giving up on {name} after {count} decode attempts",
+    "UK": "⚠ Відмова від {name} після {count} спроб декодування",
+    "RU": "⚠ Отказ от {name} после {count} попыток декодирования"
   },
   "tooltip_clear_log": {
     "EN": "Clear the log window.",

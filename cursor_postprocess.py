@@ -15,7 +15,7 @@ REDACTOR_FILENAME = "redactor1.md"
 CURSOR_POSTPROCESS_DELAY_S = 5.0
 
 _PROMPT_HEADER_RE = re.compile(
-    r"^##\s*(?:Промпт|Prompt)\s*[№#]?\s*(\d+)\s*$",
+    r'^##\s*(?:Промпт|Prompt)\s*[№#]?\s*(\d+)\s*(?:"([^"]*)"|\'([^\']*)\')?\s*$',
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -191,15 +191,15 @@ def ensure_redactor_file() -> str:
             "# Redactor prompts for Whisper Fast GUI\n"
             "\n"
             "Numbered prompts below are applied in order after transcription.\n"
-            "Prompt 1 writes `*_edited.md`; prompts 2+ write `*_edited_N.md`.\n"
+            "Output files use the prompt name in quotes: ## Промпт №1 \"redactor\" → *_redactor.md\n"
             "\n"
-            "## Промпт №1\n"
+            "## Промпт №1 \"redactor\"\n"
             "\n"
             "Clean up the transcript: fix obvious punctuation and capitalization,\n"
             "remove filler words where safe, keep the original meaning and language.\n"
             "Output Markdown only (no commentary outside the document).\n"
             "\n"
-            "## Промпт №2\n"
+            "## Промпт №2 \"summary\"\n"
             "\n"
             "Add a short title and a brief summary at the top, then keep the cleaned body.\n"
             "\n"
@@ -209,8 +209,12 @@ def ensure_redactor_file() -> str:
     return path
 
 
-def parse_redactor_prompts(path: Optional[str] = None) -> List[Tuple[int, str]]:
-    """Парсить секції «## Промпт №N» / «## Prompt #N» → [(n, text), ...] за зростанням n."""
+def parse_redactor_prompts(path: Optional[str] = None) -> List[Tuple[int, str, str]]:
+    """Парсить «## Промпт №N "name"» / «## Prompt #N "name"» → [(n, name, text), ...] за зростанням n.
+
+    name — з лапок після номера (може бути порожнім, якщо лапок немає).
+    Порожні секції (без тексту) пропускаються.
+    """
     path = path or redactor_path()
     if not os.path.isfile(path):
         return []
@@ -219,16 +223,29 @@ def parse_redactor_prompts(path: Optional[str] = None) -> List[Tuple[int, str]]:
     matches = list(_PROMPT_HEADER_RE.finditer(content))
     if not matches:
         return []
-    prompts: List[Tuple[int, str]] = []
+    prompts: List[Tuple[int, str, str]] = []
     for i, m in enumerate(matches):
         num = int(m.group(1))
+        name = (m.group(2) if m.group(2) is not None else m.group(3) or "") or ""
+        name = name.strip()
         start = m.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
         text = content[start:end].strip()
         if text:
-            prompts.append((num, text))
+            prompts.append((num, name, text))
     prompts.sort(key=lambda x: x[0])
     return prompts
+
+
+def sanitize_prompt_filename(name: str) -> str:
+    """Готує ім'я промпта для використання у назві файлу."""
+    name = (name or "").strip()
+    if not name:
+        return ""
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", name)
+    name = re.sub(r"\s+", "_", name)
+    name = name.strip("._")
+    return name
 
 
 def resolve_cursor_api_key(settings_key: str = "") -> str:
@@ -239,9 +256,15 @@ def resolve_cursor_api_key(settings_key: str = "") -> str:
     return (settings_key or "").strip()
 
 
-def edited_output_path(txt_path: str, prompt_num: int) -> str:
-    """name.txt + №1 → name_edited.md; №N → name_edited_N.md."""
+def edited_output_path(txt_path: str, prompt_num: int, prompt_name: str = "") -> str:
+    """name.txt + промпт «TW_core» → name_TW_core.md.
+
+    Якщо імені немає: №1 → name_edited.md, №N → name_edited_N.md.
+    """
     base, _ = os.path.splitext(os.path.abspath(txt_path))
+    safe = sanitize_prompt_filename(prompt_name)
+    if safe:
+        return base + f"_{safe}.md"
     if prompt_num <= 1:
         return base + "_edited.md"
     return base + f"_edited_{prompt_num}.md"
@@ -395,7 +418,7 @@ def _run_sdk_one(
 
 def run_sdk_chain(
     txt_path: str,
-    prompts: List[Tuple[int, str]],
+    prompts: List[Tuple[int, str, str]],
     api_key: str,
     log_func: Optional[LogFunc] = None,
     on_file_created: Optional[Callable[[str], None]] = None,
@@ -422,18 +445,19 @@ def run_sdk_chain(
                 log_func(t("cursor_sdk_missing"))
             except ImportError:
                 log_func("❌ cursor-sdk not installed. pip install cursor-sdk")
-        open_cursor_chat_fallback(txt_path, prompts[0][1], log_func)
+        open_cursor_chat_fallback(txt_path, prompts[0][2], log_func)
         return created
 
     current_input = txt_path
-    for num, text in prompts:
-        out_path = edited_output_path(txt_path, num)
+    for num, name, text in prompts:
+        out_path = edited_output_path(txt_path, num, name)
+        label = name or f"#{num}"
         if log_func:
             try:
                 from i18n import t
-                log_func(t("cursor_processing_prompt", num=num))
+                log_func(t("cursor_processing_prompt", num=num, name=label))
             except ImportError:
-                log_func(f"▶ Cursor prompt #{num}…")
+                log_func(f"▶ Cursor prompt #{num} ({label})…")
         try:
             _run_sdk_one(current_input, out_path, text, api_key)
         except Exception as e:
@@ -445,8 +469,7 @@ def run_sdk_chain(
                     log_func(f"❌ Cursor prompt #{num}: {e}")
             break
         if not os.path.isfile(out_path):
-            # Якщо агент не записав файл — збережемо результат як запасний варіант немає;
-            # вважаємо крок невдалим і зупиняємо ланцюжок.
+            # Якщо агент не записав файл — вважаємо крок невдалим і зупиняємо ланцюжок.
             if log_func:
                 try:
                     from i18n import t
@@ -512,7 +535,7 @@ def process_txt_with_cursor(
                 log_func(t("cursor_no_api_key_fallback"))
             except ImportError:
                 log_func("⚠ No Cursor API key — opening Chat (manual confirm).")
-        open_cursor_chat_fallback(txt_path, prompts[0][1], log_func)
+        open_cursor_chat_fallback(txt_path, prompts[0][2], log_func)
 
 
 def start_txt_postprocess_async(

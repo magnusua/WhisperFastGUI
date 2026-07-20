@@ -61,7 +61,7 @@ if sys.platform == "win32":
 # Импорт модулей проекта
 from config import (
     APP_VERSION, APP_DATE, BASE_DIR, load_help_text,
-    LANG_AUTO_VALUE, SUPPORTED_LANGUAGES, VALID_EXTS,
+    LANG_AUTO_VALUE, SUPPORTED_LANGUAGES,
     AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
     WHISPER_MODELS, get_whisper_cache_dir, find_whisper_model_cache_path,
     PROGRESS_UPDATE_INTERVAL_S, LOG_UPDATE_INTERVAL_S, FULL_VIDEO_SEGMENT_EPS_S,
@@ -69,7 +69,7 @@ from config import (
 from utils import (
     format_timestamp, format_timestamp_srt, format_timestamp_filename,
     play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds,
-    make_queue_item, normalize_queue_path, normalize_display_path,
+    normalize_queue_path, normalize_display_path,
 )
 from model_manager import WhisperModelSingleton
 from installer import install_dependencies, check_system, check_updates
@@ -85,7 +85,13 @@ from input_files import (
     add_multiple_files,
     add_directory,
     process_dropped_files,
-    add_files_to_queue_controller
+)
+from queue_manager import (
+    QueueController,
+    open_watch_dirs_dialog,
+    parse_watch_dirs,
+    serialize_watch_dirs,
+    valid_watch_dirs,
 )
 from cursor_postprocess import (
     ensure_redactor_file,
@@ -219,9 +225,13 @@ class WhisperGUI:
             except Exception:
                 pass
 
-        # Состояние приложения: очередь — список dict (path, start, end_segment_1, end_segment_2, end)
-        self.queue = []
-        self._request_queue_file = os.path.join(BASE_DIR, "request_queue.json")
+        # Состояние приложения: очередь — QueueController (request_queue.json + слідкування)
+        self.queue_ctrl = QueueController(
+            request_queue_file=os.path.join(BASE_DIR, "request_queue.json"),
+            log_func=self.log,
+            root_after=lambda ms, fn: self.root.after(ms, fn),
+        )
+        self.queue = self.queue_ctrl.queue  # сумісність: той самий list
         self.cancel_requested = False
         self._process_queue_lock = threading.Lock()  # только одна обработка очереди одновременно
         
@@ -229,13 +239,8 @@ class WhisperGUI:
         self.device_mode = tk.StringVar(value="AUTO")
         self.lang_mode = tk.StringVar(value=LANG_AUTO_VALUE)  # AUTO для языка транскрипции
         self.output_dir = tk.StringVar()
-        self.watch_dir = tk.StringVar()
+        self.watch_dir = tk.StringVar()  # каталоги через кому (settings.json)
         self.watch_enabled = tk.BooleanVar(value=False)
-        self._watch_stop = threading.Event()
-        self._watch_thread = None
-        self._watch_lock = threading.Lock()
-        self._watch_seen = set()  # уже учтённые файлы в каталоге слежения
-        self._watch_pending_continue = False  # файлы из слежения ждут обработки после текущей задачи
         self._cursor_postprocess_lock = threading.Lock()
         self._cursor_postprocess_pending = 0  # активні / заплановані Cursor-постобробки
         self._finish_sound_deferred = False  # звук чекає завершення Cursor-черги
@@ -250,7 +255,8 @@ class WhisperGUI:
         saved = load_app_settings()
         saved_language = saved.get("language", "EN")
         self.output_dir.set(normalize_display_path(saved.get("output_dir", "") or ""))
-        self.watch_dir.set(normalize_display_path(saved.get("watch_dir", "") or ""))
+        # watch_dir: один або кілька каталогів через кому
+        self.watch_dir.set(serialize_watch_dirs(parse_watch_dirs(saved.get("watch_dir", "") or "")))
         self.watch_enabled.set(bool(saved.get("watch_enabled", False)))
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
@@ -277,6 +283,17 @@ class WhisperGUI:
         self.build_ui()
         self.setup_log_styles()
 
+        self.queue_ctrl.configure(
+            get_watch_dirs=lambda: parse_watch_dirs(self.watch_dir.get()),
+            start_processing=lambda mode, target_idx=None, from_watch=False: self.start_thread(
+                mode=mode, target_idx=target_idx, from_watch=from_watch
+            ),
+            is_processing=lambda: self._process_queue_lock.locked(),
+            log_func=self.log,
+            root_after=lambda ms, fn: self.root.after(ms, fn),
+        )
+        self.queue_ctrl.bind_treeview(self.queue_list)
+
         # Центрирование окна по экрану
         self.root.update_idletasks()
         win_w, win_h = 1050, 950
@@ -292,19 +309,16 @@ class WhisperGUI:
 
         # Закриття вікна обробляється в main.py (on_app_closing); налаштування зберігаються через _persist_settings()
 
+        # Загрузка очереди из request_queue.json; при первом запуске создаём пустой файл
+        self.queue_ctrl.load_from_file()
+        self.queue_ctrl.ensure_file_exists()
+
         # Якщо слідкування було увімкнено — запускаємо після побудови UI
-        if self.watch_enabled.get():
-            watch_path = (self.watch_dir.get() or "").strip()
-            if watch_path and os.path.isdir(watch_path):
-                self._start_watch(watch_path)
+        if self.watch_enabled.get() and valid_watch_dirs(self.watch_dir.get()):
+            self.queue_ctrl.start_watch()
 
         if not DND_OK:
             self.log(t("warning_dnd"))
-
-        # Загрузка очереди из request_queue.json; при первом запуске создаём пустой файл
-        self._load_queue_from_file()
-        if not os.path.exists(self._request_queue_file):
-            self._save_queue_to_file()
 
         # Иконка в системном трее (зависит от переключателя Панель / Трей / Панель + Трей)
         self._apply_tray_mode()
@@ -381,52 +395,13 @@ class WhisperGUI:
             self._on_close_request()
 
     def _load_queue_from_file(self):
-        """Загружает очередь из request_queue.json и заполняет таблицу (использует make_queue_item и normalize_queue_path)."""
-        if not os.path.exists(self._request_queue_file):
-            return
-        try:
-            with open(self._request_queue_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, list):
-                return
-            self.queue.clear()
-            for item in data:
-                path = normalize_queue_path(item.get("path"))
-                if not path or not os.path.isfile(path):
-                    continue
-                overrides = {
-                    "start": item.get("start") or DEFAULT_START_TIMESTAMP,
-                    "end_segment_1": item.get("end_segment_1") or "",
-                    "end_segment_2": item.get("end_segment_2") or "",
-                    "processed": item.get("processed", False),
-                }
-                if item.get("end"):
-                    overrides["end"] = item.get("end")
-                self.queue.append(make_queue_item(path, **overrides))
-            self._refresh_queue_treeview()
-        except (json.JSONDecodeError, OSError):
-            pass
+        self.queue_ctrl.load_from_file()
 
     def _save_queue_to_file(self):
-        """Сохраняет очередь в request_queue.json."""
-        try:
-            data = [{"path": q["path"], "start": q["start"], "end_segment_1": q.get("end_segment_1", ""),
-                    "end_segment_2": q.get("end_segment_2", ""), "end": q["end"],
-                    "processed": q.get("processed", False)} for q in self.queue]
-            with open(self._request_queue_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
+        self.queue_ctrl.save_to_file()
 
     def _refresh_queue_treeview(self):
-        """Перестраивает таблицу очереди по self.queue. Статус обработано/необработано — в отдельном столбце."""
-        self.queue_list.delete(*self.queue_list.get_children())
-        for i, q in enumerate(self.queue):
-            name = os.path.basename(q["path"])
-            status_text = t("status_processed") if q.get("processed") else t("status_not_processed")
-            self.queue_list.insert("", "end", values=(
-                i + 1, name, q["start"], q.get("end_segment_1", ""), q.get("end_segment_2", ""), q["end"], status_text
-            ))
+        self.queue_ctrl.refresh_treeview()
 
     def _on_queue_row_double_click(self, event):
         """Редактирование диапазона времени по двойному клику по строке."""
@@ -462,12 +437,13 @@ class WhisperGUI:
         e_end.grid(row=3, column=1, padx=5, pady=3)
 
         def apply_and_close():
-            self.queue[idx]["start"] = e_start.get().strip() or DEFAULT_START_TIMESTAMP
-            self.queue[idx]["end_segment_1"] = e_seg1.get().strip()
-            self.queue[idx]["end_segment_2"] = e_seg2.get().strip()
-            self.queue[idx]["end"] = e_end.get().strip() or row["end"]
-            self._refresh_queue_treeview()
-            self._save_queue_to_file()
+            self.queue_ctrl.update_row(
+                idx,
+                start=e_start.get().strip() or DEFAULT_START_TIMESTAMP,
+                end_segment_1=e_seg1.get().strip(),
+                end_segment_2=e_seg2.get().strip(),
+                end=e_end.get().strip() or row["end"],
+            )
             d.destroy()
 
         ttk.Button(d, text=t("close"), command=d.destroy).grid(row=4, column=0, padx=5, pady=8)
@@ -585,10 +561,8 @@ class WhisperGUI:
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         self.watch_folder_check = ttk.Checkbutton(tools_center, text=t("watch_folder_label"), variable=self.watch_enabled, command=self._on_watch_toggled)
         self.watch_folder_check.pack(side="left", padx=5)
-        self.watch_dir_entry = ttk.Entry(tools_center, textvariable=self.watch_dir, width=16)
-        self.watch_dir_entry.pack(side="left", padx=2)
-        self.watch_dir_entry.bind("<Control-v>", self._paste_into_watch_dir)
-        self.watch_dir_entry.bind("<FocusOut>", self._on_watch_dir_focus_out)
+        self.watch_dirs_btn = ttk.Button(tools_center, text=t("watch_dirs_btn"), command=self._open_watch_dirs_dialog)
+        self.watch_dirs_btn.pack(side="left", padx=2)
         self.output_dir_entry.bind("<FocusOut>", self._on_output_dir_focus_out)
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         self.send_txt_cursor_check = ttk.Checkbutton(
@@ -683,7 +657,7 @@ class WhisperGUI:
         tip(self.output_dir_entry, "tooltip_output_dir")
         tip(self.output_folder_btn, "tooltip_output_folder")
         tip(self.watch_folder_check, "tooltip_watch_folder")
-        tip(self.watch_dir_entry, "tooltip_watch_folder")
+        tip(self.watch_dirs_btn, "tooltip_watch_dirs")
         tip(self.clear_log_btn, "tooltip_clear_log")
         tip(self.cancel_btn, "tooltip_cancel")
 
@@ -731,7 +705,6 @@ class WhisperGUI:
         self.log_box.config(font=("Consolas", max(6, int(9 * scale))))
         self.progress["length"] = max(200, int(900 * scale))
         self.output_dir_entry.config(width=max(8, int(15 * scale)))
-        self.watch_dir_entry.config(width=max(10, int(16 * scale)))
 
     # --- ЛОГИКА ЗАПУСКА ---
 
@@ -859,7 +832,7 @@ class WhisperGUI:
         if not self._process_queue_lock.acquire(blocking=False):
             self.log("⚠ " + t("already_processing"))
             if from_watch:
-                self._watch_pending_continue = True
+                self.queue_ctrl.watch_pending_continue = True
             return
         self.cancel_requested = False
         self.start_btn.config(state="disabled")
@@ -886,17 +859,7 @@ class WhisperGUI:
 
     def _continue_watch_queue(self):
         """Після завершення обробки запускає наступні файли, додані слідкуванням під час зайнятості."""
-        if self.cancel_requested:
-            self._watch_pending_continue = False
-            return
-        if not self._watch_pending_continue:
-            return
-        if not any(not q.get("processed") for q in self.queue):
-            self._watch_pending_continue = False
-            return
-        self._watch_pending_continue = False
-        self.log(t("watch_continue_queue"))
-        self.start_thread(mode="only_new", from_watch=True)
+        self.queue_ctrl.continue_after_processing(cancel_requested=self.cancel_requested)
 
     def process_queue(self, mode, target_idx, options=None):
         opts = options or {}
@@ -1016,9 +979,20 @@ class WhisperGUI:
                         )
                         self.root.after(0, lambda p=path: self._mark_done_by_path(p))
                         done += 1
-                except OSError:
+                except (OSError, RuntimeError, ValueError) as e:
                     self.log(t("file_skipped", name=name))
-                    skipped_paths.append(path)
+                    self.log(t("error_occurred", error=str(e)))
+                    if self.queue_ctrl.notify_decode_failed(path):
+                        self.root.after(0, lambda p=path: self.queue_ctrl.remove_paths([p]))
+                    else:
+                        skipped_paths.append(path)
+                except Exception as e:
+                    self.log(t("file_skipped", name=name))
+                    self.log(t("error_occurred", error=str(e)))
+                    if self.queue_ctrl.notify_decode_failed(path):
+                        self.root.after(0, lambda p=path: self.queue_ctrl.remove_paths([p]))
+                    else:
+                        skipped_paths.append(path)
 
             if skipped_paths:
                 paths_copy = list(skipped_paths)
@@ -1028,7 +1002,7 @@ class WhisperGUI:
             else:
                 self.log(f"\n{t('all_tasks_complete')}")
                 will_continue = (
-                    self._watch_pending_continue
+                    self.queue_ctrl.watch_pending_continue
                     and any(not q.get("processed") for q in self.queue)
                 )
                 self._maybe_play_finish_sound(
@@ -1059,20 +1033,8 @@ class WhisperGUI:
         return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
     def _watch_register_output_paths(self, paths):
-        """Пути файлов, которые создаёт транскрибация (txt/srt/mp3), сразу помечаем как «уже виденные»,
-        чтобы слежение за каталогом не ставило их в очередь (особенно *_audio.mp3)."""
-        norm = []
-        for p in paths:
-            if not p:
-                continue
-            try:
-                norm.append(os.path.normpath(os.path.abspath(p)))
-            except OSError:
-                continue
-        if not norm:
-            return
-        with self._watch_lock:
-            self._watch_seen.update(norm)
+        """Пути выходных файлов транскрибации — не підхоплювати слідкуванням."""
+        self.queue_ctrl.register_output_paths(paths)
 
     @staticmethod
     def _watch_filename_is_program_output(name):
@@ -1130,19 +1092,11 @@ class WhisperGUI:
 
     def mark_done(self, idx, name):
         """Отмечает файл как обработанный в очереди и сохраняет очередь в request_queue.json."""
-        if 0 <= idx < len(self.queue):
-            self.queue[idx]["processed"] = True
-            self._refresh_queue_treeview()
-            self._save_queue_to_file()
+        self.queue_ctrl.mark_done(idx)
 
     def _mark_done_by_path(self, path):
         """Отмечает файл как обработанный по пути (безопасно при изменении очереди)."""
-        for q in self.queue:
-            if q.get("path") == path:
-                q["processed"] = True
-                break
-        self._refresh_queue_treeview()
-        self._save_queue_to_file()
+        self.queue_ctrl.mark_done_by_path(path)
 
     def _report_skipped_and_offer_remove(self, skipped_paths):
         """Показывает отчёт о пропущенных файлах и предлагает удалить их из очереди."""
@@ -1151,10 +1105,7 @@ class WhisperGUI:
         files_list = "\n".join(os.path.basename(p) for p in skipped_paths)
         msg = t("skipped_report_message", files=files_list)
         if messagebox.askyesno(t("skipped_report_title"), msg):
-            skipped_set = set(skipped_paths)
-            self.queue[:] = [q for q in self.queue if q["path"] not in skipped_set]
-            self._refresh_queue_treeview()
-            self._save_queue_to_file()
+            self.queue_ctrl.remove_paths(skipped_paths)
 
     # --- СЕРВИСНЫЕ МЕТОДЫ ---
 
@@ -1374,23 +1325,27 @@ class WhisperGUI:
         if d:
             self.output_dir.set(d)
 
-    def _paste_into_watch_dir(self, event=None):
-        """Вставка из буфера обмена в поле каталога слежения (Ctrl+V)."""
-        try:
-            text = self.root.clipboard_get()
-        except tk.TclError:
-            return
-        if text:
-            self.watch_dir_entry.insert(tk.INSERT, normalize_display_path(text))
-        return "break"
+    def _open_watch_dirs_dialog(self):
+        """Вікно списку каталогів слідкування (Зберегти / закриття = скасування)."""
+        current = parse_watch_dirs(self.watch_dir.get())
 
-    def _on_watch_dir_focus_out(self, event=None):
-        raw = (self.watch_dir.get() or "").strip()
-        if raw:
-            normalized = normalize_display_path(raw)
-            if normalized != self.watch_dir.get():
-                self.watch_dir.set(normalized)
-        self._persist_settings()
+        def on_save(dirs):
+            self.watch_dir.set(serialize_watch_dirs(dirs))
+            self._persist_settings()
+            if self.watch_enabled.get():
+                if valid_watch_dirs(dirs):
+                    self.queue_ctrl.start_watch()
+                else:
+                    self.queue_ctrl.stop_watch()
+                    self.watch_enabled.set(False)
+                    messagebox.showerror(t("error"), t("watch_folder_empty_error"))
+
+        open_watch_dirs_dialog(
+            self.root,
+            current,
+            on_save=on_save,
+            center_fn=self._center_toplevel,
+        )
 
     def _on_output_dir_focus_out(self, event=None):
         raw = (self.output_dir.get() or "").strip()
@@ -1400,50 +1355,32 @@ class WhisperGUI:
                 self.output_dir.set(normalized)
         self._persist_settings()
 
-    def _start_watch(self, watch_path):
-        """Запуск потоку слідкування за каталогом (без діалогів)."""
-        self._watch_stop.clear()
-        try:
-            initial = set()
-            for f in os.listdir(watch_path):
-                full = os.path.normpath(os.path.join(watch_path, f))
-                if os.path.isfile(full) and f.lower().endswith(VALID_EXTS):
-                    initial.add(full)
-            with self._watch_lock:
-                self._watch_seen = initial
-        except OSError:
-            with self._watch_lock:
-                self._watch_seen = set()
-        self._watch_thread = threading.Thread(target=self._watch_loop, daemon=True)
-        self._watch_thread.start()
-        self.log(t("watch_started", path=watch_path))
-
     def _on_watch_toggled(self):
         """Включение/выключение слежения за каталогом."""
         if self.watch_enabled.get():
-            watch_path = normalize_display_path((self.watch_dir.get() or "").strip())
-            if watch_path != (self.watch_dir.get() or "").strip():
-                self.watch_dir.set(watch_path)
-            if not watch_path:
-                d = filedialog.askdirectory()
-                if not d:
+            dirs = valid_watch_dirs(self.watch_dir.get())
+            if not dirs:
+                open_watch_dirs_dialog(
+                    self.root,
+                    parse_watch_dirs(self.watch_dir.get()),
+                    on_save=lambda chosen: self.watch_dir.set(serialize_watch_dirs(chosen)),
+                    center_fn=self._center_toplevel,
+                )
+                dirs = valid_watch_dirs(self.watch_dir.get())
+                if not dirs:
                     self.watch_enabled.set(False)
+                    messagebox.showerror(t("error"), t("watch_folder_empty_error"))
+                    self._persist_settings()
                     return
-                self.watch_dir.set(d)
-                watch_path = d
-            if not os.path.isdir(watch_path):
-                self.watch_enabled.set(False)
-                messagebox.showerror(t("error"), t("watch_folder_empty_error"))
-                return
-            self._start_watch(watch_path)
+            self.queue_ctrl.start_watch()
         else:
-            self._watch_stop.set()
+            self.queue_ctrl.stop_watch()
             self.log(t("watch_stopped"))
         self._persist_settings()
 
     def prepare_close(self):
         """Зупинити слідкування, трей та зберегти налаштування перед закриттям (викликається з main.py)."""
-        self._watch_stop.set()
+        self.queue_ctrl.stop_watch()
         if self._tray_icon:
             try:
                 self._tray_icon.stop()
@@ -1666,7 +1603,7 @@ class WhisperGUI:
         save_app_settings({
             "language": self.ui_language.get(),
             "output_dir": normalize_display_path((self.output_dir.get() or "").strip()),
-            "watch_dir": normalize_display_path((self.watch_dir.get() or "").strip()),
+            "watch_dir": serialize_watch_dirs(parse_watch_dirs(self.watch_dir.get())),
             "watch_enabled": self.watch_enabled.get(),
             "device_mode": self.device_mode.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
@@ -1753,7 +1690,7 @@ class WhisperGUI:
                 play_now = True
         if play_now:
             will_continue = (
-                self._watch_pending_continue
+                self.queue_ctrl.watch_pending_continue
                 and any(not q.get("processed") for q in self.queue)
             )
             if not will_continue:
@@ -1821,70 +1758,8 @@ class WhisperGUI:
 
         self.root.after(0, maybe_install_then_start)
 
-    def _watch_loop(self):
-        """Фоновый цикл: опрос каталога, при появлении нового файла — обработка, затем снова ожидание."""
-        WATCH_POLL_INTERVAL = 2.0
-        FILE_STABLE_DELAY = 1.0
-        while not self._watch_stop.is_set():
-            watch_path = (self.watch_dir.get() or "").strip()
-            if not watch_path or not os.path.isdir(watch_path):
-                self._watch_stop.set()
-                break
-            try:
-                current = set()
-                for f in os.listdir(watch_path):
-                    full = os.path.normpath(os.path.join(watch_path, f))
-                    if not (os.path.isfile(full) and f.lower().endswith(VALID_EXTS)):
-                        continue
-                    with self._watch_lock:
-                        if full in self._watch_seen:
-                            continue
-                    if self._watch_filename_is_program_output(f):
-                        with self._watch_lock:
-                            self._watch_seen.add(full)
-                        continue
-                    current.add(full)
-                with self._watch_lock:
-                    new_files = current - self._watch_seen
-                if new_files:
-                    path = next(iter(new_files))
-                    with self._watch_lock:
-                        self._watch_seen.add(path)
-                    time.sleep(FILE_STABLE_DELAY)
-                    if self._watch_stop.is_set():
-                        break
-                    self.log(t("watch_new_file", name=os.path.basename(path)))
-                    self.root.after(0, lambda p=path: self._add_watch_file_to_queue(p))
-            except OSError:
-                pass
-            for _ in range(int(WATCH_POLL_INTERVAL / 0.25)):
-                if self._watch_stop.is_set():
-                    break
-                time.sleep(0.25)
-
-    def _add_watch_file_to_queue(self, path):
-        """Додає знайдений при слідкуванні файл у чергу, зберігає request_queue.json і запускає обробку цього файлу."""
-        if not os.path.isfile(path):
-            return
-        add_files_to_queue_controller(
-            [path],
-            self.queue,
-            self.queue_list,
-            log_func=self.log
-        )
-        self._save_queue_to_file()
-        idx = len(self.queue) - 1
-        if idx >= 0:
-            if self._process_queue_lock.locked():
-                self._watch_pending_continue = True
-                self.log(t("watch_queued_for_later", name=os.path.basename(path)))
-            else:
-                self.start_thread(mode="single", target_idx=idx, from_watch=True)
-
     def clear_queue(self):
-        self.queue.clear()
-        self.queue_list.delete(*self.queue_list.get_children())
-        self._save_queue_to_file()
+        self.queue_ctrl.clear()
 
     def delete_selected_queue_items(self, event=None):
         """Удаляет выделенные строки из очереди и сохраняет изменения."""
@@ -1902,12 +1777,7 @@ class WhisperGUI:
             return "break" if event is not None else None
 
         next_index = min(indices)
-        for idx in sorted(set(indices), reverse=True):
-            if 0 <= idx < len(self.queue):
-                del self.queue[idx]
-
-        self._refresh_queue_treeview()
-        self._save_queue_to_file()
+        self.queue_ctrl.delete_indices(indices)
 
         remaining = self.queue_list.get_children()
         if remaining:
@@ -1946,33 +1816,16 @@ class WhisperGUI:
 
     def add_files_to_queue(self, file_paths):
         """Добавляет список файлов в очередь через контроллер и сохраняет в request_queue.json."""
-        add_files_to_queue_controller(
-            file_paths,
-            self.queue,
-            self.queue_list,
-            log_func=self.log
-        )
-        self._save_queue_to_file()
+        self.queue_ctrl.add_files(file_paths)
 
     # --- DRAG & DROP / LISTBOX ---
 
     def on_drop(self, e):
         """Обработчик события Drag & Drop через централизованный контроллер"""
-        # Получаем данные из события Drop
         dropped_data = e.data
-        
-        # Обрабатываем через контроллер (поддерживает файлы и каталоги)
-        # Передаем root для корректной обработки путей с пробелами через splitlist
         file_paths = process_dropped_files(dropped_data, tk_root=self.root)
-        
         if file_paths:
-            add_files_to_queue_controller(
-                file_paths,
-                self.queue,
-                self.queue_list,
-                log_func=self.log
-            )
-            self._save_queue_to_file()
+            self.queue_ctrl.add_files(file_paths)
 
     def on_drag_start(self, event):
         iid = self.queue_list.identify_row(event.y)
@@ -1999,10 +1852,7 @@ class WhisperGUI:
         except tk.TclError:
             return
         if idx != self._drag_index and 0 <= idx < len(self.queue):
-            item = self.queue.pop(self._drag_index)
-            self.queue.insert(idx, item)
-            self._refresh_queue_treeview()
-            self._save_queue_to_file()
+            self.queue_ctrl.reorder(self._drag_index, idx)
             self._drag_index = idx
 
     def setup_log_styles(self):
@@ -2094,6 +1944,7 @@ class WhisperGUI:
         self.model_btn.config(text=self._model_button_label())
         self.output_folder_btn.config(text=t("output_folder"))
         self.watch_folder_check.config(text=t("watch_folder_label"))
+        self.watch_dirs_btn.config(text=t("watch_dirs_btn"))
         self.clear_log_btn.config(text=t("clear_log"))
         self.cancel_btn.config(text=t("cancel"))
         self.queue_list.heading("num", text=t("col_num"))
