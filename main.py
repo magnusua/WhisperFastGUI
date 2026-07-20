@@ -1,5 +1,5 @@
+"""Entry point for Whisper Fast GUI."""
 import warnings
-import os
 import sys
 
 # Блокируем предупреждения до основных импортов
@@ -8,9 +8,10 @@ warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
 
 # Импортируем только то, что гарантированно есть в стандартной поставке Python
 from tkinter import messagebox
-from installer import install_dependencies, check_system
+from whisperfast.setup.installer import install_dependencies
+from whisperfast.i18n import t, set_language
+from whisperfast.platform_util import win_no_window_kwargs
 
-from i18n import t, set_language
 
 def on_app_closing(root, app=None, WhisperModelSingleton=None):
     """Логика безопасного завершения работы приложения."""
@@ -21,9 +22,10 @@ def on_app_closing(root, app=None, WhisperModelSingleton=None):
             WhisperModelSingleton.unload()
         root.destroy()
 
+
 def main():
     # Перший запуск: вибір Python серед встановлених версій → settings.json → за потреби re-exec
-    from python_selector import ensure_preferred_python
+    from whisperfast.setup.python_selector import ensure_preferred_python
     ensure_preferred_python()
 
     # Python 3.14+: PyTorch / ctranslate2 / faster-whisper часто без колёс на PyPI — установка падает
@@ -46,21 +48,20 @@ def main():
     python_version = sys.version_info[:2]
     if python_version >= (3, 13):
         try:
-            import pyaudioop
+            import pyaudioop  # noqa: F401
         except ImportError:
             print(t("python_detected", major=python_version[0], minor=python_version[1]))
             print(t("installing_pyaudioop"))
             import subprocess
             kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-            if sys.platform == "win32":
-                kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            kwargs.update(win_no_window_kwargs())
             result = subprocess.run([sys.executable, "-m", "pip", "install", "pyaudioop"], **kwargs)
             if result.returncode == 0:
                 print(t("pyaudioop_installed"))
             else:
                 print(t("pyaudioop_warning"))
                 print(t("pyaudioop_manual"))
-    
+
     # 1. Проверка наличия критических библиотек перед импортом GUI
     def _check_deps():
         try:
@@ -88,10 +89,9 @@ def main():
         print(t("all_dependencies_found"))
 
     # 2. Локальный импорт компонентов проекта после проверки зависимостей
-    # Это предотвращает ошибку ModuleNotFoundError при старте
     try:
-        from gui import WhisperGUI, BaseTk
-        from model_manager import WhisperModelSingleton
+        from whisperfast.ui.gui import WhisperGUI, BaseTk
+        from whisperfast.core.model_manager import WhisperModelSingleton
     except ImportError as e:
         messagebox.showerror(t("import_error"), t("import_error_msg", error=str(e)))
         return
@@ -105,14 +105,13 @@ def main():
         )
         root.protocol("WM_DELETE_WINDOW", app.on_window_close)
 
-        # При аргументе --transcribe автоматически запускаем транскрибацию текущей очереди
         if len(sys.argv) > 1 and sys.argv[1].strip().lower() == "--transcribe":
             root.after(500, app.auto_start_queue)
 
-        # Запуск главного цикла
         root.mainloop()
     except Exception as e:
         messagebox.showerror(t("critical_error"), t("critical_error_msg", error=str(e)))
+
 
 if __name__ == "__main__":
     main()

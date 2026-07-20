@@ -4,11 +4,8 @@ import glob
 import subprocess
 import pygame
 
-try:
-    from config import BASE_DIR, DEFAULT_START_TIMESTAMP
-except ImportError:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DEFAULT_START_TIMESTAMP = "00:00:00,000"
+from whisperfast.config import BASE_DIR, DEFAULT_START_TIMESTAMP, RESOURCES_DIR
+from whisperfast.platform_util import win_no_window_kwargs
 
 def format_timestamp(seconds):
     h = int(seconds // 3600)
@@ -106,9 +103,7 @@ def get_audio_duration_seconds(path):
     Использует ffprobe (идет с FFmpeg). При ошибке — fallback через pydub.
     """
     try:
-        kwargs = {"capture_output": True, "text": True, "timeout": 30}
-        if sys.platform == "win32":
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        kwargs = {"capture_output": True, "text": True, "timeout": 30, **win_no_window_kwargs()}
         result = subprocess.run(
             [
                 "ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -131,7 +126,9 @@ def play_finish_sound():
     try:
         if not pygame.mixer.get_init():
             pygame.mixer.init()
-        mp3 = glob.glob(os.path.join(BASE_DIR, "*.mp3"))
+        mp3 = glob.glob(os.path.join(RESOURCES_DIR, "*.mp3"))
+        if not mp3:
+            mp3 = glob.glob(os.path.join(BASE_DIR, "*.mp3"))
         if mp3:
             pygame.mixer.music.load(mp3[0])
         elif sys.platform == "win32":

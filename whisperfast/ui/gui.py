@@ -1,12 +1,8 @@
-import json
 import os
 import re
 import subprocess
 import sys
-import tempfile
 import threading
-import time
-import traceback
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
@@ -17,7 +13,7 @@ except ImportError as e:
     if "audioop" in str(e) or "pyaudioop" in str(e):
         # Импортируем lang_manager для перевода (если доступен)
         try:
-            from lang_manager import t
+            from whisperfast.i18n import t
             error_msg = (
                 f"{t('error')}: Не удалось импортировать pydub.\n\n"
                 f"Для Python {sys.version_info.major}.{sys.version_info.minor} требуется pyaudioop.\n\n"
@@ -27,7 +23,7 @@ except ImportError as e:
             )
             error_title = t("error")
         except ImportError:
-            from i18n_fallback import t
+            from whisperfast.i18n.fallback import t
             error_msg = (
                 f"{t('error')}: Не удалось импортировать pydub.\n\n"
                 f"Для Python {sys.version_info.major}.{sys.version_info.minor} требуется pyaudioop.\n\n"
@@ -42,73 +38,78 @@ except ImportError as e:
         raise
 
 # На Windows pydub запускает ffmpeg/ffprobe через subprocess.Popen.
-# Патчим вызов, чтобы дочерние процессы не открывали консольные окна.
+# Підміняємо лише посилання всередині pydub, не глобальний subprocess.Popen.
 if sys.platform == "win32":
     try:
+        import types
         import pydub.audio_segment as _pydub_audio_segment
         if not getattr(_pydub_audio_segment, "_wf_no_window_patch", False):
-            _orig_pydub_popen = _pydub_audio_segment.subprocess.Popen
+            _orig_pydub_popen = subprocess.Popen
 
             def _pydub_popen_no_window(*args, **kwargs):
-                kwargs["creationflags"] = kwargs.get("creationflags", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                kwargs["creationflags"] = kwargs.get("creationflags", 0) | getattr(
+                    subprocess, "CREATE_NO_WINDOW", 0
+                )
                 return _orig_pydub_popen(*args, **kwargs)
 
-            _pydub_audio_segment.subprocess.Popen = _pydub_popen_no_window
+            _shim = types.SimpleNamespace()
+            for _name in dir(subprocess):
+                if not _name.startswith("_"):
+                    setattr(_shim, _name, getattr(subprocess, _name))
+            _shim.Popen = _pydub_popen_no_window
+            _pydub_audio_segment.subprocess = _shim
             _pydub_audio_segment._wf_no_window_patch = True
     except Exception:
         pass
 
 # Импорт модулей проекта
-from config import (
-    APP_VERSION, APP_DATE, BASE_DIR, load_help_text,
+from whisperfast.config import (
+    APP_VERSION, APP_DATE, BASE_DIR, RESOURCES_DIR,
     LANG_AUTO_VALUE, SUPPORTED_LANGUAGES,
-    AUDIO_EXTENSIONS, DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
-    WHISPER_MODELS, get_whisper_cache_dir, find_whisper_model_cache_path,
-    PROGRESS_UPDATE_INTERVAL_S, LOG_UPDATE_INTERVAL_S, FULL_VIDEO_SEGMENT_EPS_S,
+    DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
+    get_whisper_cache_dir,
 )
-from utils import (
-    format_timestamp, format_timestamp_srt, format_timestamp_filename,
-    play_finish_sound, get_audio_duration_seconds, parse_timestamp_to_seconds,
+from whisperfast.utils import (
+    play_finish_sound,
     normalize_queue_path, normalize_display_path,
 )
-from model_manager import WhisperModelSingleton
-from installer import install_dependencies, check_system, check_updates
-from app_updates import apply_app_update
-from model_updates import (
-    apply_whisper_model_updates,
-    is_model_downloaded,
-    model_needs_update,
-    update_whisper_model,
-)
-from gpu_info import refresh_gpu_settings
-from input_files import (
+from whisperfast.core.model_manager import WhisperModelSingleton
+from whisperfast.core.transcription import run_queue, save_files as save_transcription_files
+from whisperfast.setup.installer import install_dependencies, check_system, check_updates
+from whisperfast.updates.app_updates import apply_app_update
+from whisperfast.updates.model_updates import apply_whisper_model_updates
+from whisperfast.setup.gpu_info import refresh_gpu_settings
+from whisperfast.core.input_files import (
     add_multiple_files,
     add_directory,
     process_dropped_files,
 )
-from queue_manager import (
+from whisperfast.core.queue_manager import (
     QueueController,
     open_watch_dirs_dialog,
     parse_watch_dirs,
     serialize_watch_dirs,
     valid_watch_dirs,
 )
-from cursor_postprocess import (
+from whisperfast.postprocess.cursor_postprocess import (
     ensure_redactor_file,
     open_redactor_file,
     start_txt_postprocess_async,
 )
-from i18n import t, set_language, get_language
-from lang_manager import load_app_settings, save_app_settings
+from whisperfast.i18n import t, set_language
+from whisperfast.settings import load_app_settings, save_app_settings
+from whisperfast.platform_util import win_no_window_kwargs
+from whisperfast.ui.widgets import (
+    Tooltip,
+    UI_DESIGN_WIDTH,
+    UI_MIN_SCALE,
+    UI_BASE_FONT_SIZE,
+    LOG_MAX_LINES,
+)
+from whisperfast.ui import tray as tray_ui
+from whisperfast.ui import dialogs as ui_dialogs
 
 
-class _SegmentOffset:
-    """Сегмент с полями start, end, text (для смещения времени при обработке куска файла)."""
-    __slots__ = ("start", "end", "text")
-    def __init__(self, start, end, text):
-        self.start = start
-        self.end = end
-        self.text = text
 
 # Попытка импорта Drag & Drop
 try:
@@ -117,90 +118,10 @@ try:
 except ImportError:
     DND_OK = False
 
-# Иконка в системном трее (область уведомлений)
-try:
-    import pystray
-    from pystray import MenuItem as TrayMenuItem
-    from PIL import Image
-    TRAY_OK = True
-except ImportError:
-    TRAY_OK = False
 
 # Базовый класс окна зависит от наличия tkinterdnd2
 BaseTk = TkinterDnD.Tk if DND_OK else tk.Tk
 
-# Задержка показа подсказки (мс)
-TOOLTIP_DELAY_MS = 1000
-
-# Ширина, под которую спроектирован интерфейс; при меньшей ширине окна масштаб уменьшается
-UI_DESIGN_WIDTH = 1050
-UI_MIN_SCALE = 0.5
-UI_BASE_FONT_SIZE = 9
-LOG_MAX_LINES = 10000  # ограничение размера лога для длинных сессий
-
-
-class Tooltip:
-    """Подсказка при наведении на виджет. text — готовый текст или ключ перевода (если is_key=True)."""
-    def __init__(self, widget, text, delay_ms=TOOLTIP_DELAY_MS, is_key=False):
-        self.widget = widget
-        self._text_or_key = text
-        self._is_key = is_key
-        self.delay_ms = delay_ms
-        self._job = None
-        self._tw = None
-        self.widget.bind("<Enter>", self._on_enter)
-        self.widget.bind("<Leave>", self._on_leave)
-
-    def _on_enter(self, event=None):
-        self._job = self.widget.after(self.delay_ms, self._show)
-
-    def _on_leave(self, event=None):
-        if self._job:
-            self.widget.after_cancel(self._job)
-            self._job = None
-        self._hide()
-
-    def _show(self):
-        self._job = None
-        text = t(self._text_or_key) if self._is_key else self._text_or_key
-        if not text:
-            return
-        self._tw = tk.Toplevel(self.widget)
-        self._tw.wm_overrideredirect(True)
-        self._tw.wm_geometry("+0+0")
-        label = tk.Label(
-            self._tw,
-            text=text,
-            justify="left",
-            background="#ffffc0",
-            relief="solid",
-            borderwidth=1,
-            font=("Segoe UI", 9),
-            padx=6,
-            pady=4,
-        )
-        label.pack()
-        self._tw.update_idletasks()
-        # Позиция: под виджетом, выравнивание по левому краю
-        x = self.widget.winfo_rootx()
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 2
-        w = label.winfo_reqwidth()
-        h = label.winfo_reqheight()
-        self._tw.wm_geometry(f"+{x}+{y}")
-        # Не уходить за правый край экрана
-        root = self.widget.winfo_toplevel()
-        max_x = root.winfo_rootx() + root.winfo_width()
-        if x + w > max_x:
-            x = max(0, max_x - w - 4)
-            self._tw.wm_geometry(f"+{x}+{y}")
-
-    def _hide(self):
-        if self._tw:
-            try:
-                self._tw.destroy()
-            except tk.TclError:
-                pass
-            self._tw = None
 
 
 class WhisperGUI:
@@ -218,7 +139,7 @@ class WhisperGUI:
         self.root.minsize(400, 400)
 
         # Кастомная иконка окна и панели задач (favicon.ico); пути через config.BASE_DIR
-        self._icon_path = os.path.join(BASE_DIR, "favicon.ico")
+        self._icon_path = os.path.join(RESOURCES_DIR, "favicon.ico")
         if os.path.exists(self._icon_path):
             try:
                 self.root.iconbitmap(self._icon_path)
@@ -327,76 +248,20 @@ class WhisperGUI:
         # Иконка в системном трее (зависит от переключателя Панель / Трей / Панель + Трей)
         self._apply_tray_mode()
 
-    TRAY_MODE_KEYS = ("panel", "tray", "panel_tray")
 
     def _setup_tray(self):
-        """Запуск иконки в системном трее (если доступны pystray и Pillow). Не создаёт трей в режиме «Панель»."""
-        if self.tray_mode.get() == "panel":
-            return
-        if not TRAY_OK:
-            self.log(t("warning_tray_unavailable"))
-            return
-        if self._tray_icon:
-            return
-        width, height = 64, 64
-        img = None
-        if os.path.exists(self._icon_path):
-            try:
-                img = Image.open(self._icon_path)
-                if img.mode != "RGBA":
-                    img = img.convert("RGBA")
-                if img.size != (width, height):
-                    img = img.resize((width, height), Image.Resampling.LANCZOS)
-            except Exception:
-                img = None
-        if img is None:
-            # Резервна іконка, якщо favicon.ico відсутній — простий сірий квадрат
-            img = Image.new("RGBA", (width, height), (80, 80, 80, 255))
-
-        def show_window(icon, item):
-            self.root.after(0, self._tray_show_window)
-
-        def quit_app(icon, item):
-            self.root.after(0, self._tray_quit)
-
-        menu = pystray.Menu(
-            TrayMenuItem(t("tray_show_window"), show_window, default=True),
-            TrayMenuItem(t("exit"), quit_app),
-        )
-        self._tray_icon = pystray.Icon("whisper_fast_gui", img, t("app_title"), menu)
-        threading.Thread(target=self._tray_icon.run, daemon=True).start()
+        tray_ui.setup_tray(self)
 
     def _apply_tray_mode(self):
-        """Применяет выбранный режим: Панель (без трея), Трей (только трей), Панель + Трей."""
-        mode = self.tray_mode.get()
-        if mode == "panel":
-            if self._tray_icon:
-                try:
-                    self._tray_icon.stop()
-                except Exception:
-                    pass
-                self._tray_icon = None
-            self.root.deiconify()
-        else:
-            # Відкладений запуск трею: на Windows іконка часто не з'являється, якщо створювати її до готовності панелі задач
-            def delayed_tray():
-                self._setup_tray()
-                if mode == "tray" and self._tray_icon:
-                    self.root.withdraw()
-                else:
-                    self.root.deiconify()
-            self.root.after(500, delayed_tray)
+        tray_ui.apply_tray_mode(self)
 
     def _tray_show_window(self):
-        """Показать окно из трея (вызывается в main thread)."""
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
+        tray_ui.tray_show_window(self)
 
     def _tray_quit(self):
-        """Закрытие по пункту «Выход» в трее (вызывается в main thread)."""
-        if self._on_close_request:
-            self._on_close_request()
+        tray_ui.tray_quit(self)
+
+    TRAY_MODE_KEYS = ("panel", "tray", "panel_tray")
 
     def _load_queue_from_file(self):
         self.queue_ctrl.load_from_file()
@@ -895,185 +760,9 @@ class WhisperGUI:
         """Після завершення обробки запускає наступні файли, додані слідкуванням під час зайнятості."""
         self.queue_ctrl.continue_after_processing(cancel_requested=self.cancel_requested)
 
+
     def process_queue(self, mode, target_idx, options=None):
-        opts = options or {}
-        try:
-            model = WhisperModelSingleton.get(self.log, opts.get("device_mode", "AUTO"), opts.get("whisper_model", DEFAULT_MODEL))
-            # Снимок очереди, чтобы индексы не выходили за границы при изменении очереди в GUI
-            queue_snapshot = list(self.queue)
-            if mode == "single":
-                indices = [target_idx]
-            elif mode == "only_new":
-                indices = [i for i in range(len(queue_snapshot)) if not queue_snapshot[i].get("processed")]
-            else:
-                indices = list(range(len(queue_snapshot)))
-
-            done = 0
-            to_do = len(indices)
-            skipped_paths = []
-
-            for idx in indices:
-                if self.cancel_requested:
-                    break
-                if idx < 0 or idx >= len(queue_snapshot):
-                    continue
-                row = queue_snapshot[idx]
-                path = normalize_queue_path(row.get("path"))
-                if not path:
-                    continue
-                name = os.path.basename(path)
-                if not os.path.isfile(path):
-                    self.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
-                    self.log(t("file_skipped", name=name))
-                    skipped_paths.append(path)
-                    continue
-                self.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
-
-                try:
-                    start_sec = parse_timestamp_to_seconds(row.get("start")) or 0.0
-                    duration = get_audio_duration_seconds(path) or 1.0
-                    end_sec = parse_timestamp_to_seconds(row.get("end")) or duration
-                    end_sec = min(end_sec, duration)
-                    segment_duration = end_sec - start_sec if end_sec > start_sec else duration
-
-                    audio = None
-                    if opts.get("save_audio_mp3"):
-                        ext = os.path.splitext(path)[1].lower()
-                        is_audio_source = ext in AUDIO_EXTENSIONS
-                        if is_audio_source:
-                            choice = [None]
-                            def ask_save_mp3():
-                                choice[0] = messagebox.askyesno(
-                                    t("save_audio_mp3"),
-                                    t("save_mp3_confirm", filename=os.path.basename(path))
-                                )
-                            self.root.after(0, ask_save_mp3)
-                            while choice[0] is None and not self.cancel_requested:
-                                time.sleep(0.05)
-                            if choice[0]:
-                                full = AudioSegment.from_file(path)
-                                audio = full[int(start_sec * 1000):int(end_sec * 1000)]
-                        else:
-                            full = AudioSegment.from_file(path)
-                            audio = full[int(start_sec * 1000):int(end_sec * 1000)]
-                    else:
-                        full = None
-
-                    lang_val = opts.get("lang_mode", LANG_AUTO_VALUE)
-                    lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
-
-                    if start_sec > 0 or end_sec < duration:
-                        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                            tmp_path = tmp.name
-                        try:
-                            seg_audio = AudioSegment.from_file(path)[int(start_sec * 1000):int(end_sec * 1000)]
-                            seg_audio.export(tmp_path, format="wav")
-                            segments_iter, _ = model.transcribe(tmp_path, language=lang_param, vad_filter=True)
-                        finally:
-                            try:
-                                os.unlink(tmp_path)
-                            except OSError:
-                                pass
-                    else:
-                        segments_iter, _ = model.transcribe(path, language=lang_param, vad_filter=True)
-
-                    res = []
-                    last_progress_update = [0.0]
-                    last_log_update = [0.0]
-                    segment_count = [0]
-                    for s in segments_iter:
-                        if self.cancel_requested:
-                            break
-                        res.append(s)
-                        segment_count[0] += 1
-                        now = time.time()
-                        if now - last_progress_update[0] >= PROGRESS_UPDATE_INTERVAL_S:
-                            val = min(100, (s.end / segment_duration) * 100) if (segment_duration and segment_duration > 0) else 100
-                            self.root.after(0, lambda v=val: self._set_progress_value(v))
-                            last_progress_update[0] = now
-                        if now - last_log_update[0] >= LOG_UPDATE_INTERVAL_S or segment_count[0] <= 2:
-                            seg_text = (s.text or "").strip()
-                            self.log(f"   [{format_timestamp(s.start)}] {seg_text}")
-                            last_log_update[0] = now
-
-                    if not self.cancel_requested:
-                        self.root.after(0, lambda: self._set_progress_value(100))
-                        if start_sec > 0 or end_sec < duration:
-                            res = [_SegmentOffset(s.start + start_sec, s.end + start_sec, s.text or "") for s in res]
-                        is_segment = start_sec >= FULL_VIDEO_SEGMENT_EPS_S or (duration - end_sec) >= FULL_VIDEO_SEGMENT_EPS_S
-                        self.save_files(
-                            path,
-                            res,
-                            audio_segment=audio,
-                            segment_start_sec=start_sec if is_segment else None,
-                            segment_end_sec=end_sec if is_segment else None,
-                            output_opts=opts,
-                            send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
-                            cursor_api_key=opts.get("cursor_api_key") or "",
-                        )
-                        self.root.after(0, lambda p=path: self._mark_done_by_path(p))
-                        done += 1
-                except (OSError, RuntimeError, ValueError) as e:
-                    self.log(t("file_skipped", name=name))
-                    self.log(t("error_occurred", error=str(e)))
-                    if self.queue_ctrl.notify_decode_failed(path):
-                        self.root.after(0, lambda p=path: self.queue_ctrl.remove_paths([p]))
-                    else:
-                        skipped_paths.append(path)
-                except Exception as e:
-                    self.log(t("file_skipped", name=name))
-                    self.log(t("error_occurred", error=str(e)))
-                    if self.queue_ctrl.notify_decode_failed(path):
-                        self.root.after(0, lambda p=path: self.queue_ctrl.remove_paths([p]))
-                    else:
-                        skipped_paths.append(path)
-
-            if skipped_paths:
-                paths_copy = list(skipped_paths)
-                self.root.after(0, lambda: self._report_skipped_and_offer_remove(paths_copy))
-            if self.cancel_requested:
-                self.log(f"\n{t('cancelled', count=to_do - done)}")
-            else:
-                self.log(f"\n{t('all_tasks_complete')}")
-                will_continue = (
-                    self.queue_ctrl.watch_pending_continue
-                    and any(not q.get("processed") for q in self.queue)
-                )
-                self._maybe_play_finish_sound(
-                    play_requested=bool(opts.get("play_sound_on_finish")),
-                    send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
-                    will_continue=will_continue,
-                )
-
-        except (OSError, IndexError, RuntimeError) as e:
-            err_msg = str(e)
-            self.log(t("error_occurred", error=err_msg))
-            if isinstance(e, IndexError) or "list index out of range" in err_msg.lower():
-                self.log(t("error_no_audio_hint"))
-            if os.environ.get("DEBUG"):
-                self.log(traceback.format_exc())
-        except Exception as e:
-            err_msg = str(e)
-            self.log(t("error_occurred", error=err_msg))
-            if "list index out of range" in err_msg.lower():
-                self.log(t("error_no_audio_hint"))
-            if os.environ.get("DEBUG"):
-                self.log(traceback.format_exc())
-        finally:
-            self.root.after(0, self.reset_ui)
-
-    def _segment_file_suffix(self, start_sec, end_sec):
-        """Суфікс для імен файлів сегмента: HH-MM-SS_HH-MM-SS (через format_timestamp_filename)."""
-        return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
-
-    def _watch_register_output_paths(self, paths):
-        """Пути выходных файлов транскрибации — не підхоплювати слідкуванням."""
-        self.queue_ctrl.register_output_paths(paths)
-
-    @staticmethod
-    def _watch_filename_is_program_output(name):
-        """Эвристика: экспортированное приложением аудио всегда оканчивается на _audio.mp3."""
-        return name.lower().endswith("_audio.mp3")
+        run_queue(self, mode, target_idx, options)
 
     def save_files(
         self,
@@ -1086,46 +775,17 @@ class WhisperGUI:
         send_txt_to_cursor=False,
         cursor_api_key="",
     ):
-        opts = output_opts or {}
-        out = self._resolve_output_dir(path, opts)
-        marker = self._processed_marker()
-        base = os.path.splitext(os.path.basename(path))[0].replace(marker, "")
-        if segment_start_sec is not None and segment_end_sec is not None:
-            base = base + self._segment_file_suffix(segment_start_sec, segment_end_sec)
-        txt_p = os.path.abspath(os.path.join(out, base + ".txt"))
-        srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
-        out_paths = [txt_p, srt_p]
-        mp3_out = None
-        if audio_segment is not None:
-            mp3_out = self._resolve_mp3_output_dir(path, opts)
-            out_paths.append(os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3")))
-        self._watch_register_output_paths(out_paths)
-
-        with open(txt_p, "w", encoding="utf-8") as f:
-            f.write("\n".join([(s.text or "").strip() for s in segments]))
-
-        with open(srt_p, "w", encoding="utf-8") as f:
-            for i, s in enumerate(segments, 1):
-                timestamp = f"{format_timestamp_srt(s.start)} --> {format_timestamp_srt(s.end)}"
-                f.write(f"{i}\n{timestamp}\n{(s.text or '').strip()}\n\n")
-
-        self.log(t("files_created", name=base))
-        self.log(t("txt_file"), None)
-        self.log(txt_p, "link")
-        self.log(t("srt_file"), None)
-        self.log(srt_p, "link")
-
-        if audio_segment is not None and mp3_out is not None:
-            mp3_p = os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3"))
-            try:
-                audio_segment.export(mp3_p, format="mp3")
-                self.log(t("audio_mp3_file"), None)
-                self.log(mp3_p, "link")
-            except Exception as e:
-                self.log(t("audio_mp3_error", error=str(e)))
-
-        if send_txt_to_cursor:
-            self._schedule_cursor_postprocess(txt_p, cursor_api_key=cursor_api_key)
+        save_transcription_files(
+            self,
+            path,
+            segments,
+            audio_segment=audio_segment,
+            segment_start_sec=segment_start_sec,
+            segment_end_sec=segment_end_sec,
+            output_opts=output_opts,
+            send_txt_to_cursor=send_txt_to_cursor,
+            cursor_api_key=cursor_api_key,
+        )
 
     def mark_done(self, idx, name):
         """Отмечает файл как обработанный в очереди и сохраняет очередь в request_queue.json."""
@@ -1194,7 +854,7 @@ class WhisperGUI:
         WhisperModelSingleton.unload()
         kwargs = {}
         if sys.platform == "win32":
-            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            kwargs.update(win_no_window_kwargs())
         if restart_script and os.path.isfile(restart_script):
             subprocess.Popen([restart_script], cwd=BASE_DIR, **kwargs)
         else:
@@ -1252,62 +912,24 @@ class WhisperGUI:
         self.cancel_requested = True
         self.log(t("waiting_segment"))
 
+
     def show_help(self):
-        """Показывает окно справки с прокруткой и адаптивным размером"""
-        help_window = tk.Toplevel(self.root)
-        help_window.title(t("help_title"))
-        help_window.transient(self.root)
-        
-        # Обновляем главное окно для получения актуальных размеров
-        self.root.update_idletasks()
-        
-        main_width = self.root.winfo_width()
-        main_height = self.root.winfo_height()
-        help_width = max(700, int(main_width * 0.85))
-        help_height = max(600, int(main_height * 0.85))
-        help_window.geometry(f"{help_width}x{help_height}")
-        self._center_toplevel(help_window)
-        
-        # Создаем фрейм с прокруткой
-        main_frame = ttk.Frame(help_window, padding=10)
-        main_frame.pack(fill="both", expand=True)
-        
-        # Создаем ScrolledText для прокрутки
-        text_widget = scrolledtext.ScrolledText(
-            main_frame,
-            wrap="word",
-            font=("Segoe UI", 10),
-            padx=15,
-            pady=15,
-            state="normal",
-            relief="flat",
-            borderwidth=1
-        )
-        text_widget.pack(fill="both", expand=True)
-        
-        # Текст справки на языке интерфейса (Help_EN / Help_UK / Help_RU)
-        text_widget.insert("1.0", load_help_text(self.ui_language.get()))
-        text_widget.config(state="disabled")  # Делаем только для чтения
-        
-        # Прокрутка в начало
-        text_widget.see("1.0")
-        
-        # Кнопка закрытия
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill="x", pady=(10, 0))
-        ttk.Button(btn_frame, text=t("close"), command=help_window.destroy, width=15).pack(side="right")
-        
-        # Обработка закрытия окна
-        help_window.protocol("WM_DELETE_WINDOW", help_window.destroy)
-        
-        # Фокус на текстовое поле для прокрутки колесиком
-        text_widget.focus_set()
-        
-        # Привязываем прокрутку колесиком мыши (на случай, если фокус потерян)
-        def on_mousewheel(event):
-            text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        
-        text_widget.bind("<MouseWheel>", on_mousewheel)
+        ui_dialogs.show_help(self)
+
+    def _show_mp3_settings_dialog(self):
+        ui_dialogs.show_mp3_settings_dialog(self)
+
+    def _show_output_settings_dialog(self):
+        ui_dialogs.show_output_settings_dialog(self)
+
+    def _show_model_dialog(self):
+        ui_dialogs.show_model_dialog(self)
+
+    def _show_cursor_api_key_dialog(self):
+        ui_dialogs.show_cursor_api_key_dialog(self)
+
+    def _center_toplevel(self, win, parent=None):
+        ui_dialogs.center_toplevel(self, win, parent)
 
     def _on_enter_key(self, event=None):
         """Глобальный Enter: при пустой очереди — добавить файлы, иначе — начать транскрибацию."""
@@ -1415,144 +1037,6 @@ class WhisperGUI:
             return source_dir
         return source_dir
 
-    def _show_mp3_settings_dialog(self):
-        """Налаштування каталогу для MP3, створених програмою (чекбокс лишається окремо)."""
-        dialog = tk.Toplevel(self.root)
-        dialog.title(t("mp3_settings_title"))
-        dialog.transient(self.root)
-        dialog.resizable(False, False)
-        dialog.grab_set()
-
-        frame = ttk.Frame(dialog, padding=15)
-        frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=t("mp3_settings_hint")).pack(anchor="w", pady=(0, 8))
-
-        mode_var = tk.StringVar(value=self.mp3_output_mode.get() or "inherit")
-        dir_var = tk.StringVar(value=self.mp3_output_dir.get() or "")
-
-        ttk.Radiobutton(
-            frame, text=t("mp3_mode_inherit"), variable=mode_var, value="inherit"
-        ).pack(anchor="w", pady=2)
-        ttk.Radiobutton(
-            frame, text=t("save_mode_beside"), variable=mode_var, value="beside"
-        ).pack(anchor="w", pady=2)
-
-        custom_row = ttk.Frame(frame)
-        custom_row.pack(fill="x", pady=2)
-        ttk.Radiobutton(
-            custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom"
-        ).pack(side="left")
-        dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
-        dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
-
-        def browse():
-            d = filedialog.askdirectory(parent=dialog)
-            if d:
-                dir_var.set(normalize_display_path(d))
-                mode_var.set("custom")
-
-        ttk.Button(custom_row, text="…", width=3, command=browse).pack(side="left")
-
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill="x", pady=(12, 0))
-
-        def close_cancel():
-            dialog.destroy()
-
-        def save_and_close():
-            mode = mode_var.get() or "inherit"
-            path = normalize_display_path((dir_var.get() or "").strip())
-            if mode == "custom":
-                if not path or not os.path.isdir(path):
-                    messagebox.showerror(t("error"), t("save_dir_invalid"), parent=dialog)
-                    return
-            self.mp3_output_mode.set(mode)
-            self.mp3_output_dir.set(
-                path if mode == "custom" else (path if os.path.isabs(path) else "")
-            )
-            self._persist_settings()
-            dialog.destroy()
-
-        ttk.Button(buttons, text=t("cancel_btn"), command=close_cancel).pack(
-            side="right", padx=(5, 0)
-        )
-        ttk.Button(buttons, text=t("save"), command=save_and_close).pack(side="right")
-        dialog.protocol("WM_DELETE_WINDOW", close_cancel)
-        dialog.bind("<Escape>", lambda e: close_cancel())
-        self._center_toplevel(dialog)
-
-    def _show_output_settings_dialog(self):
-        """Налаштування збереження всіх файлів, створених програмою."""
-        dialog = tk.Toplevel(self.root)
-        dialog.title(t("output_settings_title"))
-        dialog.transient(self.root)
-        dialog.resizable(False, False)
-        dialog.grab_set()
-
-        frame = ttk.Frame(dialog, padding=15)
-        frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=t("output_settings_hint")).pack(anchor="w", pady=(0, 8))
-
-        mode_var = tk.StringVar(value=self.output_mode.get() or "beside")
-        dir_var = tk.StringVar(value=self.output_dir.get() or "")
-        named_var = tk.StringVar(value=self.output_named_folder.get() or "{basename}")
-
-        ttk.Radiobutton(frame, text=t("save_mode_beside"), variable=mode_var, value="beside").pack(anchor="w", pady=2)
-
-        custom_row = ttk.Frame(frame)
-        custom_row.pack(fill="x", pady=2)
-        ttk.Radiobutton(custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom").pack(side="left")
-        dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
-        dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
-
-        def browse():
-            d = filedialog.askdirectory(parent=dialog)
-            if d:
-                dir_var.set(normalize_display_path(d))
-                mode_var.set("custom")
-
-        ttk.Button(custom_row, text="…", width=3, command=browse).pack(side="left")
-
-        named_row = ttk.Frame(frame)
-        named_row.pack(fill="x", pady=2)
-        ttk.Radiobutton(
-            named_row, text=t("save_mode_named_folder"), variable=mode_var, value="named_folder"
-        ).pack(side="left")
-        named_entry = ttk.Entry(named_row, textvariable=named_var, width=28)
-        named_entry.pack(side="left", fill="x", expand=True, padx=(8, 0))
-        ttk.Label(frame, text=t("save_named_folder_hint"), wraplength=420).pack(anchor="w", pady=(4, 0))
-
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill="x", pady=(12, 0))
-
-        def close_cancel():
-            dialog.destroy()
-
-        def save_and_close():
-            mode = mode_var.get() or "beside"
-            path = normalize_display_path((dir_var.get() or "").strip())
-            named = (named_var.get() or "").strip() or "{basename}"
-            if mode == "custom":
-                if not path or not os.path.isdir(path):
-                    messagebox.showerror(t("error"), t("save_dir_invalid"), parent=dialog)
-                    return
-            if mode == "named_folder" and not self._sanitize_folder_name(
-                named.replace("{basename}", "x").replace("{name}", "x")
-            ):
-                messagebox.showerror(t("error"), t("save_named_folder_invalid"), parent=dialog)
-                return
-            self.output_mode.set(mode)
-            self.output_dir.set(path if mode == "custom" else (path if os.path.isabs(path) else ""))
-            self.output_named_folder.set(named)
-            self._persist_settings()
-            dialog.destroy()
-
-        ttk.Button(buttons, text=t("cancel_btn"), command=close_cancel).pack(side="right", padx=(5, 0))
-        ttk.Button(buttons, text=t("save"), command=save_and_close).pack(side="right")
-        dialog.protocol("WM_DELETE_WINDOW", close_cancel)
-        dialog.bind("<Escape>", lambda e: close_cancel())
-        self._center_toplevel(dialog)
-
     def _open_watch_dirs_dialog(self):
         """Вікно списку каталогів слідкування (Зберегти / закриття = скасування)."""
         current = parse_watch_dirs(self.watch_dir.get())
@@ -1612,150 +1096,6 @@ class WhisperGUI:
         """Текст кнопки выбора модели: текущая модель (короткое имя)."""
         return self.whisper_model.get() or DEFAULT_MODEL
 
-    def _folder_size_mb(self, path):
-        """Примерный размер каталога в МБ (сумма размеров файлов)."""
-        if not path or not os.path.isdir(path):
-            return 0
-        total = 0
-        try:
-            for _dir, _subdirs, files in os.walk(path):
-                for f in files:
-                    try:
-                        total += os.path.getsize(os.path.join(_dir, f))
-                    except OSError:
-                        pass
-        except OSError:
-            return 0
-        return round(total / (1024 * 1024))
-
-    def _model_dialog_refresh_listbox(self, lb, cache_root):
-        """Оновлює рядки списку моделей (статус завантаження та оновлення)."""
-        lb.delete(0, "end")
-        for name in WHISPER_MODELS:
-            full_path = find_whisper_model_cache_path(cache_root, name)
-            if full_path:
-                size_mb = self._folder_size_mb(full_path)
-                line = f"{name}  —  {t('model_dialog_downloaded')}  ~{size_mb} MB"
-                if model_needs_update(name, cache_root):
-                    line += f"  ({t('model_dialog_update_available')})"
-            else:
-                line = f"{name}  —  {t('model_dialog_not_downloaded')}"
-            lb.insert("end", line)
-
-    def _show_model_dialog(self):
-        """Открывает окно выбора модели Whisper: список моделей, отметка загруженных и размер."""
-        cache_root = get_whisper_cache_dir()
-        current = self.whisper_model.get() or DEFAULT_MODEL
-
-        win = tk.Toplevel(self.root)
-        win.title(t("model_dialog_title"))
-        win.transient(self.root)
-        win.grab_set()
-        win.geometry("460x380")
-        win.minsize(400, 300)
-        main_f = ttk.Frame(win, padding=10)
-        main_f.pack(fill="both", expand=True)
-        header_f = ttk.Frame(main_f)
-        header_f.pack(fill="x")
-        ttk.Label(
-            header_f,
-            text=t("model_dialog_cache", cache_dir=cache_root),
-            wraplength=300,
-        ).pack(side="left", fill="x", expand=True)
-
-        frame = ttk.Frame(main_f)
-        frame.pack(fill="both", expand=True)
-        lb = tk.Listbox(frame, height=12, selectmode="single", font=("Segoe UI", 9))
-        scroll = ttk.Scrollbar(frame)
-        lb.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
-        lb.config(yscrollcommand=scroll.set)
-        scroll.config(command=lb.yview)
-
-        self._model_dialog_refresh_listbox(lb, cache_root)
-        try:
-            idx = WHISPER_MODELS.index(current)
-            lb.selection_set(idx)
-            lb.see(idx)
-        except ValueError:
-            pass
-
-        def on_update_model():
-            sel = lb.curselection()
-            if not sel:
-                messagebox.showwarning(t("model_update_btn"), t("model_update_select"), parent=win)
-                return
-            chosen = WHISPER_MODELS[sel[0]]
-            if not is_model_downloaded(chosen, cache_root):
-                messagebox.showinfo(t("model_update_btn"), t("model_update_not_downloaded", model=chosen), parent=win)
-                return
-            if not model_needs_update(chosen, cache_root):
-                if not messagebox.askyesno(
-                    t("model_update_btn"),
-                    t("model_update_already_latest", model=chosen),
-                    parent=win,
-                ):
-                    return
-            update_btn.config(state="disabled")
-
-            def worker():
-                try:
-                    update_whisper_model(chosen, log_func=self.log, force=True)
-                    WhisperModelSingleton.reset()
-                    if self.whisper_model.get() == chosen:
-                        try:
-                            WhisperModelSingleton.get(self.log, self.device_mode.get(), chosen)
-                        except Exception:
-                            pass
-                finally:
-                    def done():
-                        self._model_dialog_refresh_listbox(lb, cache_root)
-                        update_btn.config(state="normal")
-                    win.after(0, done)
-
-            threading.Thread(target=worker, daemon=True).start()
-
-        update_btn = ttk.Button(header_f, text=t("model_update_btn"), command=on_update_model)
-        update_btn.pack(side="right", padx=(8, 0))
-
-        def on_load():
-            sel = lb.curselection()
-            if not sel:
-                return
-            chosen = WHISPER_MODELS[sel[0]]
-            self.whisper_model.set(chosen)
-            WhisperModelSingleton.reset()
-            try:
-                WhisperModelSingleton.get(self.log, self.device_mode.get(), chosen)
-            except Exception:
-                pass
-            self.model_btn.config(text=self._model_button_label())
-            self._persist_settings()
-            self.log(t("model_loaded", model=chosen))
-
-        def on_ok():
-            sel = lb.curselection()
-            if sel:
-                chosen = WHISPER_MODELS[sel[0]]
-                self.whisper_model.set(chosen)
-                self.model_btn.config(text=self._model_button_label())
-                WhisperModelSingleton.reset()
-                self._persist_settings()
-                self.log(t("model_selected", model=chosen))
-            win.destroy()
-
-        def on_cancel():
-            win.destroy()
-
-        btn_f = ttk.Frame(main_f)
-        btn_f.pack(fill="x", pady=(10, 0))
-        ttk.Button(btn_f, text=t("model_load_btn"), command=on_load).pack(side="left", padx=2)
-        ttk.Button(btn_f, text=t("ok"), command=on_ok).pack(side="left", padx=2)
-        ttk.Button(btn_f, text=t("cancel"), command=on_cancel).pack(side="left", padx=2)
-        win.protocol("WM_DELETE_WINDOW", on_cancel)
-        self._center_toplevel(win)
-        win.focus_set()
-
     def _on_tray_mode_change(self, event=None):
         """Обробник зміни перемикача Панель / Трей / Панель + Трей."""
         idx = self.tray_mode_combo.current()
@@ -1777,7 +1117,7 @@ class WhisperGUI:
                 subprocess.Popen(
                     ["cmd", "/c", f'"{bat_path}"'],
                     cwd=BASE_DIR,
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    **win_no_window_kwargs(),
                 )
             else:
                 subprocess.Popen([bat_path], cwd=BASE_DIR)
@@ -1791,32 +1131,6 @@ class WhisperGUI:
         else:
             if self._on_close_request:
                 self._on_close_request()
-
-    def _center_toplevel(self, win, parent=None):
-        """Размещает Toplevel по центру родительского окна (или экрана). Не выносит за границы экрана."""
-        parent = parent or self.root
-        win.update_idletasks()
-        w = win.winfo_width()
-        h = win.winfo_height()
-        if w <= 1:
-            w = 400
-        if h <= 1:
-            h = 300
-        px = parent.winfo_rootx()
-        py = parent.winfo_rooty()
-        pw = parent.winfo_width()
-        ph = parent.winfo_height()
-        if pw <= 1:
-            pw = w
-        if ph <= 1:
-            ph = h
-        x = px + (pw - w) // 2
-        y = py + (ph - h) // 2
-        sw = win.winfo_screenwidth()
-        sh = win.winfo_screenheight()
-        x = max(0, min(x, sw - w))
-        y = max(0, min(y, sh - h))
-        win.geometry(f"+{x}+{y}")
 
     def _persist_settings(self):
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
@@ -1860,44 +1174,6 @@ class WhisperGUI:
             else:
                 self.log(t("cursor_sdk_missing"))
 
-    def _show_cursor_api_key_dialog(self):
-        """Окреме модальне вікно API-ключа; закриття через X не зберігає зміни."""
-        dialog = tk.Toplevel(self.root)
-        dialog.title(t("cursor_api_key_title"))
-        dialog.transient(self.root)
-        dialog.resizable(False, False)
-        dialog.grab_set()
-
-        frame = ttk.Frame(dialog, padding=15)
-        frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=t("cursor_api_key_prompt")).pack(anchor="w", pady=(0, 6))
-
-        draft_key = tk.StringVar(value=self.cursor_api_key.get())
-        entry = ttk.Entry(frame, textvariable=draft_key, width=52, show="*")
-        entry.pack(fill="x", pady=(0, 12))
-
-        buttons = ttk.Frame(frame)
-        buttons.pack(fill="x")
-
-        def close_without_saving():
-            dialog.destroy()
-
-        def save_key():
-            self.cursor_api_key.set((draft_key.get() or "").strip())
-            self._persist_settings()
-            dialog.destroy()
-
-        ttk.Button(buttons, text=t("cancel_btn"), command=close_without_saving).pack(
-            side="right", padx=(5, 0)
-        )
-        ttk.Button(buttons, text=t("save"), command=save_key).pack(side="right")
-
-        dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
-        dialog.bind("<Escape>", lambda event: close_without_saving())
-        dialog.bind("<Return>", lambda event: save_key())
-        self._center_toplevel(dialog)
-        entry.focus_set()
-
     def _edit_redactor_file(self):
         open_redactor_file(log_func=self.log)
 
@@ -1933,13 +1209,13 @@ class WhisperGUI:
 
     def _schedule_cursor_postprocess(self, txt_path, cursor_api_key=""):
         """Після створення TXT: за потреби встановити cursor-sdk, затримка 5 с, постпроцесинг."""
-        from cursor_postprocess import resolve_cursor_api_key
+        from whisperfast.postprocess.cursor_postprocess import resolve_cursor_api_key
 
         api_key = resolve_cursor_api_key((cursor_api_key or "").strip())
         self._cursor_job_begin()
 
         def on_created(path):
-            self._watch_register_output_paths([path])
+            self.queue_ctrl.register_output_paths([path])
 
         def on_complete():
             self._cursor_job_end()
@@ -2099,7 +1375,7 @@ class WhisperGUI:
         if sys.platform == "win32":
             subprocess.run(
                 ['explorer', '/select,', os.path.normpath(path)],
-                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                **win_no_window_kwargs(),
             )
         elif sys.platform == "darwin":
             subprocess.run(['open', '-R', path], check=False)

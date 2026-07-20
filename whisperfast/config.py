@@ -1,8 +1,10 @@
 import os
 import re
 
-# Корневая папка приложения (каталог, где лежит config.py) — единая база для путей
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Корень приложения (каталог с main.py), не каталог пакета
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(_PACKAGE_DIR)
+RESOURCES_DIR = os.path.join(BASE_DIR, "resources")
 
 # Системные константы
 README_PATH = os.path.join(BASE_DIR, "README.md")
@@ -51,7 +53,7 @@ PROGRESS_UPDATE_INTERVAL_S = 0.1
 LOG_UPDATE_INTERVAL_S = 0.5
 # Порог (сек): считаем обработку «отрезком» файла, если start >= EPS или (duration - end) >= EPS
 FULL_VIDEO_SEGMENT_EPS_S = 0.5
-# Пакети, для которых проверяются обновления при нажатии кнопки «Обновления»
+# Пакети, для которых проверяються обновления при нажатии кнопки «Обновления»
 UPDATE_PACKAGES = [
     "pip", "setuptools", "wheel",
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
@@ -76,28 +78,24 @@ def load_help_text(lang_code=None):
     """Загружает текст справки на языке интерфейса (EN/UK/RU)."""
     if not lang_code:
         try:
-            from i18n import get_language
+            from whisperfast.i18n import get_language
             lang_code = get_language()
         except ImportError:
             lang_code = "EN"
     lang_code = (lang_code or "EN").upper()
     candidates = []
     if lang_code in _HELP_FILENAMES:
-        candidates.append(_HELP_FILENAMES[lang_code])
-    candidates.append("README.md")
-    for name in candidates:
-        file_path = os.path.join(BASE_DIR, name)
+        candidates.append(os.path.join(RESOURCES_DIR, _HELP_FILENAMES[lang_code]))
+    candidates.append(README_PATH)
+    for file_path in candidates:
         if os.path.exists(file_path):
             with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
     try:
-        from i18n import t
+        from whisperfast.i18n import t
         return t("help_file_not_found")
     except ImportError:
         return "Help file (README.md) not found."
-
-
-# Справка загружается лениво при открытии Help (gui вызывает load_help_text())
 
 
 def get_whisper_cache_dir():

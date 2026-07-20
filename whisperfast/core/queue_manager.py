@@ -11,10 +11,10 @@ import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from config import BASE_DIR, VALID_EXTS, DEFAULT_START_TIMESTAMP
-from i18n import t
-from input_files import add_files_to_queue_controller, is_valid_file
-from utils import (
+from whisperfast.config import BASE_DIR, VALID_EXTS, DEFAULT_START_TIMESTAMP
+from whisperfast.i18n import t
+from whisperfast.core.input_files import add_files_to_queue_controller, is_valid_file
+from whisperfast.utils import (
     make_queue_item,
     normalize_queue_path,
     normalize_display_path,

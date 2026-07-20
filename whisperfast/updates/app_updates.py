@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -11,14 +10,16 @@ import urllib.request
 import zipfile
 from typing import Callable, Dict, Optional
 
-from config import (
+from whisperfast.config import (
     APP_VERSION,
     BASE_DIR,
     GITHUB_BRANCH,
     GITHUB_REPO,
     GITHUB_URL,
+    parse_app_metadata,
 )
-from i18n import t
+from whisperfast.i18n import t
+from whisperfast.platform_util import win_no_window_kwargs
 
 try:
     from packaging.version import Version
@@ -31,26 +32,11 @@ _RAW_README_URL = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRAN
 _ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/{GITHUB_BRANCH}.zip"
 
 
-def _win_no_window_kwargs():
-    if sys.platform == "win32":
-        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
-    return {}
 
 
 def get_local_app_version() -> str:
     return APP_VERSION
 
-
-def _parse_readme_metadata(readme_text: str) -> tuple[Optional[str], Optional[str]]:
-    version_match = re.search(
-        r"^\*\*Версія:\*\*\s*(\S+)\s*$", readme_text, re.MULTILINE
-    )
-    date_match = re.search(
-        r"^\*\*Дата публікації:\*\*\s*(\S+)\s*$", readme_text, re.MULTILINE
-    )
-    version = version_match.group(1) if version_match else None
-    date = date_match.group(1) if date_match else None
-    return version, date
 
 
 def fetch_remote_app_version(timeout: int = 15) -> tuple[Optional[str], Optional[str]]:
@@ -64,7 +50,12 @@ def fetch_remote_app_version(timeout: int = 15) -> tuple[Optional[str], Optional
             text = response.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, OSError, TimeoutError):
         return None, None
-    return _parse_readme_metadata(text)
+    version, date = parse_app_metadata(text)
+    if version == "unknown":
+        version = None
+    if date == "unknown":
+        date = None
+    return version, date
 
 
 def _version_is_newer(remote: str, current: str) -> bool:
@@ -124,7 +115,7 @@ def _update_via_git(log_func: Callable[[str], None]) -> bool:
             capture_output=True,
             text=True,
             timeout=120,
-            **_win_no_window_kwargs(),
+            **win_no_window_kwargs(),
         )
         if fetch.returncode != 0:
             err = (fetch.stderr or fetch.stdout or "").strip()
@@ -135,7 +126,7 @@ def _update_via_git(log_func: Callable[[str], None]) -> bool:
             capture_output=True,
             text=True,
             timeout=120,
-            **_win_no_window_kwargs(),
+            **win_no_window_kwargs(),
         )
         if pull.returncode != 0:
             err = (pull.stderr or pull.stdout or "").strip()

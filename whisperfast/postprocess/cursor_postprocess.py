@@ -9,7 +9,8 @@ import sys
 import threading
 from typing import Callable, List, Optional, Tuple
 
-from config import BASE_DIR
+from whisperfast.config import BASE_DIR
+from whisperfast.platform_util import win_no_window_kwargs
 
 REDACTOR_FILENAME = "redactor1.md"
 CURSOR_POSTPROCESS_DELAY_S = 5.0
@@ -317,7 +318,7 @@ def open_cursor_chat_fallback(
     if not cursor_bin:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_not_found"))
             except ImportError:
                 log_func("❌ Cursor executable not found.")
@@ -350,11 +351,11 @@ def open_cursor_chat_fallback(
         cmd = [cursor_bin, "--chat", "-n", "-g", txt_path]
         kwargs = {}
         if sys.platform == "win32":
-            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            kwargs.update(win_no_window_kwargs())
         subprocess.Popen(cmd, **kwargs)
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_chat_opened", name=os.path.basename(txt_path)))
                 if clipboard_ok:
                     log_func(t("cursor_chat_prompt_copied"))
@@ -366,7 +367,7 @@ def open_cursor_chat_fallback(
     except OSError as e:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_chat_error", error=str(e)))
             except ImportError:
                 log_func(f"❌ Cursor Chat error: {e}")
@@ -429,7 +430,7 @@ def run_sdk_chain(
     if not prompts:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_no_prompts"))
             except ImportError:
                 log_func("❌ No numbered prompts found in redactor1.md")
@@ -441,7 +442,7 @@ def run_sdk_chain(
     except ImportError:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_sdk_missing"))
             except ImportError:
                 log_func("❌ cursor-sdk not installed. pip install cursor-sdk")
@@ -454,7 +455,7 @@ def run_sdk_chain(
         label = name or f"#{num}"
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_processing_prompt", num=num, name=label))
             except ImportError:
                 log_func(f"▶ Cursor prompt #{num} ({label})…")
@@ -463,7 +464,7 @@ def run_sdk_chain(
         except Exception as e:
             if log_func:
                 try:
-                    from i18n import t
+                    from whisperfast.i18n import t
                     log_func(t("cursor_prompt_error", num=num, error=str(e)))
                 except ImportError:
                     log_func(f"❌ Cursor prompt #{num}: {e}")
@@ -472,7 +473,7 @@ def run_sdk_chain(
             # Якщо агент не записав файл — вважаємо крок невдалим і зупиняємо ланцюжок.
             if log_func:
                 try:
-                    from i18n import t
+                    from whisperfast.i18n import t
                     log_func(t("cursor_output_missing", path=out_path))
                 except ImportError:
                     log_func(f"❌ Output file not created: {out_path}")
@@ -482,7 +483,7 @@ def run_sdk_chain(
             on_file_created(out_path)
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_file_created", num=num, name=os.path.basename(out_path)))
             except ImportError:
                 log_func(f"✅ Cursor created: {os.path.basename(out_path)}")
@@ -502,7 +503,7 @@ def process_txt_with_cursor(
     if delay_s > 0:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_waiting", seconds=int(delay_s)))
             except ImportError:
                 log_func(f"⏳ Waiting {int(delay_s)}s before Cursor…")
@@ -513,7 +514,7 @@ def process_txt_with_cursor(
     if not prompts:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_no_prompts"))
             except ImportError:
                 log_func("❌ No numbered prompts in redactor1.md")
@@ -531,7 +532,7 @@ def process_txt_with_cursor(
     else:
         if log_func:
             try:
-                from i18n import t
+                from whisperfast.i18n import t
                 log_func(t("cursor_no_api_key_fallback"))
             except ImportError:
                 log_func("⚠ No Cursor API key — opening Chat (manual confirm).")
@@ -559,7 +560,7 @@ def start_txt_postprocess_async(
         except Exception as e:
             if log_func:
                 try:
-                    from i18n import t
+                    from whisperfast.i18n import t
                     log_func(t("cursor_unexpected_error", error=str(e)))
                 except ImportError:
                     log_func(f"❌ Cursor postprocess error: {e}")

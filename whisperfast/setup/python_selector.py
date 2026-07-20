@@ -10,21 +10,11 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Optional
 
-from config import BASE_DIR
+from whisperfast.config import BASE_DIR, RESOURCES_DIR
+from whisperfast.platform_util import win_no_window_kwargs
 
-try:
-    from i18n import t
-except ImportError:
-    from i18n_fallback import t
-
-try:
-    from lang_manager import load_app_settings, save_app_settings
-except ImportError:
-    def load_app_settings():
-        return {}
-
-    def save_app_settings(_settings_dict):
-        pass
+from whisperfast.i18n import t
+from whisperfast.settings import load_app_settings, save_app_settings
 
 # Підтримуваний діапазон (як у README); 3.14+ показуємо, але позначаємо як нерекомендовані
 _MIN_OK = (3, 9)
@@ -33,9 +23,7 @@ _PREF_ORDER = ((3, 12), (3, 11), (3, 13), (3, 10), (3, 9))
 
 
 def _creationflags():
-    if sys.platform == "win32":
-        return getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    return 0
+    return win_no_window_kwargs().get("creationflags", 0)
 
 
 def _norm_key(path: str) -> str:
@@ -299,7 +287,7 @@ def _show_select_dialog(candidates: list) -> Optional[dict]:
     root.title(t("python_select_title"))
     root.resizable(True, True)
     try:
-        icon = os.path.join(BASE_DIR, "favicon.ico")
+        icon = os.path.join(RESOURCES_DIR, "favicon.ico")
         if os.path.isfile(icon):
             root.iconbitmap(icon)
     except Exception:

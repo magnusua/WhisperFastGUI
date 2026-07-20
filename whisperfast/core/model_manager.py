@@ -1,9 +1,9 @@
 import gc
 import torch
 from faster_whisper import WhisperModel
-from config import DEFAULT_MODEL, WHISPER_MODELS
+from whisperfast.config import DEFAULT_MODEL, WHISPER_MODELS
 
-from i18n import t
+from whisperfast.i18n import t
 
 class WhisperModelSingleton:
     """

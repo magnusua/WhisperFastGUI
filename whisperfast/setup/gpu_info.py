@@ -2,13 +2,10 @@
 import subprocess
 import sys
 
-from lang_manager import load_app_settings, save_app_settings
+from whisperfast.settings import load_app_settings, save_app_settings
+from whisperfast.platform_util import win_no_window_kwargs
 
 
-def _win_no_window_kwargs():
-    if sys.platform == "win32":
-        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
-    return {}
 
 
 def detect_nvidia_gpu():
@@ -29,7 +26,7 @@ def detect_nvidia_gpu():
             capture_output=True,
             text=True,
             timeout=8,
-            **_win_no_window_kwargs(),
+            **win_no_window_kwargs(),
         )
         if result.returncode == 0:
             line = (result.stdout or "").strip().splitlines()
@@ -50,7 +47,7 @@ def detect_nvidia_gpu():
                 capture_output=True,
                 text=True,
                 timeout=10,
-                **_win_no_window_kwargs(),
+                **win_no_window_kwargs(),
             )
             if result.returncode == 0:
                 name = (result.stdout or "").strip()

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Callable, List, Optional, Tuple
 
-from config import WHISPER_MODELS, find_whisper_model_cache_path, get_whisper_cache_dir
-from i18n import t
+from whisperfast.config import WHISPER_MODELS, find_whisper_model_cache_path, get_whisper_cache_dir
+from whisperfast.i18n import t
 
 try:
     from faster_whisper.utils import _MODELS, download_model
