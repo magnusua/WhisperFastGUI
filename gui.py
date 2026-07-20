@@ -239,6 +239,10 @@ class WhisperGUI:
         self.device_mode = tk.StringVar(value="AUTO")
         self.lang_mode = tk.StringVar(value=LANG_AUTO_VALUE)  # AUTO для языка транскрипции
         self.output_dir = tk.StringVar()
+        self.output_mode = tk.StringVar(value="beside")  # beside | custom | named_folder
+        self.output_named_folder = tk.StringVar(value="{basename}")
+        self.mp3_output_mode = tk.StringVar(value="inherit")  # inherit | beside | custom
+        self.mp3_output_dir = tk.StringVar()
         self.watch_dir = tk.StringVar()  # каталоги через кому (settings.json)
         self.watch_enabled = tk.BooleanVar(value=False)
         self._cursor_postprocess_lock = threading.Lock()
@@ -254,7 +258,7 @@ class WhisperGUI:
         # Загружаем сохранённые налаштування з settings.json
         saved = load_app_settings()
         saved_language = saved.get("language", "EN")
-        self.output_dir.set(normalize_display_path(saved.get("output_dir", "") or ""))
+        self._load_output_settings_from_saved(saved)
         # watch_dir: один або кілька каталогів через кому
         self.watch_dir.set(serialize_watch_dirs(parse_watch_dirs(saved.get("watch_dir", "") or "")))
         self.watch_enabled.set(bool(saved.get("watch_enabled", False)))
@@ -542,40 +546,67 @@ class WhisperGUI:
         self.start_btn = ttk.Button(start_f, text=t("start_transcription"), command=self.handle_start_logic)
         self.start_btn.pack(side="left", fill="x", expand=True, padx=5, ipady=10)
 
-        # Одна компактная строка: MP3, каталоги и Cursor
+        # Одна компактна строка: збереження, MP3, слідкування і Cursor
         tools_row = ttk.Frame(main)
         tools_row.pack(fill="x", pady=10)
         ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
         tools_center = ttk.Frame(tools_row)
         tools_center.pack(side="left")
-        self.save_audio_check = ttk.Checkbutton(tools_center, text=t("save_audio_mp3"),
-                       variable=self.save_audio_mp3)
-        self.save_audio_check.pack(side="left", padx=5)
-        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
-        self.output_dir_entry = ttk.Entry(tools_center, textvariable=self.output_dir, width=15)
-        self.output_dir_entry.pack(side="left", padx=2)
+
         self.root.bind_all("<Return>", self._on_enter_key)
         self.root.bind_all("<space>", self._on_space_key)
-        self.output_folder_btn = ttk.Button(tools_center, text=t("output_folder"), command=self.pick_output_folder)
+        self.output_folder_btn = ttk.Button(
+            tools_center, text=t("output_folder"), command=self._show_output_settings_dialog
+        )
         self.output_folder_btn.pack(side="left", padx=2)
+
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
-        self.watch_folder_check = ttk.Checkbutton(tools_center, text=t("watch_folder_label"), variable=self.watch_enabled, command=self._on_watch_toggled)
-        self.watch_folder_check.pack(side="left", padx=5)
-        self.watch_dirs_btn = ttk.Button(tools_center, text=t("watch_dirs_btn"), command=self._open_watch_dirs_dialog)
-        self.watch_dirs_btn.pack(side="left", padx=2)
-        self.output_dir_entry.bind("<FocusOut>", self._on_output_dir_focus_out)
+        mp3_frame = ttk.Frame(tools_center)
+        mp3_frame.pack(side="left", padx=5)
+        self.save_audio_check = ttk.Checkbutton(
+            mp3_frame,
+            text="",
+            variable=self.save_audio_mp3,
+            command=self._persist_settings,
+            width=2,
+        )
+        self.save_audio_check.pack(side="left")
+        self.mp3_settings_btn = ttk.Button(
+            mp3_frame, text=t("save_audio_mp3"), command=self._show_mp3_settings_dialog
+        )
+        self.mp3_settings_btn.pack(side="left", padx=(0, 0))
+
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        watch_frame = ttk.Frame(tools_center)
+        watch_frame.pack(side="left", padx=5)
+        self.watch_folder_check = ttk.Checkbutton(
+            watch_frame,
+            text="",
+            variable=self.watch_enabled,
+            command=self._on_watch_toggled,
+            width=2,
+        )
+        self.watch_folder_check.pack(side="left")
+        self.watch_dirs_btn = ttk.Button(
+            watch_frame, text=t("watch_folder_label"), command=self._open_watch_dirs_dialog
+        )
+        self.watch_dirs_btn.pack(side="left", padx=(0, 0))
+
+        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        cursor_frame = ttk.Frame(tools_center)
+        cursor_frame.pack(side="left", padx=5)
         self.send_txt_cursor_check = ttk.Checkbutton(
-            tools_center,
-            text=t("send_txt_to_cursor"),
+            cursor_frame,
+            text="",
             variable=self.send_txt_to_cursor,
             command=self._on_send_txt_to_cursor_toggled,
+            width=2,
         )
-        self.send_txt_cursor_check.pack(side="left", padx=2)
+        self.send_txt_cursor_check.pack(side="left")
         self.edit_redactor_btn = ttk.Button(
-            tools_center, text=t("edit_redactor"), command=self._edit_redactor_file
+            cursor_frame, text=t("send_txt_to_cursor"), command=self._edit_redactor_file
         )
-        self.edit_redactor_btn.pack(side="left", padx=2)
+        self.edit_redactor_btn.pack(side="left", padx=(0, 0))
         self.cursor_api_key_btn = ttk.Button(
             tools_center,
             text=t("cursor_api_key_button"),
@@ -645,6 +676,7 @@ class WhisperGUI:
         tip(self.dev_f, "tooltip_device")
         tip(self.lang_f, "tooltip_language_switcher")
         tip(self.save_audio_check, "tooltip_save_mp3")
+        tip(self.mp3_settings_btn, "tooltip_mp3_settings")
         tip(self.send_txt_cursor_check, "tooltip_send_txt_to_cursor")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
         tip(self.cursor_api_key_btn, "tooltip_cursor_api_key")
@@ -654,7 +686,6 @@ class WhisperGUI:
         self._tooltips.append(Tooltip(self.model_btn, t("tooltip_model_btn", cache_dir=get_whisper_cache_dir()), is_key=False))
         tip(self.tray_mode_combo, "tooltip_tray_mode")
         tip(self.autostart_btn, "tooltip_autostart")
-        tip(self.output_dir_entry, "tooltip_output_dir")
         tip(self.output_folder_btn, "tooltip_output_folder")
         tip(self.watch_folder_check, "tooltip_watch_folder")
         tip(self.watch_dirs_btn, "tooltip_watch_dirs")
@@ -704,7 +735,6 @@ class WhisperGUI:
             pass
         self.log_box.config(font=("Consolas", max(6, int(9 * scale))))
         self.progress["length"] = max(200, int(900 * scale))
-        self.output_dir_entry.config(width=max(8, int(15 * scale)))
 
     # --- ЛОГИКА ЗАПУСКА ---
 
@@ -844,7 +874,11 @@ class WhisperGUI:
             "lang_mode": self.lang_mode.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
+            "output_mode": self.output_mode.get() or "beside",
             "output_dir": (self.output_dir.get() or "").strip(),
+            "output_named_folder": (self.output_named_folder.get() or "").strip() or "{basename}",
+            "mp3_output_mode": self.mp3_output_mode.get() or "inherit",
+            "mp3_output_dir": (self.mp3_output_dir.get() or "").strip(),
             "send_txt_to_cursor": self.send_txt_to_cursor.get(),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
         }
@@ -973,7 +1007,7 @@ class WhisperGUI:
                             audio_segment=audio,
                             segment_start_sec=start_sec if is_segment else None,
                             segment_end_sec=end_sec if is_segment else None,
-                            output_dir_raw=opts.get("output_dir"),
+                            output_opts=opts,
                             send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
                             cursor_api_key=opts.get("cursor_api_key") or "",
                         )
@@ -1048,11 +1082,12 @@ class WhisperGUI:
         audio_segment=None,
         segment_start_sec=None,
         segment_end_sec=None,
-        output_dir_raw=None,
+        output_opts=None,
         send_txt_to_cursor=False,
         cursor_api_key="",
     ):
-        out = self._resolve_output_dir(path, output_dir_raw)
+        opts = output_opts or {}
+        out = self._resolve_output_dir(path, opts)
         marker = self._processed_marker()
         base = os.path.splitext(os.path.basename(path))[0].replace(marker, "")
         if segment_start_sec is not None and segment_end_sec is not None:
@@ -1060,8 +1095,10 @@ class WhisperGUI:
         txt_p = os.path.abspath(os.path.join(out, base + ".txt"))
         srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
         out_paths = [txt_p, srt_p]
+        mp3_out = None
         if audio_segment is not None:
-            out_paths.append(os.path.abspath(os.path.join(out, base + "_audio.mp3")))
+            mp3_out = self._resolve_mp3_output_dir(path, opts)
+            out_paths.append(os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3")))
         self._watch_register_output_paths(out_paths)
 
         with open(txt_p, "w", encoding="utf-8") as f:
@@ -1078,8 +1115,8 @@ class WhisperGUI:
         self.log(t("srt_file"), None)
         self.log(srt_p, "link")
 
-        if audio_segment is not None:
-            mp3_p = os.path.abspath(os.path.join(out, base + "_audio.mp3"))  # совпадает с out_paths выше
+        if audio_segment is not None and mp3_out is not None:
+            mp3_p = os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3"))
             try:
                 audio_segment.export(mp3_p, format="mp3")
                 self.log(t("audio_mp3_file"), None)
@@ -1287,6 +1324,7 @@ class WhisperGUI:
             if cls in ("Entry", "TEntry"):
                 return
         self.save_audio_mp3.set(not self.save_audio_mp3.get())
+        self._persist_settings()
         if event:
             return "break"
 
@@ -1297,33 +1335,223 @@ class WhisperGUI:
         s = s.strip().rstrip(". ")
         return s if s else "_"
 
-    def _resolve_output_dir(self, path, output_dir_raw=None):
-        """
-        Определяет каталог сохранения для файла path.
-        output_dir_raw — значение из главного потока (опции); если None, читается self.output_dir.get().
-        """
-        raw = (output_dir_raw if output_dir_raw is not None else (self.output_dir.get() or "")).strip()
-        if not raw:
-            return os.path.dirname(path)
-        if os.path.isabs(raw):
-            out = os.path.normpath(raw)
-            try:
-                os.makedirs(out, exist_ok=True)
-            except OSError:
-                return os.path.dirname(path)
-            return out
-        safe_name = self._sanitize_folder_name(raw)
-        out = os.path.join(os.path.dirname(path), safe_name)
+    def _load_output_settings_from_saved(self, saved):
+        """Завантажує режими збереження; сумісність зі старим output_dir (порожньо / abs / relative)."""
+        mode = (saved.get("output_mode") or "").strip()
+        named = (saved.get("output_named_folder") or "").strip()
+        out_dir = normalize_display_path(saved.get("output_dir", "") or "")
+        if mode not in ("beside", "custom", "named_folder"):
+            if not out_dir:
+                mode = "beside"
+            elif os.path.isabs(out_dir):
+                mode = "custom"
+            else:
+                mode = "named_folder"
+                named = named or out_dir
+                out_dir = ""
+        if mode == "named_folder" and not named:
+            named = "{basename}"
+        self.output_mode.set(mode or "beside")
+        self.output_dir.set(out_dir if (mode == "custom" or os.path.isabs(out_dir)) else "")
+        self.output_named_folder.set(named or "{basename}")
+
+        mp3_mode = (saved.get("mp3_output_mode") or "").strip()
+        mp3_dir = normalize_display_path(saved.get("mp3_output_dir", "") or "")
+        if mp3_mode not in ("inherit", "beside", "custom"):
+            mp3_mode = "custom" if mp3_dir and os.path.isabs(mp3_dir) else "inherit"
+        self.mp3_output_mode.set(mp3_mode)
+        self.mp3_output_dir.set(mp3_dir if (mp3_mode == "custom" or os.path.isabs(mp3_dir)) else "")
+
+    def _ensure_dir(self, out, fallback):
         try:
             os.makedirs(out, exist_ok=True)
+            return out
         except OSError:
-            return os.path.dirname(path)
-        return out
+            return fallback
 
-    def pick_output_folder(self):
-        d = filedialog.askdirectory()
-        if d:
-            self.output_dir.set(d)
+    def _resolve_output_dir(self, path, opts=None):
+        """Каталог для TXT/SRT/Cursor та інших результатів (окрім окремого MP3)."""
+        opts = opts or {}
+        mode = (opts.get("output_mode") if opts.get("output_mode") is not None else self.output_mode.get()) or "beside"
+        source_dir = os.path.dirname(os.path.abspath(path))
+        if mode == "custom":
+            raw = (opts.get("output_dir") if "output_dir" in opts else (self.output_dir.get() or "")).strip()
+            raw = normalize_display_path(raw)
+            if raw and os.path.isabs(raw):
+                return self._ensure_dir(os.path.normpath(raw), source_dir)
+            return source_dir
+        if mode == "named_folder":
+            template = (
+                opts.get("output_named_folder")
+                if opts.get("output_named_folder") is not None
+                else (self.output_named_folder.get() or "")
+            ).strip() or "{basename}"
+            basename = os.path.splitext(os.path.basename(path))[0]
+            folder = template.replace("{basename}", basename).replace("{name}", basename)
+            safe_name = self._sanitize_folder_name(folder)
+            return self._ensure_dir(os.path.join(source_dir, safe_name), source_dir)
+        return source_dir
+
+    def _resolve_mp3_output_dir(self, path, opts=None):
+        """Каталог для *_audio.mp3: inherit (з «Сохранение») | beside | custom."""
+        opts = opts or {}
+        mode = (
+            opts.get("mp3_output_mode")
+            if opts.get("mp3_output_mode") is not None
+            else self.mp3_output_mode.get()
+        ) or "inherit"
+        source_dir = os.path.dirname(os.path.abspath(path))
+        if mode == "inherit":
+            return self._resolve_output_dir(path, opts)
+        if mode == "custom":
+            raw = (
+                opts.get("mp3_output_dir")
+                if "mp3_output_dir" in opts
+                else (self.mp3_output_dir.get() or "")
+            ).strip()
+            raw = normalize_display_path(raw)
+            if raw and os.path.isabs(raw):
+                return self._ensure_dir(os.path.normpath(raw), source_dir)
+            return source_dir
+        return source_dir
+
+    def _show_mp3_settings_dialog(self):
+        """Налаштування каталогу для MP3, створених програмою (чекбокс лишається окремо)."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("mp3_settings_title"))
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog, padding=15)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=t("mp3_settings_hint")).pack(anchor="w", pady=(0, 8))
+
+        mode_var = tk.StringVar(value=self.mp3_output_mode.get() or "inherit")
+        dir_var = tk.StringVar(value=self.mp3_output_dir.get() or "")
+
+        ttk.Radiobutton(
+            frame, text=t("mp3_mode_inherit"), variable=mode_var, value="inherit"
+        ).pack(anchor="w", pady=2)
+        ttk.Radiobutton(
+            frame, text=t("save_mode_beside"), variable=mode_var, value="beside"
+        ).pack(anchor="w", pady=2)
+
+        custom_row = ttk.Frame(frame)
+        custom_row.pack(fill="x", pady=2)
+        ttk.Radiobutton(
+            custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom"
+        ).pack(side="left")
+        dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
+        dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
+
+        def browse():
+            d = filedialog.askdirectory(parent=dialog)
+            if d:
+                dir_var.set(normalize_display_path(d))
+                mode_var.set("custom")
+
+        ttk.Button(custom_row, text="…", width=3, command=browse).pack(side="left")
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", pady=(12, 0))
+
+        def close_cancel():
+            dialog.destroy()
+
+        def save_and_close():
+            mode = mode_var.get() or "inherit"
+            path = normalize_display_path((dir_var.get() or "").strip())
+            if mode == "custom":
+                if not path or not os.path.isdir(path):
+                    messagebox.showerror(t("error"), t("save_dir_invalid"), parent=dialog)
+                    return
+            self.mp3_output_mode.set(mode)
+            self.mp3_output_dir.set(
+                path if mode == "custom" else (path if os.path.isabs(path) else "")
+            )
+            self._persist_settings()
+            dialog.destroy()
+
+        ttk.Button(buttons, text=t("cancel_btn"), command=close_cancel).pack(
+            side="right", padx=(5, 0)
+        )
+        ttk.Button(buttons, text=t("save"), command=save_and_close).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", close_cancel)
+        dialog.bind("<Escape>", lambda e: close_cancel())
+        self._center_toplevel(dialog)
+
+    def _show_output_settings_dialog(self):
+        """Налаштування збереження всіх файлів, створених програмою."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("output_settings_title"))
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog, padding=15)
+        frame.pack(fill="both", expand=True)
+        ttk.Label(frame, text=t("output_settings_hint")).pack(anchor="w", pady=(0, 8))
+
+        mode_var = tk.StringVar(value=self.output_mode.get() or "beside")
+        dir_var = tk.StringVar(value=self.output_dir.get() or "")
+        named_var = tk.StringVar(value=self.output_named_folder.get() or "{basename}")
+
+        ttk.Radiobutton(frame, text=t("save_mode_beside"), variable=mode_var, value="beside").pack(anchor="w", pady=2)
+
+        custom_row = ttk.Frame(frame)
+        custom_row.pack(fill="x", pady=2)
+        ttk.Radiobutton(custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom").pack(side="left")
+        dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
+        dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
+
+        def browse():
+            d = filedialog.askdirectory(parent=dialog)
+            if d:
+                dir_var.set(normalize_display_path(d))
+                mode_var.set("custom")
+
+        ttk.Button(custom_row, text="…", width=3, command=browse).pack(side="left")
+
+        named_row = ttk.Frame(frame)
+        named_row.pack(fill="x", pady=2)
+        ttk.Radiobutton(
+            named_row, text=t("save_mode_named_folder"), variable=mode_var, value="named_folder"
+        ).pack(side="left")
+        named_entry = ttk.Entry(named_row, textvariable=named_var, width=28)
+        named_entry.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        ttk.Label(frame, text=t("save_named_folder_hint"), wraplength=420).pack(anchor="w", pady=(4, 0))
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill="x", pady=(12, 0))
+
+        def close_cancel():
+            dialog.destroy()
+
+        def save_and_close():
+            mode = mode_var.get() or "beside"
+            path = normalize_display_path((dir_var.get() or "").strip())
+            named = (named_var.get() or "").strip() or "{basename}"
+            if mode == "custom":
+                if not path or not os.path.isdir(path):
+                    messagebox.showerror(t("error"), t("save_dir_invalid"), parent=dialog)
+                    return
+            if mode == "named_folder" and not self._sanitize_folder_name(
+                named.replace("{basename}", "x").replace("{name}", "x")
+            ):
+                messagebox.showerror(t("error"), t("save_named_folder_invalid"), parent=dialog)
+                return
+            self.output_mode.set(mode)
+            self.output_dir.set(path if mode == "custom" else (path if os.path.isabs(path) else ""))
+            self.output_named_folder.set(named)
+            self._persist_settings()
+            dialog.destroy()
+
+        ttk.Button(buttons, text=t("cancel_btn"), command=close_cancel).pack(side="right", padx=(5, 0))
+        ttk.Button(buttons, text=t("save"), command=save_and_close).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", close_cancel)
+        dialog.bind("<Escape>", lambda e: close_cancel())
+        self._center_toplevel(dialog)
 
     def _open_watch_dirs_dialog(self):
         """Вікно списку каталогів слідкування (Зберегти / закриття = скасування)."""
@@ -1346,14 +1574,6 @@ class WhisperGUI:
             on_save=on_save,
             center_fn=self._center_toplevel,
         )
-
-    def _on_output_dir_focus_out(self, event=None):
-        raw = (self.output_dir.get() or "").strip()
-        if raw:
-            normalized = normalize_display_path(raw)
-            if normalized != self.output_dir.get():
-                self.output_dir.set(normalized)
-        self._persist_settings()
 
     def _on_watch_toggled(self):
         """Включение/выключение слежения за каталогом."""
@@ -1602,7 +1822,11 @@ class WhisperGUI:
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
         save_app_settings({
             "language": self.ui_language.get(),
+            "output_mode": self.output_mode.get() or "beside",
             "output_dir": normalize_display_path((self.output_dir.get() or "").strip()),
+            "output_named_folder": (self.output_named_folder.get() or "").strip() or "{basename}",
+            "mp3_output_mode": self.mp3_output_mode.get() or "inherit",
+            "mp3_output_dir": normalize_display_path((self.mp3_output_dir.get() or "").strip()),
             "watch_dir": serialize_watch_dirs(parse_watch_dirs(self.watch_dir.get())),
             "watch_enabled": self.watch_enabled.get(),
             "device_mode": self.device_mode.get(),
@@ -1934,17 +2158,15 @@ class WhisperGUI:
         self.dev_f.config(text=t("device_label"))
         self.lang_f.config(text=t("language_switcher"))
         self.play_sound_check.config(text=t("play_sound_finish"))
-        self.save_audio_check.config(text=t("save_audio_mp3"))
-        self.send_txt_cursor_check.config(text=t("send_txt_to_cursor"))
-        self.edit_redactor_btn.config(text=t("edit_redactor"))
+        self.mp3_settings_btn.config(text=t("save_audio_mp3"))
+        self.edit_redactor_btn.config(text=t("send_txt_to_cursor"))
         self.cursor_api_key_btn.config(text=t("cursor_api_key_button"))
         self.system_btn.config(text=t("system_check"))
         self.updates_btn.config(text=t("updates"))
         self.dependencies_btn.config(text=t("dependencies"))
         self.model_btn.config(text=self._model_button_label())
         self.output_folder_btn.config(text=t("output_folder"))
-        self.watch_folder_check.config(text=t("watch_folder_label"))
-        self.watch_dirs_btn.config(text=t("watch_dirs_btn"))
+        self.watch_dirs_btn.config(text=t("watch_folder_label"))
         self.clear_log_btn.config(text=t("clear_log"))
         self.cancel_btn.config(text=t("cancel"))
         self.queue_list.heading("num", text=t("col_num"))

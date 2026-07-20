@@ -115,9 +115,64 @@
     "RU": "Оповещение"
   },
   "save_audio_mp3": {
-    "EN": "Save Mp3",
-    "UK": "Зберегти Mp3",
-    "RU": "Сохранить Mp3"
+    "EN": "mp3",
+    "UK": "mp3",
+    "RU": "mp3"
+  },
+  "mp3_settings_title": {
+    "EN": "MP3 save settings",
+    "UK": "Налаштування збереження MP3",
+    "RU": "Настройки сохранения MP3"
+  },
+  "mp3_settings_hint": {
+    "EN": "Where to save MP3 files created by the program:",
+    "UK": "Куди зберігати MP3-файли, створені програмою:",
+    "RU": "Куда сохранять MP3-файлы, созданные программой:"
+  },
+  "mp3_mode_inherit": {
+    "EN": "Use Save settings (default)",
+    "UK": "Використовувати параметри «Збереження» (за замовчуванням)",
+    "RU": "Использовать параметры «Сохранение» (по умолчанию)"
+  },
+  "output_settings_title": {
+    "EN": "Save settings",
+    "UK": "Налаштування збереження",
+    "RU": "Настройки сохранения"
+  },
+  "output_settings_hint": {
+    "EN": "Where to save all files created by the program (TXT, SRT, Cursor results, etc.):",
+    "UK": "Куди зберігати всі файли, створені програмою (TXT, SRT, результати Cursor тощо):",
+    "RU": "Куда сохранять все файлы, созданные программой (TXT, SRT, результаты Cursor и т.д.):"
+  },
+  "save_mode_beside": {
+    "EN": "Next to the source video/audio file",
+    "UK": "Поруч із вихідним відео/аудіо файлом",
+    "RU": "Вместе с файлом видео/аудио"
+  },
+  "save_mode_custom": {
+    "EN": "In selected folder",
+    "UK": "У вибраний каталог",
+    "RU": "В выбранный каталог"
+  },
+  "save_mode_named_folder": {
+    "EN": "In a folder next to the video (custom name)",
+    "UK": "У каталог поруч із відео (параметризована назва)",
+    "RU": "В каталог рядом с видео с параметризованным названием"
+  },
+  "save_named_folder_hint": {
+    "EN": "Folder name template. Use {basename} for the source file name without extension.",
+    "UK": "Шаблон назви каталогу. {basename} — ім'я вихідного файлу без розширення.",
+    "RU": "Шаблон имени каталога. {basename} — имя исходного файла без расширения."
+  },
+  "save_dir_invalid": {
+    "EN": "Select an existing folder.",
+    "UK": "Виберіть існуючий каталог.",
+    "RU": "Выберите существующий каталог."
+  },
+  "save_named_folder_invalid": {
+    "EN": "Enter a valid folder name.",
+    "UK": "Вкажіть коректну назву каталогу.",
+    "RU": "Укажите корректное название каталога."
   },
   "send_txt_to_cursor": {
     "EN": "To Cursor",
@@ -150,14 +205,14 @@
     "RU": "Сохранить"
   },
   "tooltip_send_txt_to_cursor": {
-    "EN": "After creating a TXT file, wait 5 s and process it with Cursor using prompts from redactor1.md. With API key: automatic SDK chain. Without key: open Cursor Chat (manual confirm).",
-    "UK": "Після створення TXT зачекати 5 с і обробити файл у Cursor за промптами з redactor1.md. З API-ключем: автоматичний ланцюжок SDK. Без ключа: відкрити Cursor Chat (підтвердження вручну).",
-    "RU": "После создания TXT подождать 5 с и обработать файл в Cursor по промптам из redactor1.md. С API-ключом: автоматическая цепочка SDK. Без ключа: открыть Cursor Chat (подтверждение вручную)."
+    "EN": "Enable/disable Cursor post-processing of TXT after transcription.",
+    "UK": "Увімкнути/вимкнути постпроцесинг TXT у Cursor після транскрибації.",
+    "RU": "Включить/выключить постобработку TXT в Cursor после транскрибации."
   },
   "tooltip_edit_redactor": {
-    "EN": "Open redactor1.md to change numbered prompts: ## Prompt #1 \"name\" / ## Промпт №1 \"name\". Output files use the prompt name (e.g. *_TW_core.md).",
-    "UK": "Відкрити redactor1.md, щоб змінити нумеровані промпти: ## Промпт №1 \"name\" / ## Prompt #1 \"name\". Ім'я файлу = назва промпта (напр. *_TW_core.md).",
-    "RU": "Открыть redactor1.md для изменения нумерованных промтов: ## Промпт №1 \"name\" / ## Prompt #1 \"name\". Имя файла = название промпта (напр. *_TW_core.md)."
+    "EN": "Open redactor1.md to edit numbered prompts (## Prompt #1 \"name\"). Output files use the prompt name.",
+    "UK": "Відкрити redactor1.md для редагування промптів (## Промпт №1 \"name\"). Ім'я файлу = назва промпта.",
+    "RU": "Открыть redactor1.md для редактирования промптов (## Промпт №1 \"name\"). Имя файла = название промпта."
   },
   "tooltip_cursor_api_key": {
     "EN": "Open the API key window. The key is saved only after pressing Save. Empty = Chat fallback.",
@@ -270,9 +325,9 @@
     "RU": "🧩 Зависимости"
   },
   "output_folder": {
-    "EN": "📁 Save directory",
-    "UK": "📁 Каталог збереження",
-    "RU": "📁 Каталог сохранения"
+    "EN": "Save",
+    "UK": "Збереження",
+    "RU": "Сохранение"
   },
   "clear_log": {
     "EN": "🧹 Clear Log",
@@ -1135,9 +1190,19 @@
     "RU": "Язык распознавания: AUTO (авто), RU, UK, EN. Не влияет на язык интерфейса."
   },
   "tooltip_save_mp3": {
-    "EN": "Save extracted audio as MP3 for each file. Shortcut: Space (when focus is not in a text field).",
-    "UK": "Зберегти витягнуте аудіо в MP3 для кожного файлу. Клавіша: Пробіл (коли фокус не в полі вводу).",
-    "RU": "Сохранять извлечённое аудио в MP3 для каждого файла. Клавиша: Пробел (когда фокус не в поле ввода)."
+    "EN": "Enable/disable saving extracted audio as MP3. Shortcut: Space (when focus is not in a text field).",
+    "UK": "Увімкнути/вимкнути збереження витягнутого аудіо в MP3. Клавіша: Пробіл (коли фокус не в полі вводу).",
+    "RU": "Включить/выключить сохранение извлечённого аудио в MP3. Клавиша: Пробел (когда фокус не в поле ввода)."
+  },
+  "tooltip_mp3_settings": {
+    "EN": "MP3 location: follow Save settings, next to source, or a selected folder.",
+    "UK": "Місце MP3: як у «Збереження», поруч із файлом або у вибраний каталог.",
+    "RU": "Место MP3: как в «Сохранение», рядом с файлом или в выбранный каталог."
+  },
+  "tooltip_output_folder": {
+    "EN": "Open save settings for all program output files (TXT, SRT, Cursor, etc.).",
+    "UK": "Відкрити налаштування збереження всіх файлів програми (TXT, SRT, Cursor тощо).",
+    "RU": "Открыть настройки сохранения всех файлов программы (TXT, SRT, Cursor и т.д.)."
   },
   "tooltip_system": {
     "EN": "Check GPU (CUDA) and FFmpeg availability.",
@@ -1314,16 +1379,6 @@
     "UK": "Встановити або перевстановити залежності (PyTorch, faster-whisper тощо). Опція: примусова перевстановка.",
     "RU": "Установить или переустановить зависимости (PyTorch, faster-whisper и др.). Опция: принудительная переустановка."
   },
-  "tooltip_output_dir": {
-    "EN": "Output folder for TXT, SRT, MP3. Full path (e.g. D:\\Whisper) or subfolder name. Empty = next to source file. Enter starts transcription.",
-    "UK": "Папка для TXT, SRT, MP3. Повний шлях або ім'я підпапки. Порожнє = біля вихідного файлу. Enter — почати транскрибацію.",
-    "RU": "Папка для выходных файлов TXT, SRT, MP3. Полный путь или имя подпапки. Пусто = рядом с исходным файлом. Enter — начать транскрибацию."
-  },
-  "tooltip_output_folder": {
-    "EN": "Open folder picker to set the save directory.",
-    "UK": "Відкрити вибір папки для каталогу збереження.",
-    "RU": "Открыть выбор папки для каталога сохранения."
-  },
   "watch_folder_label": {
     "EN": "Watch",
     "UK": "Слідкування",
@@ -1355,9 +1410,9 @@
     "RU": "Это не каталог:\n{path}"
   },
   "tooltip_watch_folder": {
-    "EN": "Watch selected folders for new files; new files are transcribed automatically with current settings.",
-    "UK": "Слідкувати за обраними каталогами: нові файли транскрибуються автоматично з поточними налаштуваннями.",
-    "RU": "Следить за выбранными каталогами: новые файлы автоматически обрабатываются с текущими настройками."
+    "EN": "Enable/disable watching folders for new files.",
+    "UK": "Увімкнути/вимкнути слідкування за каталогами на нові файли.",
+    "RU": "Включить/выключить слежение за каталогами на новые файлы."
   },
   "tooltip_watch_dirs": {
     "EN": "Open the list of folders to watch (saved in settings).",

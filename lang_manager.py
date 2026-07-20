@@ -61,6 +61,10 @@ def load_app_settings():
     defaults = {
         "language": "EN",
         "output_dir": "",
+        "output_mode": "beside",
+        "output_named_folder": "{basename}",
+        "mp3_output_mode": "inherit",
+        "mp3_output_dir": "",
         "watch_dir": "",
         "watch_enabled": False,
         "device_mode": "AUTO",
