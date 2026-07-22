@@ -172,6 +172,7 @@ class WhisperGUI:
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
         self.send_txt_to_cursor = tk.BooleanVar(value=False)
+        self.export_md_to_docx = tk.BooleanVar(value=False)
         self.cursor_api_key = tk.StringVar(value="")
         self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
         self.whisper_model = tk.StringVar(value=DEFAULT_MODEL)
@@ -187,6 +188,7 @@ class WhisperGUI:
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
         self.send_txt_to_cursor.set(bool(saved.get("send_txt_to_cursor", False)))
+        self.export_md_to_docx.set(bool(saved.get("export_md_to_docx", False)))
         self.cursor_api_key.set((saved.get("cursor_api_key") or "").strip())
         self.tray_mode.set(saved.get("tray_mode", "panel"))
         self.whisper_model.set(saved.get("whisper_model", DEFAULT_MODEL) or DEFAULT_MODEL)
@@ -478,6 +480,21 @@ class WhisperGUI:
             command=self._show_cursor_api_key_dialog,
         )
         self.cursor_api_key_btn.pack(side="left", padx=2)
+
+        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        docx_frame = ttk.Frame(tools_center)
+        docx_frame.pack(side="left", padx=5)
+        self.export_md_docx_check = ttk.Checkbutton(
+            docx_frame,
+            text="",
+            variable=self.export_md_to_docx,
+            command=self._on_export_md_to_docx_toggled,
+            width=2,
+        )
+        self.export_md_docx_check.pack(side="left")
+        self.export_md_docx_label = ttk.Label(docx_frame, text=t("export_md_to_docx"))
+        self.export_md_docx_label.pack(side="left", padx=(0, 0))
+
         ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
         ensure_redactor_file()
 
@@ -545,6 +562,8 @@ class WhisperGUI:
         tip(self.send_txt_cursor_check, "tooltip_send_txt_to_cursor")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
         tip(self.cursor_api_key_btn, "tooltip_cursor_api_key")
+        tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
+        tip(self.export_md_docx_label, "tooltip_export_md_to_docx")
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
@@ -745,6 +764,7 @@ class WhisperGUI:
             "mp3_output_mode": self.mp3_output_mode.get() or "inherit",
             "mp3_output_dir": (self.mp3_output_dir.get() or "").strip(),
             "send_txt_to_cursor": self.send_txt_to_cursor.get(),
+            "export_md_to_docx": self.export_md_to_docx.get(),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
         }
 
@@ -1147,6 +1167,7 @@ class WhisperGUI:
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
             "send_txt_to_cursor": self.send_txt_to_cursor.get(),
+            "export_md_to_docx": self.export_md_to_docx.get(),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
             "tray_mode": self.tray_mode.get(),
             "whisper_model": self.whisper_model.get(),
@@ -1173,6 +1194,28 @@ class WhisperGUI:
                 ).start()
             else:
                 self.log(t("cursor_sdk_missing"))
+
+    def _on_export_md_to_docx_toggled(self):
+        self._persist_settings()
+        if not self.export_md_to_docx.get():
+            return
+        from whisperfast.core.pandoc_export import is_pandoc_available
+
+        if not is_pandoc_available():
+            self.log(t("pandoc_not_found"))
+            self.log(t("pandoc_required"))
+            messagebox.showwarning(t("export_md_to_docx"), t("pandoc_missing_prompt"))
+
+    def _export_markdown_to_docx(self, md_path):
+        """MD → DOCX через Pandoc. Готово к расширению на PDF (formats)."""
+        from whisperfast.core.pandoc_export import export_markdown
+
+        created = export_markdown(md_path, formats=("docx",), log_func=self.log)
+        for out_path in created:
+            self.queue_ctrl.register_output_paths([out_path])
+            self.log(t("pandoc_docx_created", name=os.path.basename(out_path)))
+            self.log(out_path, "link")
+        return created
 
     def _edit_redactor_file(self):
         open_redactor_file(log_func=self.log)
@@ -1207,15 +1250,22 @@ class WhisperGUI:
                     return
         play_finish_sound()
 
-    def _schedule_cursor_postprocess(self, txt_path, cursor_api_key=""):
-        """Після створення TXT: за потреби встановити cursor-sdk, затримка 5 с, постпроцесинг."""
+    def _schedule_cursor_postprocess(self, txt_path, cursor_api_key="", export_md_to_docx=None):
+        """Після створення TXT/MD: за потреби встановити cursor-sdk, затримка 5 с, постпроцесинг."""
         from whisperfast.postprocess.cursor_postprocess import resolve_cursor_api_key
 
         api_key = resolve_cursor_api_key((cursor_api_key or "").strip())
+        do_export = (
+            self.export_md_to_docx.get()
+            if export_md_to_docx is None
+            else bool(export_md_to_docx)
+        )
         self._cursor_job_begin()
 
         def on_created(path):
             self.queue_ctrl.register_output_paths([path])
+            if do_export and os.path.splitext(path)[1].lower() in (".md", ".markdown"):
+                self._export_markdown_to_docx(path)
 
         def on_complete():
             self._cursor_job_end()
@@ -1437,6 +1487,7 @@ class WhisperGUI:
         self.mp3_settings_btn.config(text=t("save_audio_mp3"))
         self.edit_redactor_btn.config(text=t("send_txt_to_cursor"))
         self.cursor_api_key_btn.config(text=t("cursor_api_key_button"))
+        self.export_md_docx_label.config(text=t("export_md_to_docx"))
         self.system_btn.config(text=t("system_check"))
         self.updates_btn.config(text=t("updates"))
         self.dependencies_btn.config(text=t("dependencies"))

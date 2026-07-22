@@ -5,7 +5,12 @@
 """
 import os
 from tkinter import filedialog, messagebox
-from whisperfast.config import VALID_EXTS, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
+from whisperfast.config import (
+    VALID_EXTS,
+    AUDIO_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+    DOCUMENT_EXTENSIONS,
+)
 
 from whisperfast.i18n import t
 from whisperfast.utils import make_queue_item, normalize_queue_path
@@ -16,10 +21,12 @@ def get_file_dialog_filetypes():
     exts_str = ";".join(f"*{e}" for e in VALID_EXTS)
     audio_exts = ";".join(f"*{e}" for e in AUDIO_EXTENSIONS)
     video_exts = ";".join(f"*{e}" for e in VIDEO_EXTENSIONS)
+    doc_exts = ";".join(f"*{e}" for e in DOCUMENT_EXTENSIONS)
     return [
         (t("all_supported"), exts_str),
         (t("audio_files"), audio_exts or exts_str),
         (t("video_files"), video_exts or exts_str),
+        (t("document_files"), doc_exts or exts_str),
         (t("all_files_type"), "*.*"),
     ]
 

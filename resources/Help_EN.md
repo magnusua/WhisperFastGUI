@@ -1,20 +1,21 @@
 # Whisper Fast GUI — Help
 
-Whisper Fast GUI converts speech in audio and video files into text and subtitles.
+Whisper Fast GUI converts speech in audio and video files into text and subtitles. You can also add text and office documents to the queue (convert to Markdown, then optionally Cursor and Word).
 
 ## Quick start
 
-1. Add media with **Add files**, **Add directory**, or drag and drop files into the window.
-2. Choose the recognition language: **AUTO**, **EN**, **UK**, or **RU**.
-3. Choose the device: **AUTO**, **GPU**, or **CPU**.
-4. If needed, choose a Whisper model by clicking its name.
-5. Choose a save directory. Leave the field empty to save results next to the source file.
-6. Select a queue item and press **Start**.
+1. Add media or documents with **Add files**, **Add directory**, or drag and drop into the window.
+2. For audio/video: choose the recognition language (**AUTO**, **EN**, **UK**, or **RU**) and device (**AUTO**, **GPU**, or **CPU**).
+3. If needed, choose a Whisper model by clicking its name.
+4. Choose where to save results (empty = next to the source file).
+5. Select a queue item and press **Start**.
 
-The program creates:
+For audio/video the program creates:
 - `.txt` — plain transcription;
 - `.srt` — subtitles with timestamps;
 - `_audio.mp3` — extracted audio when **Save MP3** is enabled.
+
+For documents it creates Markdown (`.md`), and optionally Cursor outputs and Word (`.docx`).
 
 ## Adding and managing files
 
@@ -30,17 +31,30 @@ Supported audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`.
 
 Supported video: `.mp4`, `.mkv`, `.avi`, `.mov`.
 
+Supported text: `.md`, `.markdown`, `.txt`, `.text`, `.rst`, `.csv`, `.html`, `.htm`.
+
+Supported documents: `.pdf`, `.doc`, `.docx` (converted to Markdown; Whisper is not used).
+
 ## Processing the queue
 
 - With one item, **Start** processes it immediately.
 - With several items, choose the selected item, new items only, or the whole queue.
 - **Cancel** stops the current task.
 - Processed items are marked in the queue.
-- Only one transcription task runs at a time.
+- Only one queue task runs at a time (transcription or document processing).
+
+## Documents in the queue
+
+1. PDF/DOC/DOCX are converted to `.md` (package `markitdown`).
+2. Other text formats are prepared as Markdown in the save folder.
+3. If **To Cursor** is on, **Markdown** is sent for the usual prompt chain; the log notes that the original PDF/DOC/DOCX was **not** passed to Cursor.
+4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each Cursor result). Install Pandoc and keep it on PATH: https://pandoc.org/installing.html
+
+The log shows conversion steps, output paths, Cursor progress, and final results.
 
 ## Processing part of a file
 
-Double-click a queue row to edit **Start**, intermediate segment boundaries, and **End**. Only the selected time range is processed. Results for ranges receive time suffixes, so several parts of one file can be saved separately.
+Double-click a queue row to edit **Start**, intermediate segment boundaries, and **End** (audio/video). Only the selected time range is processed. Results for ranges receive time suffixes, so several parts of one file can be saved separately.
 
 **Shift+click** a row to show the source file in the file manager.
 
@@ -57,6 +71,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 
 - **Play sound** notifies you when the queue finishes.
 - **Save MP3** extracts the processed audio to a separate file.
+- **MD → Word** exports Markdown to `.docx` via Pandoc.
 - **Save directory** selects where results are written. An empty field means “next to the source file.”
 - Click a file link in the log to open it.
 - **Shift+click** a log link to show the file in its folder.
@@ -69,22 +84,22 @@ If another task is running, new files wait in the queue and start automatically 
 
 ## Cursor post-processing
 
-Enable **To Cursor** to process generated `.txt` files using prompts from `redactor1.md`.
+Enable **To Cursor** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from `redactor1.md`.
 
-- **Change prompt** opens the prompt file.
+- The **To Cursor** label opens the prompt file.
 - **api_key** saves a Cursor API key for automatic processing.
 - With a working API key and Cursor SDK, prompts run in sequence and create files named after the prompt (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`).
 - Without an API key, Cursor Chat opens and the first prompt is copied for manual confirmation.
 
 ## Buttons
 
-- **Start** — start transcription.
+- **Start** — start processing the queue.
 - **Cancel** — stop the current task.
-- **Add files / Add directory** — add media.
+- **Add files / Add directory** — add media or documents.
 - **Clear queue** — remove all queue items.
-- **System** — check Python, FFmpeg, GPU, CUDA, and installed components.
-- **Dependencies** — install or reinstall required packages.
-- **Updates** — check program, package, and model updates.
+- **System** — check Python, FFmpeg, Pandoc, GPU, CUDA, and installed components.
+- **Dependencies** — install or reinstall required packages (including `markitdown`).
+- **Updates** — check program (first), package, and model updates.
 - **Model name** — select and manage the Whisper model.
 - **Clear log** — clear messages.
 - **Autostart** — add delayed startup on Windows.
@@ -111,8 +126,8 @@ Use **EN / UK / RU** at the top of the window. The interface language does not c
 
 ## If processing does not start
 
-1. Open **System** and check Python, FFmpeg, CUDA, and dependencies.
+1. Open **System** and check Python, FFmpeg, CUDA, Pandoc (for Word export), and dependencies.
 2. Use **Dependencies** to install missing packages.
 3. Try **AUTO** or **CPU** if GPU processing fails.
-4. Check that the source file contains an audio track.
+4. Check that the source media file contains an audio track.
 5. Read the log for the exact error.

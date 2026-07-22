@@ -179,6 +179,56 @@
     "UK": "У Cursor",
     "RU": "В Cursor"
   },
+  "export_md_to_docx": {
+    "EN": "MD → Word",
+    "UK": "MD → Word",
+    "RU": "MD → Word"
+  },
+  "tooltip_export_md_to_docx": {
+    "EN": "Export Markdown to Word (.docx) via Pandoc. Without Cursor — after MD is ready; with Cursor — after each prompt result. Optional styles: resources/templates/reference.docx",
+    "UK": "Експорт Markdown у Word (.docx) через Pandoc. Без Cursor — після MD; з Cursor — після кожного результату промпта. Стилі (опційно): resources/templates/reference.docx",
+    "RU": "Экспорт Markdown в Word (.docx) через Pandoc. Без Cursor — после MD; с Cursor — после каждого результата промпта. Стили (опционально): resources/templates/reference.docx"
+  },
+  "pandoc_found": {
+    "EN": "✅ Pandoc: {version}",
+    "UK": "✅ Pandoc: {version}",
+    "RU": "✅ Pandoc: {version}"
+  },
+  "pandoc_not_found": {
+    "EN": "❌ Pandoc: NOT FOUND",
+    "UK": "❌ Pandoc: НЕ ЗНАЙДЕНО",
+    "RU": "❌ Pandoc: НЕ НАЙДЕН"
+  },
+  "pandoc_required": {
+    "EN": "   (Pandoc is needed for MD → Word. Install: https://pandoc.org/installing.html)",
+    "UK": "   (Pandoc потрібен для MD → Word. Встановлення: https://pandoc.org/installing.html)",
+    "RU": "   (Pandoc нужен для MD → Word. Установка: https://pandoc.org/installing.html)"
+  },
+  "pandoc_missing_prompt": {
+    "EN": "Pandoc was not found in PATH.\nMD → Word export will not work until Pandoc is installed.\n\nhttps://pandoc.org/installing.html",
+    "UK": "Pandoc не знайдено в PATH.\nЕкспорт MD → Word не працюватиме, доки Pandoc не встановлено.\n\nhttps://pandoc.org/installing.html",
+    "RU": "Pandoc не найден в PATH.\nЭкспорт MD → Word не будет работать, пока Pandoc не установлен.\n\nhttps://pandoc.org/installing.html"
+  },
+  "pandoc_docx_created": {
+    "EN": "✅ Word created: {name}",
+    "UK": "✅ Word створено: {name}",
+    "RU": "✅ Word создан: {name}"
+  },
+  "pandoc_export_error": {
+    "EN": "❌ Pandoc {fmt} export failed: {error}",
+    "UK": "❌ Помилка експорту Pandoc ({fmt}): {error}",
+    "RU": "❌ Ошибка экспорта Pandoc ({fmt}): {error}"
+  },
+  "install_pandoc_ok": {
+    "EN": "✓ Pandoc found in PATH ({version})",
+    "UK": "✓ Pandoc знайдено в PATH ({version})",
+    "RU": "✓ Pandoc найден в PATH ({version})"
+  },
+  "install_pandoc_missing": {
+    "EN": "⚠ Pandoc NOT found in PATH (optional, for MD → Word). See https://pandoc.org/installing.html",
+    "UK": "⚠ Pandoc НЕ знайдено в PATH (опційно, для MD → Word). Див. https://pandoc.org/installing.html",
+    "RU": "⚠ Pandoc НЕ найден в PATH (опционально, для MD → Word). См. https://pandoc.org/installing.html"
+  },
   "edit_redactor": {
     "EN": "Change prompt",
     "UK": "Змінити промпт",
@@ -205,9 +255,9 @@
     "RU": "Сохранить"
   },
   "tooltip_send_txt_to_cursor": {
-    "EN": "Enable/disable Cursor post-processing of TXT after transcription.",
-    "UK": "Увімкнути/вимкнути постпроцесинг TXT у Cursor після транскрибації.",
-    "RU": "Включить/выключить постобработку TXT в Cursor после транскрибации."
+    "EN": "Enable/disable Cursor post-processing of TXT (after transcription) or Markdown (for documents in the queue).",
+    "UK": "Увімкнути/вимкнути постпроцесинг у Cursor: TXT після транскрибації або Markdown для документів у черзі.",
+    "RU": "Включить/выключить постобработку в Cursor: TXT после транскрибации или Markdown для документов в очереди."
   },
   "tooltip_edit_redactor": {
     "EN": "Open redactor1.md to edit numbered prompts (## Prompt #1 \"name\"). Output files use the prompt name.",
@@ -863,6 +913,71 @@
     "EN": "Video files",
     "UK": "Відео файли",
     "RU": "Видео файлы"
+  },
+  "document_files": {
+    "EN": "Documents / text",
+    "UK": "Документи / текст",
+    "RU": "Документы / текст"
+  },
+  "doc_converting": {
+    "EN": "📄 Converting to Markdown: {name}",
+    "UK": "📄 Конвертація в Markdown: {name}",
+    "RU": "📄 Конвертация в Markdown: {name}"
+  },
+  "doc_processing_start": {
+    "EN": "▶ Document processing: {name} ({ext})",
+    "UK": "▶ Обробка документа: {name} ({ext})",
+    "RU": "▶ Обработка документа: {name} ({ext})"
+  },
+  "doc_files_created": {
+    "EN": "✅ Document result for: {name}",
+    "UK": "✅ Результат для документа: {name}",
+    "RU": "✅ Результат для документа: {name}"
+  },
+  "doc_md_file": {
+    "EN": "📄 Markdown: ",
+    "UK": "📄 Markdown: ",
+    "RU": "📄 Markdown: "
+  },
+  "doc_md_stats": {
+    "EN": "   ({chars} characters, {lines} lines)",
+    "UK": "   ({chars} символів, {lines} рядків)",
+    "RU": "   ({chars} символов, {lines} строк)"
+  },
+  "doc_processing_done": {
+    "EN": "✓ Document processing finished: {name}",
+    "UK": "✓ Обробку документа завершено: {name}",
+    "RU": "✓ Обработка документа завершена: {name}"
+  },
+  "doc_converted": {
+    "EN": "✓ Converted {src} → {md}",
+    "UK": "✓ Конвертовано {src} → {md}",
+    "RU": "✓ Конвертировано {src} → {md}"
+  },
+  "doc_ready_md": {
+    "EN": "✓ Markdown ready: {name}",
+    "UK": "✓ Markdown готовий: {name}",
+    "RU": "✓ Markdown готов: {name}"
+  },
+  "doc_not_sent_to_cursor": {
+    "EN": "⚠ File was not passed to Cursor: {name}",
+    "UK": "⚠ Файл не передано в Cursor: {name}",
+    "RU": "⚠ Файл не передан в Cursor: {name}"
+  },
+  "doc_md_sent_to_cursor": {
+    "EN": "▶ Markdown sent to Cursor for prompt processing: {name}",
+    "UK": "▶ Markdown передано в Cursor для прогону промптів: {name}",
+    "RU": "▶ Markdown передан в Cursor для прогона промптов: {name}"
+  },
+  "cursor_chain_done": {
+    "EN": "✅ Cursor finished ({count} file(s)) for: {name}",
+    "UK": "✅ Cursor завершив ({count} файл(ів)) для: {name}",
+    "RU": "✅ Cursor завершил ({count} файл(ов)) для: {name}"
+  },
+  "cursor_chain_no_output": {
+    "EN": "⚠ Cursor finished with no output files for: {name}",
+    "UK": "⚠ Cursor завершив без вихідних файлів для: {name}",
+    "RU": "⚠ Cursor завершил без выходных файлов для: {name}"
   },
   "all_files_type": {
     "EN": "All files",

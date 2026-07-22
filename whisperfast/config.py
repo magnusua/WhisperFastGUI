@@ -5,6 +5,9 @@ import re
 _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(_PACKAGE_DIR)
 RESOURCES_DIR = os.path.join(BASE_DIR, "resources")
+# Pandoc: optional Word styles template (used when file exists)
+TEMPLATES_DIR = os.path.join(RESOURCES_DIR, "templates")
+PANDOC_REFERENCE_DOCX = os.path.join(TEMPLATES_DIR, "reference.docx")
 
 # Системные константы
 README_PATH = os.path.join(BASE_DIR, "README.md")
@@ -33,10 +36,14 @@ GITHUB_REPO = "magnusua/WhisperFastGUI"
 GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
 CUDA_INDEX = "https://download.pytorch.org/whl/cu121"
-VALID_EXTS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.mp4', '.mkv', '.avi', '.mov')
 # Расширения по типам (единый источник для gui и input_files)
 AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg')
 VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov')
+# Текстовые / документные файлы (без Whisper; PDF/DOC/DOCX → MD, затем опционально Cursor)
+TEXT_EXTENSIONS = ('.md', '.markdown', '.txt', '.text', '.rst', '.csv', '.html', '.htm')
+OFFICE_TO_MD_EXTENSIONS = ('.pdf', '.doc', '.docx')
+DOCUMENT_EXTENSIONS = TEXT_EXTENSIONS + OFFICE_TO_MD_EXTENSIONS
+VALID_EXTS = AUDIO_EXTENSIONS + VIDEO_EXTENSIONS + DOCUMENT_EXTENSIONS
 DEFAULT_MODEL = "large-v3-turbo"
 # Список моделей faster-whisper для выбора в GUI (короткие имена, как в WhisperModel)
 WHISPER_MODELS = [
@@ -57,7 +64,7 @@ FULL_VIDEO_SEGMENT_EPS_S = 0.5
 UPDATE_PACKAGES = [
     "pip", "setuptools", "wheel",
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
-    "cursor-sdk",
+    "cursor-sdk", "markitdown",
     "torch", "faster-whisper", "ctranslate2",
     "pyaudioop",  # для Python 3.13+; если не установлен — проверка пропускается
 ]

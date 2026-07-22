@@ -15,6 +15,11 @@ from whisperfast.config import (
     LOG_UPDATE_INTERVAL_S,
     PROGRESS_UPDATE_INTERVAL_S,
 )
+from whisperfast.core.document_convert import (
+    ensure_markdown_for_cursor,
+    is_document_file,
+    needs_office_to_md,
+)
 from whisperfast.core.model_manager import WhisperModelSingleton
 from whisperfast.i18n import t
 from whisperfast.utils import (
@@ -40,10 +45,82 @@ def segment_file_suffix(start_sec, end_sec):
     return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
 
+def _process_document_item(app, path, opts):
+    """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально Cursor / DOCX."""
+    out_dir = app._resolve_output_dir(path, opts)
+    send_to_cursor = bool(opts.get("send_txt_to_cursor"))
+    export_md_to_docx = bool(opts.get("export_md_to_docx"))
+    cursor_api_key = opts.get("cursor_api_key") or ""
+    src_name = os.path.basename(path)
+    ext = os.path.splitext(path)[1].lower()
+
+    app.log(t("doc_processing_start", name=src_name, ext=ext or "?"))
+
+    if needs_office_to_md(path):
+        app.log(t("doc_converting", name=src_name))
+
+    md_path, was_converted = ensure_markdown_for_cursor(path, out_dir)
+    app.queue_ctrl.register_output_paths([md_path])
+    md_name = os.path.basename(md_path)
+
+    chars = 0
+    lines = 0
+    try:
+        with open(md_path, "r", encoding="utf-8") as f:
+            text = f.read()
+        chars = len(text)
+        lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
+    except OSError:
+        pass
+
+    app.log(t("doc_files_created", name=os.path.splitext(src_name)[0]))
+    if was_converted or needs_office_to_md(path):
+        app.log(t("doc_converted", src=src_name, md=md_name))
+    else:
+        app.log(t("doc_ready_md", name=md_name))
+    app.log(t("doc_md_file"), None)
+    app.log(md_path, "link")
+    if chars or lines:
+        app.log(t("doc_md_stats", chars=chars, lines=lines))
+
+    # Исходный не-MD в Cursor не передаём — только Markdown.
+    if was_converted or needs_office_to_md(path):
+        app.log(t("doc_not_sent_to_cursor", name=src_name))
+
+    if send_to_cursor:
+        app.log(t("doc_md_sent_to_cursor", name=md_name))
+        # DOCX после Cursor: экспорт каждого созданного *.md
+        app._schedule_cursor_postprocess(
+            md_path,
+            cursor_api_key=cursor_api_key,
+            export_md_to_docx=export_md_to_docx,
+        )
+    else:
+        if not (was_converted or needs_office_to_md(path)):
+            app.log(t("doc_not_sent_to_cursor", name=src_name))
+        if export_md_to_docx:
+            app._export_markdown_to_docx(md_path)
+        app.log(t("doc_processing_done", name=src_name))
+
+    app.root.after(0, lambda: app._set_progress_value(100))
+    app.root.after(0, lambda p=path: app._mark_done_by_path(p))
+
+
 def run_queue(app, mode, target_idx, options=None):
     opts = options or {}
     try:
-        model = WhisperModelSingleton.get(app.log, opts.get("device_mode", "AUTO"), opts.get("whisper_model", DEFAULT_MODEL))
+        model = None
+
+        def get_model():
+            nonlocal model
+            if model is None:
+                model = WhisperModelSingleton.get(
+                    app.log,
+                    opts.get("device_mode", "AUTO"),
+                    opts.get("whisper_model", DEFAULT_MODEL),
+                )
+            return model
+
         # Снимок очереди, чтобы индексы не выходили за границы при изменении очереди в GUI
         queue_snapshot = list(app.queue)
         if mode == "single":
@@ -75,6 +152,11 @@ def run_queue(app, mode, target_idx, options=None):
             app.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
 
             try:
+                if is_document_file(path):
+                    _process_document_item(app, path, opts)
+                    done += 1
+                    continue
+
                 start_sec = parse_timestamp_to_seconds(row.get("start")) or 0.0
                 duration = get_audio_duration_seconds(path) or 1.0
                 end_sec = parse_timestamp_to_seconds(row.get("end")) or duration
@@ -106,6 +188,7 @@ def run_queue(app, mode, target_idx, options=None):
 
                 lang_val = opts.get("lang_mode", LANG_AUTO_VALUE)
                 lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
+                model = get_model()
 
                 if start_sec > 0 or end_sec < duration:
                     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -235,5 +318,9 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
             app.log(t("audio_mp3_error", error=str(e)))
 
     if send_txt_to_cursor:
-        app._schedule_cursor_postprocess(txt_p, cursor_api_key=cursor_api_key)
+        app._schedule_cursor_postprocess(
+            txt_p,
+            cursor_api_key=cursor_api_key,
+            export_md_to_docx=bool(opts.get("export_md_to_docx")),
+        )
 

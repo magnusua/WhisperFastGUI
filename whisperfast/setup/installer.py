@@ -157,6 +157,7 @@ def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
         use_cuda_torch, _ = refresh_gpu_settings()
     multimedia_packages = [
         "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow", "cursor-sdk",
+        "markitdown[pdf]",
     ]
     if needs_pyaudioop():
         multimedia_packages.append("pyaudioop")
@@ -188,6 +189,8 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         for pkg, _, _ in packages_to_update:
             if pkg == "torch":
                 cmd = _torch_install_cmd(use_cuda_torch)
+            elif pkg == "markitdown":
+                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "markitdown[pdf]"]
             else:
                 cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
             commands.append([t("updating_package", package=pkg), cmd])
@@ -255,6 +258,16 @@ def check_system(log_func):
         log_func(t("ffmpeg_not_found"))
         log_func(t("ffmpeg_required"))
 
+    # Pandoc (опционально: MD → DOCX)
+    from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
+
+    if is_pandoc_available():
+        ver = pandoc_version() or "pandoc"
+        log_func(t("pandoc_found", version=ver))
+    else:
+        log_func(t("pandoc_not_found"))
+        log_func(t("pandoc_required"))
+
 def _check_package_verbose(pkg_name, import_name=None):
     """Проверяет наличие пакета и выводит сообщение через t(). Возвращает True если установлен."""
     if import_name is None:
@@ -286,6 +299,7 @@ def run_full_installation():
     _check_package_verbose("pystray")
     _check_package_verbose("Pillow", "PIL")
     _check_package_verbose("cursor-sdk", "cursor_sdk")
+    _check_package_verbose("markitdown")
     if needs_pyaudioop():
         if not _check_package_verbose("pyaudioop"):
             print(t("pyaudioop_not_installed"))
@@ -334,6 +348,11 @@ def run_full_installation():
         print(t("install_ffmpeg_ok"))
     except (FileNotFoundError, subprocess.CalledProcessError):
         print(t("install_ffmpeg_missing"))
+    from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
+    if is_pandoc_available():
+        print(t("install_pandoc_ok", version=pandoc_version() or "pandoc"))
+    else:
+        print(t("install_pandoc_missing"))
     print()
     print(t("install_step_cuda"))
     try:

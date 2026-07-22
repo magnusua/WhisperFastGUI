@@ -23,6 +23,7 @@ _DEFAULTS = {
     "has_nvidia": False,
     "gpu_model": "",
     "send_txt_to_cursor": False,
+    "export_md_to_docx": False,
     "cursor_api_key": "",
     "python_path": "",
     "python_version": "",

@@ -522,13 +522,27 @@ def process_txt_with_cursor(
 
     api_key = resolve_cursor_api_key(api_key_from_settings)
     if api_key:
-        run_sdk_chain(
+        created = run_sdk_chain(
             txt_path,
             prompts,
             api_key,
             log_func=log_func,
             on_file_created=on_file_created,
         )
+        if log_func:
+            try:
+                from whisperfast.i18n import t
+                if created:
+                    log_func(t("cursor_chain_done", count=len(created), name=os.path.basename(txt_path)))
+                    for out in created:
+                        log_func(out, "link")
+                else:
+                    log_func(t("cursor_chain_no_output", name=os.path.basename(txt_path)))
+            except ImportError:
+                if created:
+                    log_func(f"✅ Cursor done ({len(created)} file(s)) for {txt_path}")
+                else:
+                    log_func(f"⚠ Cursor produced no output for {txt_path}")
     else:
         if log_func:
             try:
