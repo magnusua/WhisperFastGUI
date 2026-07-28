@@ -85,7 +85,7 @@ class WhisperModelSingleton:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             
-            print("AI Resources: Unloaded successfully.")
+            print(t("model_unloaded"))
 
     @classmethod
     def reset(cls):

@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 import threading
+import uuid
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
@@ -11,26 +12,18 @@ try:
     from pydub import AudioSegment
 except ImportError as e:
     if "audioop" in str(e) or "pyaudioop" in str(e):
-        # Импортируем lang_manager для перевода (если доступен)
         try:
             from whisperfast.i18n import t
-            error_msg = (
-                f"{t('error')}: Не удалось импортировать pydub.\n\n"
-                f"Для Python {sys.version_info.major}.{sys.version_info.minor} требуется pyaudioop.\n\n"
-                f"Установите его командой:\n"
-                f"pip install pyaudioop\n\n"
-                f"Или используйте кнопку [{t('dependencies')}] для автоматической установки."
-            )
-            error_title = t("error")
         except ImportError:
             from whisperfast.i18n.fallback import t
-            error_msg = (
-                f"{t('error')}: Не удалось импортировать pydub.\n\n"
-                f"Для Python {sys.version_info.major}.{sys.version_info.minor} требуется pyaudioop.\n\n"
-                f"Установите его командой:\n pip install pyaudioop\n\n"
-                f"Или используйте кнопку [{t('dependencies')}] для автоматической установки."
-            )
-            error_title = t("error")
+        error_title = t("error")
+        error_msg = t(
+            "pydub_import_error",
+            error_label=error_title,
+            major=sys.version_info.major,
+            minor=sys.version_info.minor,
+            deps=t("dependencies"),
+        )
         from tkinter import messagebox as mb
         mb.showerror(error_title, error_msg)
         sys.exit(1)
@@ -91,13 +84,17 @@ from whisperfast.core.queue_manager import (
     serialize_watch_dirs,
     valid_watch_dirs,
 )
+from whisperfast.postprocess.ai_postprocess import start_ai_postprocess_async
 from whisperfast.postprocess.cursor_postprocess import (
     ensure_redactor_file,
     open_redactor_file,
-    start_txt_postprocess_async,
+    parse_redactor_prompts,
 )
+from whisperfast.postprocess.providers import PROVIDER_CURSOR, normalize_provider_id
 from whisperfast.i18n import t, set_language
 from whisperfast.settings import load_app_settings, save_app_settings
+from whisperfast.log_store import LogStore, today_key
+from whisperfast.open_path import open_file, open_file_location
 from whisperfast.platform_util import win_no_window_kwargs
 from whisperfast.ui.widgets import (
     Tooltip,
@@ -169,11 +166,27 @@ class WhisperGUI:
         self._cursor_postprocess_lock = threading.Lock()
         self._cursor_postprocess_pending = 0  # активні / заплановані Cursor-постобробки
         self._finish_sound_deferred = False  # звук чекає завершення Cursor-черги
+        self._all_complete_deferred = False  # «всі завдання виконано» після Cursor
+        self._cursor_jobs = {}  # job_id -> job dict (вибір промптів / reopen з лога)
+        self._cursor_prompt_queue = []  # job_id, що чекають на діалог
+        self._cursor_prompt_dialog_job_id = None  # job_id поточного діалогу промптів
+        self._log_action_callbacks = {}  # tag -> callable для клікабельних рядків лога
+        self._log_store = LogStore()
+        self._log_day_expanded = {}  # day_key -> bool
+        self._log_ui_day = None  # поточний день у Text-віджеті
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
-        self.send_txt_to_cursor = tk.BooleanVar(value=False)
+        self.send_txt_to_ai = tk.BooleanVar(value=False)
+        self.send_txt_to_cursor = self.send_txt_to_ai  # alias для сумісності
         self.export_md_to_docx = tk.BooleanVar(value=False)
+        self.ai_provider = tk.StringVar(value=PROVIDER_CURSOR)
         self.cursor_api_key = tk.StringVar(value="")
+        self.gemini_api_key = tk.StringVar(value="")
+        self.gemini_model = tk.StringVar(value="gemini-2.0-flash")
+        self.azure_openai_endpoint = tk.StringVar(value="")
+        self.azure_openai_api_key = tk.StringVar(value="")
+        self.azure_openai_deployment = tk.StringVar(value="")
+        self.azure_openai_api_version = tk.StringVar(value="2024-08-01-preview")
         self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
         self.whisper_model = tk.StringVar(value=DEFAULT_MODEL)
         
@@ -187,9 +200,26 @@ class WhisperGUI:
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
-        self.send_txt_to_cursor.set(bool(saved.get("send_txt_to_cursor", False)))
+        send_ai = saved.get("send_txt_to_ai")
+        if send_ai is None:
+            send_ai = saved.get("send_txt_to_cursor", False)
+        self.send_txt_to_ai.set(bool(send_ai))
         self.export_md_to_docx.set(bool(saved.get("export_md_to_docx", False)))
+        self.ai_provider.set(normalize_provider_id(saved.get("ai_provider") or PROVIDER_CURSOR))
         self.cursor_api_key.set((saved.get("cursor_api_key") or "").strip())
+        self.gemini_api_key.set((saved.get("gemini_api_key") or "").strip())
+        self.gemini_model.set(
+            (saved.get("gemini_model") or "").strip() or "gemini-2.0-flash"
+        )
+        self.azure_openai_endpoint.set((saved.get("azure_openai_endpoint") or "").strip())
+        self.azure_openai_api_key.set((saved.get("azure_openai_api_key") or "").strip())
+        self.azure_openai_deployment.set(
+            (saved.get("azure_openai_deployment") or "").strip()
+        )
+        self.azure_openai_api_version.set(
+            (saved.get("azure_openai_api_version") or "").strip()
+            or "2024-08-01-preview"
+        )
         self.tray_mode.set(saved.get("tray_mode", "panel"))
         self.whisper_model.set(saved.get("whisper_model", DEFAULT_MODEL) or DEFAULT_MODEL)
         self.has_nvidia = bool(saved.get("has_nvidia", False))
@@ -209,6 +239,7 @@ class WhisperGUI:
 
         self.build_ui()
         self.setup_log_styles()
+        self._reload_log_from_store()
 
         self.queue_ctrl.configure(
             get_watch_dirs=lambda: parse_watch_dirs(self.watch_dir.get()),
@@ -465,19 +496,19 @@ class WhisperGUI:
         self.send_txt_cursor_check = ttk.Checkbutton(
             cursor_frame,
             text="",
-            variable=self.send_txt_to_cursor,
-            command=self._on_send_txt_to_cursor_toggled,
+            variable=self.send_txt_to_ai,
+            command=self._on_send_txt_to_ai_toggled,
             width=2,
         )
         self.send_txt_cursor_check.pack(side="left")
         self.edit_redactor_btn = ttk.Button(
-            cursor_frame, text=t("send_txt_to_cursor"), command=self._edit_redactor_file
+            cursor_frame, text=t("send_txt_to_ai"), command=self._edit_redactor_file
         )
         self.edit_redactor_btn.pack(side="left", padx=(0, 0))
         self.cursor_api_key_btn = ttk.Button(
             tools_center,
-            text=t("cursor_api_key_button"),
-            command=self._show_cursor_api_key_dialog,
+            text=t("ai_api_keys_button"),
+            command=self._show_ai_api_keys_dialog,
         )
         self.cursor_api_key_btn.pack(side="left", padx=2)
 
@@ -559,9 +590,9 @@ class WhisperGUI:
         tip(self.lang_f, "tooltip_language_switcher")
         tip(self.save_audio_check, "tooltip_save_mp3")
         tip(self.mp3_settings_btn, "tooltip_mp3_settings")
-        tip(self.send_txt_cursor_check, "tooltip_send_txt_to_cursor")
+        tip(self.send_txt_cursor_check, "tooltip_send_txt_to_ai")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
-        tip(self.cursor_api_key_btn, "tooltip_cursor_api_key")
+        tip(self.cursor_api_key_btn, "tooltip_ai_api_keys")
         tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
         tip(self.export_md_docx_label, "tooltip_export_md_to_docx")
         tip(self.system_btn, "tooltip_system")
@@ -744,7 +775,7 @@ class WhisperGUI:
 
     def start_thread(self, mode, target_idx=None, from_watch=False):
         if not self._process_queue_lock.acquire(blocking=False):
-            self.log("⚠ " + t("already_processing"))
+            self.log(t("already_processing"))
             if from_watch:
                 self.queue_ctrl.watch_pending_continue = True
             return
@@ -763,9 +794,20 @@ class WhisperGUI:
             "output_named_folder": (self.output_named_folder.get() or "").strip() or "{basename}",
             "mp3_output_mode": self.mp3_output_mode.get() or "inherit",
             "mp3_output_dir": (self.mp3_output_dir.get() or "").strip(),
-            "send_txt_to_cursor": self.send_txt_to_cursor.get(),
+            "send_txt_to_cursor": self.send_txt_to_ai.get(),
+            "send_txt_to_ai": self.send_txt_to_ai.get(),
             "export_md_to_docx": self.export_md_to_docx.get(),
+            "ai_provider": normalize_provider_id(self.ai_provider.get()),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
+            "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
+            "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
+            "azure_openai_api_key": (self.azure_openai_api_key.get() or "").strip(),
+            "azure_openai_deployment": (self.azure_openai_deployment.get() or "").strip(),
+            "azure_openai_api_version": (
+                (self.azure_openai_api_version.get() or "").strip()
+                or "2024-08-01-preview"
+            ),
         }
 
         def run_and_release():
@@ -782,6 +824,8 @@ class WhisperGUI:
 
 
     def process_queue(self, mode, target_idx, options=None):
+        self._all_complete_deferred = False
+        self._finish_sound_deferred = False
         run_queue(self, mode, target_idx, options)
 
     def save_files(
@@ -828,19 +872,44 @@ class WhisperGUI:
 
     def run_updates_check(self):
         def worker():
+            from whisperfast.setup.external_tools import log_external_tool_howto
+
             result = check_updates(self.log)
             packages = result.get("packages", []) if isinstance(result, dict) else result
             models = result.get("models", []) if isinstance(result, dict) else []
             app_info = result.get("app", {}) if isinstance(result, dict) else {}
-            lines = [f"{p}: {c or 'not installed'} -> {l}" for p, c, l in packages]
+            external = result.get("external", []) if isinstance(result, dict) else []
+            lines = [
+                t(
+                    "package_check_line",
+                    package=p,
+                    current=c or t("not_installed_short"),
+                    latest=l,
+                )
+                for p, c, l in packages
+            ]
             for name, cur, lat in models:
                 lines.append(t("model_update_line", model=name, current=cur, latest=lat))
             if app_info.get("needs_update"):
                 lines.append(
                     t("app_update_line", current=app_info.get("current", ""), latest=app_info.get("remote", ""))
                 )
+            for tool in external:
+                display = tool.get("display") or tool.get("name") or "?"
+                current = tool.get("current") or t("external_tool_not_installed")
+                latest = tool.get("latest") or "?"
+                lines.append(
+                    t(
+                        "external_tool_update_line",
+                        tool=display,
+                        current=current,
+                        latest=latest,
+                    )
+                )
             if lines:
                 msg = t("updates_available", updates="\n".join(lines))
+                if external:
+                    msg += "\n\n" + t("external_tool_manual_hint")
                 if messagebox.askyesno(t("update"), msg):
                     if packages:
                         install_dependencies(
@@ -861,6 +930,10 @@ class WhisperGUI:
                                 ):
                                     self._restart_after_app_update(app_result.get("restart_script"))
                             self.root.after(0, ask_restart)
+                    if external:
+                        self.log(t("external_tool_manual_howto_header"))
+                        for tool in external:
+                            log_external_tool_howto(tool.get("howto") or tool.get("name") or "", self.log)
             else:
                 self.log(t("all_components_up_to_date"))
         threading.Thread(target=worker, daemon=True).start()
@@ -895,26 +968,171 @@ class WhisperGUI:
         ).start()
 
     def log(self, msg, tag=None):
+        text = str(msg) + ("" if str(msg).endswith("\n") else "\n")
+        entry = self._log_store.append(text, tag=tag)
+
         def _do_log():
-            self.log_box.config(state="normal")
-            self.log_box.insert("end", str(msg) + ("" if str(msg).endswith("\n") else "\n"), tag or None)
-            # Ограничение размера лога: удаляем старые строки сверху
-            try:
-                index_str = self.log_box.index("end-1c")
-                parts = index_str.split(".")
-                line_count = int(parts[0]) if parts else 0
-            except (ValueError, tk.TclError, IndexError):
-                line_count = 0
-            if line_count > LOG_MAX_LINES:
-                self.log_box.delete("1.0", f"{line_count - LOG_MAX_LINES}.0")
-            self.log_box.see("end")
-            self.log_box.config(state="disabled")
+            self._append_log_entry_ui(entry.get("day") or today_key(), text, tag)
+            self._scroll_log_to_end_if_today()
+
+        self.root.after(0, _do_log)
+
+    def log_action(self, msg, callback):
+        """Клікабельний рядок лога (синій, як link), викликає callback."""
+        text = str(msg) + ("" if str(msg).endswith("\n") else "\n")
+        entry = self._log_store.append(text, tag="action")
+        action_tag = f"action_{uuid.uuid4().hex}"
+
+        def _do_log():
+            self._log_action_callbacks[action_tag] = callback
+            self._append_log_entry_ui(
+                entry.get("day") or today_key(),
+                text,
+                "action",
+                extra_tags=(action_tag,),
+            )
+            self._scroll_log_to_end_if_today()
+
         self.root.after(0, _do_log)
 
     def clear_log(self):
+        self._log_store.clear()
+        self._log_action_callbacks.clear()
+        self._log_day_expanded.clear()
+        self._log_ui_day = None
         self.log_box.config(state="normal")
         self.log_box.delete("1.0", "end")
         self.log_box.config(state="disabled")
+
+    def _day_body_tag(self, day_key):
+        return f"day_body_{day_key}"
+
+    def _day_header_tag(self, day_key):
+        return f"day_header_{day_key}"
+
+    def _day_header_text(self, day_key, expanded):
+        mark = "▼" if expanded else "▶"
+        if day_key == today_key():
+            return t("log_day_header_today", mark=mark, date=day_key) + "\n"
+        return t("log_day_header", mark=mark, date=day_key) + "\n"
+
+    def _configure_day_body_elide(self, day_key, expanded):
+        body = self._day_body_tag(day_key)
+        try:
+            self.log_box.tag_config(body, elide=not expanded)
+        except tk.TclError:
+            pass
+
+    def _set_day_expanded(self, day_key, expanded):
+        """Розгорнути/згорнути день. «Сьогодні» завжди лишається розгорнутим."""
+        if day_key == today_key():
+            expanded = True
+        self._log_day_expanded[day_key] = bool(expanded)
+        self._configure_day_body_elide(day_key, expanded)
+        # Оновити маркер у заголовку
+        header_tag = self._day_header_tag(day_key)
+        ranges = self.log_box.tag_ranges(header_tag)
+        if len(ranges) >= 2:
+            self.log_box.config(state="normal")
+            self.log_box.delete(ranges[0], ranges[1])
+            self.log_box.insert(
+                ranges[0],
+                self._day_header_text(day_key, expanded),
+                ("day_header", header_tag),
+            )
+            self.log_box.config(state="disabled")
+
+    def _ensure_log_day_ui(self, day_key):
+        """Гарантує заголовок дня в Text; при новому дні — згортає інші."""
+        today = today_key()
+
+        if day_key not in self._log_day_expanded:
+            # Новий день у UI: згорнути всі інші (минулі), розгорнути якщо це сьогодні
+            for d, exp in list(self._log_day_expanded.items()):
+                if exp and d != day_key:
+                    self._set_day_expanded(d, False)
+            expanded = day_key == today
+            self._log_day_expanded[day_key] = expanded
+            self._configure_day_body_elide(day_key, expanded)
+            self.log_box.config(state="normal")
+            self.log_box.insert(
+                "end",
+                self._day_header_text(day_key, expanded),
+                ("day_header", self._day_header_tag(day_key)),
+            )
+            self.log_box.config(state="disabled")
+            self._log_ui_day = day_key
+            return
+
+        if day_key == today and not self._log_day_expanded.get(day_key, False):
+            self._set_day_expanded(day_key, True)
+        self._log_ui_day = day_key
+
+    def _append_log_entry_ui(self, day_key, text, tag=None, extra_tags=()):
+        self._ensure_log_day_ui(day_key)
+        if day_key == today_key() and not self._log_day_expanded.get(day_key, False):
+            self._set_day_expanded(day_key, True)
+        tags = [self._day_body_tag(day_key)]
+        if tag:
+            tags.append(tag)
+        tags.extend(extra_tags)
+        self.log_box.config(state="normal")
+        self.log_box.insert("end", text, tuple(tags))
+        try:
+            index_str = self.log_box.index("end-1c")
+            line_count = int(index_str.split(".")[0])
+        except (ValueError, tk.TclError, IndexError):
+            line_count = 0
+        if line_count > LOG_MAX_LINES:
+            self.log_box.delete("1.0", f"{line_count - LOG_MAX_LINES}.0")
+        self.log_box.config(state="disabled")
+
+    def _scroll_log_to_end_if_today(self):
+        """Фокус на останніх подіях сьогодні (автопрокрутка)."""
+        try:
+            self.log_box.see("end")
+        except tk.TclError:
+            pass
+
+    def _reload_log_from_store(self):
+        """Побудувати лог з JSON: минулі дні згорнуті, сьогодні розгорнутий."""
+        self._log_action_callbacks.clear()
+        self._log_day_expanded.clear()
+        self._log_ui_day = None
+        self.log_box.config(state="normal")
+        self.log_box.delete("1.0", "end")
+        self.log_box.config(state="disabled")
+
+        today = today_key()
+        for day_key in self._log_store.day_keys():
+            expanded = day_key == today
+            self._log_day_expanded[day_key] = expanded
+            self._configure_day_body_elide(day_key, expanded)
+            self.log_box.config(state="normal")
+            self.log_box.insert(
+                "end",
+                self._day_header_text(day_key, expanded),
+                ("day_header", self._day_header_tag(day_key)),
+            )
+            for entry in self._log_store.get_entries(day_key):
+                text = entry.get("text") or ""
+                if not text:
+                    continue
+                if not text.endswith("\n"):
+                    text += "\n"
+                tag = entry.get("tag")
+                tags = [self._day_body_tag(day_key)]
+                if tag == "link":
+                    tags.append("link")
+                self.log_box.insert("end", text, tuple(tags))
+            self.log_box.config(state="disabled")
+            self._log_ui_day = day_key
+
+        # Порожній «сьогодні» — все одно показати розгорнутий заголовок
+        if today not in self._log_day_expanded:
+            self._ensure_log_day_ui(today)
+
+        self._scroll_log_to_end_if_today()
 
     def _set_progress_value(self, value):
         """Установка значения прогресс-бара (вызывать из главного потока)."""
@@ -946,7 +1164,10 @@ class WhisperGUI:
         ui_dialogs.show_model_dialog(self)
 
     def _show_cursor_api_key_dialog(self):
-        ui_dialogs.show_cursor_api_key_dialog(self)
+        ui_dialogs.show_ai_api_keys_dialog(self)
+
+    def _show_ai_api_keys_dialog(self):
+        ui_dialogs.show_ai_api_keys_dialog(self)
 
     def _center_toplevel(self, win, parent=None):
         ui_dialogs.center_toplevel(self, win, parent)
@@ -1166,56 +1387,81 @@ class WhisperGUI:
             "device_mode": self.device_mode.get(),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
-            "send_txt_to_cursor": self.send_txt_to_cursor.get(),
+            "send_txt_to_ai": self.send_txt_to_ai.get(),
+            "send_txt_to_cursor": self.send_txt_to_ai.get(),
             "export_md_to_docx": self.export_md_to_docx.get(),
+            "ai_provider": normalize_provider_id(self.ai_provider.get()),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
+            "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
+            "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
+            "azure_openai_api_key": (self.azure_openai_api_key.get() or "").strip(),
+            "azure_openai_deployment": (self.azure_openai_deployment.get() or "").strip(),
+            "azure_openai_api_version": (
+                (self.azure_openai_api_version.get() or "").strip()
+                or "2024-08-01-preview"
+            ),
             "tray_mode": self.tray_mode.get(),
             "whisper_model": self.whisper_model.get(),
             "has_nvidia": self.has_nvidia,
             "gpu_model": self.gpu_model,
         })
 
-    def _on_send_txt_to_cursor_toggled(self):
+    def _on_send_txt_to_ai_toggled(self):
         self._persist_settings()
-        if not self.send_txt_to_cursor.get():
-            return
-        try:
-            import cursor_sdk  # noqa: F401
-        except ImportError:
-            if messagebox.askyesno(t("installation"), t("cursor_sdk_install_prompt")):
-                threading.Thread(
-                    target=install_dependencies,
-                    kwargs={
-                        "log_func": self.log,
-                        "packages_to_update": [("cursor-sdk", None, None)],
-                        "include_nvidia": False,
-                    },
-                    daemon=True,
-                ).start()
-            else:
-                self.log(t("cursor_sdk_missing"))
+
+    def _on_send_txt_to_cursor_toggled(self):
+        self._on_send_txt_to_ai_toggled()
 
     def _on_export_md_to_docx_toggled(self):
         self._persist_settings()
         if not self.export_md_to_docx.get():
             return
         from whisperfast.core.pandoc_export import is_pandoc_available
+        from whisperfast.setup.external_tools import log_pandoc_install_howto, pandoc_missing_dialog_text
 
         if not is_pandoc_available():
             self.log(t("pandoc_not_found"))
-            self.log(t("pandoc_required"))
-            messagebox.showwarning(t("export_md_to_docx"), t("pandoc_missing_prompt"))
+            log_pandoc_install_howto(self.log)
+            messagebox.showwarning(t("export_md_to_docx"), pandoc_missing_dialog_text())
+
+    def resolve_output_paths(self, paths):
+        """Якщо файл(и) вже існують — запитати перезапис або зберегти з суфіксом _HHMM."""
+        from whisperfast.core.output_conflict import ask_overwrite_via_tk, resolve_output_paths
+
+        return resolve_output_paths(
+            paths,
+            ask_overwrite=lambda p, alt: ask_overwrite_via_tk(self, p, alt),
+        )
+
+    def resolve_output_path(self, path):
+        return self.resolve_output_paths([path])[0]
+
+    def _maybe_log_all_complete(self, send_txt_to_cursor, will_continue):
+        """Лог «всі завдання виконано» лише після черги і (за потреби) після Cursor."""
+        if will_continue:
+            return
+        if send_txt_to_cursor:
+            with self._cursor_postprocess_lock:
+                if self._cursor_postprocess_pending > 0:
+                    self._all_complete_deferred = True
+                    return
+        self.log(f"\n{t('all_tasks_complete')}")
 
     def _export_markdown_to_docx(self, md_path):
-        """MD → DOCX через Pandoc. Готово к расширению на PDF (formats)."""
-        from whisperfast.core.pandoc_export import export_markdown
+        """MD → DOCX через Pandoc."""
+        from whisperfast.core.pandoc_export import convert_markdown_with_pandoc, office_output_path
 
-        created = export_markdown(md_path, formats=("docx",), log_func=self.log)
-        for out_path in created:
-            self.queue_ctrl.register_output_paths([out_path])
-            self.log(t("pandoc_docx_created", name=os.path.basename(out_path)))
-            self.log(out_path, "link")
-        return created
+        out = self.resolve_output_path(office_output_path(md_path, "docx"))
+        try:
+            created_path = convert_markdown_with_pandoc(md_path, output_path=out, fmt="docx")
+        except Exception as e:
+            self.log(t("pandoc_export_error", fmt="docx", error=str(e)))
+            return []
+        self.queue_ctrl.register_output_paths([created_path])
+        self.log(t("pandoc_docx_created", name=os.path.basename(created_path)))
+        self.log(created_path, "link")
+        return [created_path]
 
     def _edit_redactor_file(self):
         open_redactor_file(log_func=self.log)
@@ -1226,11 +1472,18 @@ class WhisperGUI:
 
     def _cursor_job_end(self):
         play_now = False
+        log_complete = False
         with self._cursor_postprocess_lock:
             self._cursor_postprocess_pending = max(0, self._cursor_postprocess_pending - 1)
-            if self._cursor_postprocess_pending == 0 and self._finish_sound_deferred:
-                self._finish_sound_deferred = False
-                play_now = True
+            if self._cursor_postprocess_pending == 0:
+                if self._all_complete_deferred:
+                    self._all_complete_deferred = False
+                    log_complete = True
+                if self._finish_sound_deferred:
+                    self._finish_sound_deferred = False
+                    play_now = True
+        if log_complete:
+            self.log(f"\n{t('all_tasks_complete')}")
         if play_now:
             will_continue = (
                 self.queue_ctrl.watch_pending_continue
@@ -1251,16 +1504,148 @@ class WhisperGUI:
         play_finish_sound()
 
     def _schedule_cursor_postprocess(self, txt_path, cursor_api_key="", export_md_to_docx=None):
-        """Після створення TXT/MD: за потреби встановити cursor-sdk, затримка 5 с, постпроцесинг."""
-        from whisperfast.postprocess.cursor_postprocess import resolve_cursor_api_key
-
-        api_key = resolve_cursor_api_key((cursor_api_key or "").strip())
+        """Після TXT/MD: клікабельний «Передаю в AI» + вікно вибору промптів/провайдера."""
         do_export = (
             self.export_md_to_docx.get()
             if export_md_to_docx is None
             else bool(export_md_to_docx)
         )
+        txt_path = os.path.abspath(txt_path)
+        file_name = os.path.basename(txt_path)
+        job_id = uuid.uuid4().hex
+        job = {
+            "id": job_id,
+            "txt_path": txt_path,
+            "export_md_to_docx": do_export,
+            "provider_id": normalize_provider_id(self.ai_provider.get()),
+            "status": "pending",  # pending | selecting | skipped | running | done
+            "dialog": None,
+        }
+        self._cursor_jobs[job_id] = job
         self._cursor_job_begin()
+        self.log_action(
+            t("ai_handoff", name=file_name),
+            lambda jid=job_id: self._open_cursor_prompt_dialog(jid),
+        )
+        self._cursor_prompt_queue.append(job_id)
+        self.root.after(0, self._pump_cursor_prompt_queue)
+
+    def _pump_cursor_prompt_queue(self):
+        """Показує наступне вікно вибору промптів, якщо немає відкритого."""
+        if self._cursor_prompt_dialog_job_id is not None:
+            return
+        while self._cursor_prompt_queue:
+            job_id = self._cursor_prompt_queue.pop(0)
+            job = self._cursor_jobs.get(job_id)
+            if not job or job["status"] not in ("pending", "skipped"):
+                continue
+            self._open_cursor_prompt_dialog(job_id)
+            return
+
+    def _open_cursor_prompt_dialog(self, job_id):
+        """Відкриває (або піднімає) вікно вибору промптів для job."""
+        job = self._cursor_jobs.get(job_id)
+        if not job:
+            return
+        if job["status"] in ("running", "done"):
+            return
+
+        dialog = job.get("dialog")
+        if dialog is not None:
+            try:
+                if dialog.winfo_exists():
+                    dialog.lift()
+                    dialog.focus_force()
+                    return
+            except tk.TclError:
+                job["dialog"] = None
+
+        if (
+            self._cursor_prompt_dialog_job_id is not None
+            and self._cursor_prompt_dialog_job_id != job_id
+        ):
+            if job_id not in self._cursor_prompt_queue and job["status"] in (
+                "pending",
+                "skipped",
+            ):
+                self._cursor_prompt_queue.append(job_id)
+            other = self._cursor_jobs.get(self._cursor_prompt_dialog_job_id)
+            if other and other.get("dialog"):
+                try:
+                    if other["dialog"].winfo_exists():
+                        other["dialog"].lift()
+                        other["dialog"].focus_force()
+                except tk.TclError:
+                    pass
+            return
+
+        if job["status"] == "skipped":
+            job["status"] = "pending"
+            self._cursor_job_begin()
+
+        ensure_redactor_file()
+        prompts = parse_redactor_prompts()
+        file_name = os.path.basename(job["txt_path"])
+        if not prompts:
+            self.log(t("cursor_no_prompts"))
+            job["status"] = "done"
+            self._cursor_job_end()
+            self.root.after(0, self._pump_cursor_prompt_queue)
+            return
+
+        job["status"] = "selecting"
+        self._cursor_prompt_dialog_job_id = job_id
+
+        def on_result(selected, provider_id):
+            job["dialog"] = None
+            self._cursor_prompt_dialog_job_id = None
+            provider_id = normalize_provider_id(provider_id)
+            job["provider_id"] = provider_id
+            self.ai_provider.set(provider_id)
+            self._persist_settings()
+            if selected is None:
+                job["status"] = "skipped"
+                self.log(t("ai_skipped", name=file_name))
+                self.log_action(
+                    t("ai_select_prompts_again"),
+                    lambda jid=job_id: self._open_cursor_prompt_dialog(jid),
+                )
+                self._cursor_job_end()
+                self.root.after(0, self._pump_cursor_prompt_queue)
+                return
+            job["status"] = "running"
+            self._start_ai_after_prompt_choice(job, selected, provider_id)
+            self.root.after(0, self._pump_cursor_prompt_queue)
+
+        dialog = ui_dialogs.show_ai_prompts_dialog(
+            self,
+            file_name,
+            prompts,
+            on_result,
+            provider_id=job.get("provider_id") or self.ai_provider.get(),
+        )
+        job["dialog"] = dialog
+
+    def _ai_credentials(self):
+        return {
+            "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
+            "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
+            "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
+            "azure_openai_api_key": (self.azure_openai_api_key.get() or "").strip(),
+            "azure_openai_deployment": (self.azure_openai_deployment.get() or "").strip(),
+            "azure_openai_api_version": (
+                (self.azure_openai_api_version.get() or "").strip()
+                or "2024-08-01-preview"
+            ),
+        }
+
+    def _start_ai_after_prompt_choice(self, job, prompts, provider_id):
+        """Після вибору промптів/провайдера → асинхронний постпроцесинг."""
+        txt_path = job["txt_path"]
+        do_export = job["export_md_to_docx"]
+        credentials = self._ai_credentials()
+        provider_id = normalize_provider_id(provider_id)
 
         def on_created(path):
             self.queue_ctrl.register_output_paths([path])
@@ -1268,19 +1653,26 @@ class WhisperGUI:
                 self._export_markdown_to_docx(path)
 
         def on_complete():
+            job["status"] = "done"
             self._cursor_job_end()
 
         def start():
-            start_txt_postprocess_async(
+            start_ai_postprocess_async(
                 txt_path,
-                api_key_from_settings=api_key,
+                provider_id=provider_id,
+                credentials=credentials,
                 log_func=self.log,
                 on_file_created=on_created,
                 on_complete=on_complete,
+                resolve_output_path=self.resolve_output_path,
+                prompts=prompts,
             )
 
         def maybe_install_then_start():
-            if not api_key:
+            if provider_id != PROVIDER_CURSOR:
+                start()
+                return
+            if not credentials.get("cursor_api_key"):
                 start()
                 return
             try:
@@ -1307,6 +1699,12 @@ class WhisperGUI:
                 start()
 
         self.root.after(0, maybe_install_then_start)
+
+    def _start_cursor_after_prompt_choice(self, job, prompts):
+        """Сумісність: Cursor за замовчуванням."""
+        self._start_ai_after_prompt_choice(
+            job, prompts, job.get("provider_id") or PROVIDER_CURSOR
+        )
 
     def clear_queue(self):
         self.queue_ctrl.clear()
@@ -1385,7 +1783,7 @@ class WhisperGUI:
             except tk.TclError:
                 idx = -1
             if 0 <= idx < len(self.queue):
-                self._open_file_location(self.queue[idx]["path"])
+                open_file_location(self.queue[idx]["path"])
                 return "break"
         self._drag_iid = iid
         try:
@@ -1409,6 +1807,22 @@ class WhisperGUI:
         """Интерактивные ссылки в логе"""
         self.log_box.tag_config("link", foreground="blue", underline=1)
         self.log_box.tag_bind("link", "<Button-1>", self.on_link_click)
+        self.log_box.tag_bind("link", "<Enter>", lambda e: self.log_box.config(cursor="hand2"))
+        self.log_box.tag_bind("link", "<Leave>", lambda e: self.log_box.config(cursor=""))
+        self.log_box.tag_config("action", foreground="blue", underline=1)
+        self.log_box.tag_bind("action", "<Button-1>", self.on_action_click)
+        self.log_box.tag_bind("action", "<Enter>", lambda e: self.log_box.config(cursor="hand2"))
+        self.log_box.tag_bind("action", "<Leave>", lambda e: self.log_box.config(cursor=""))
+        self.log_box.tag_config(
+            "day_header",
+            foreground="#1a5fb4",
+            font=("Consolas", 9, "bold"),
+            spacing1=6,
+            spacing3=2,
+        )
+        self.log_box.tag_bind("day_header", "<Button-1>", self.on_day_header_click)
+        self.log_box.tag_bind("day_header", "<Enter>", lambda e: self.log_box.config(cursor="hand2"))
+        self.log_box.tag_bind("day_header", "<Leave>", lambda e: self.log_box.config(cursor=""))
         # Правая кнопка мыши для копирования
         self.log_menu = tk.Menu(self.root, tearoff=0)
         self.log_menu.add_command(label=t("copy"), command=self.copy_log_selection)
@@ -1418,38 +1832,67 @@ class WhisperGUI:
         self.log_box.bind("<Control-c>", self._copy_log_event)
         self.log_box.bind("<<Copy>>", self._copy_log_event)
 
-    def _open_file_location(self, path):
-        """Открывает расположение файла в файловом менеджере."""
-        if not path or not os.path.exists(path):
+    def on_day_header_click(self, event):
+        idx = self.log_box.index(f"@{event.x},{event.y}")
+        day_key = None
+        for tag in self.log_box.tag_names(idx):
+            if tag.startswith("day_header_") and tag != "day_header":
+                day_key = tag[len("day_header_") :]
+                break
+        if not day_key:
             return
-        if sys.platform == "win32":
-            subprocess.run(
-                ['explorer', '/select,', os.path.normpath(path)],
-                **win_no_window_kwargs(),
-            )
-        elif sys.platform == "darwin":
-            subprocess.run(['open', '-R', path], check=False)
-        else:
-            # Linux: открыть родительскую папку в файловом менеджере
-            subprocess.run(['xdg-open', os.path.dirname(path)], check=False)
+        # Сьогодні завжди розгорнуте — клік лише підкручує вниз
+        if day_key == today_key():
+            self._set_day_expanded(day_key, True)
+            self._scroll_log_to_end_if_today()
+            return
+        expanded = not self._log_day_expanded.get(day_key, False)
+        self._set_day_expanded(day_key, expanded)
+
+    def _link_range_at(self, idx):
+        """Повертає (start, end) діапазону tag «link», що містить idx, або None."""
+        if "link" not in self.log_box.tag_names(idx):
+            return None
+        ranges = self.log_box.tag_ranges("link")
+        for i in range(0, len(ranges), 2):
+            start, end = ranges[i], ranges[i + 1]
+            if self.log_box.compare(start, "<=", idx) and self.log_box.compare(idx, "<", end):
+                return start, end
+        # Fallback: рядок під курсором (сумісність зі старими записами)
+        return (
+            self.log_box.index(f"{idx} linestart"),
+            self.log_box.index(f"{idx} lineend"),
+        )
 
     def on_link_click(self, event):
-            idx = self.log_box.index(f"@{event.x},{event.y}")
-            rng = self.log_box.tag_prevrange("link", idx)
-            if rng:
-                path = self.log_box.get(*rng).strip()
-                if os.path.exists(path):
-                    # Shift — открыть папку и выделить файл
-                    if event.state & 0x0001:
-                        self._open_file_location(path)
-                    else:
-                        # Обычное открытие файла программой по умолчанию
-                        if sys.platform == "win32":
-                            os.startfile(path)
-                        elif sys.platform == "darwin":
-                            subprocess.run(['open', path], check=False)
-                        else:
-                            subprocess.run(['xdg-open', path], check=False)
+        idx = self.log_box.index(f"@{event.x},{event.y}")
+        rng = self._link_range_at(idx)
+        if not rng:
+            return "break"
+        path = self.log_box.get(rng[0], rng[1]).strip().strip('"')
+        if not path:
+            return "break"
+        # Клік — відкрити файл; Shift — Провідник з виділенням файлу
+        if event.state & 0x0001:
+            ok = open_file_location(path)
+            if not ok:
+                parent = os.path.dirname(path)
+                if parent and os.path.isdir(parent):
+                    open_file_location(parent)
+        else:
+            open_file(path)
+        return "break"
+
+    def on_action_click(self, event):
+        idx = self.log_box.index(f"@{event.x},{event.y}")
+        for tag in self.log_box.tag_names(idx):
+            cb = self._log_action_callbacks.get(tag)
+            if cb is not None:
+                try:
+                    cb()
+                except Exception:
+                    pass
+                return
 
     def _copy_log_event(self, event=None):
         """Обработчик Ctrl+C в логе — работает при любой раскладке (en/uk/ru)."""
@@ -1485,8 +1928,8 @@ class WhisperGUI:
         self.lang_f.config(text=t("language_switcher"))
         self.play_sound_check.config(text=t("play_sound_finish"))
         self.mp3_settings_btn.config(text=t("save_audio_mp3"))
-        self.edit_redactor_btn.config(text=t("send_txt_to_cursor"))
-        self.cursor_api_key_btn.config(text=t("cursor_api_key_button"))
+        self.edit_redactor_btn.config(text=t("send_txt_to_ai"))
+        self.cursor_api_key_btn.config(text=t("ai_api_keys_button"))
         self.export_md_docx_label.config(text=t("export_md_to_docx"))
         self.system_btn.config(text=t("system_check"))
         self.updates_btn.config(text=t("updates"))

@@ -62,7 +62,7 @@ LOG_UPDATE_INTERVAL_S = 0.5
 FULL_VIDEO_SEGMENT_EPS_S = 0.5
 # Пакети, для которых проверяються обновления при нажатии кнопки «Обновления»
 UPDATE_PACKAGES = [
-    "pip", "setuptools", "wheel",
+    "pip", "setuptools", "wheel", "packaging",
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
     "cursor-sdk", "markitdown",
     "torch", "faster-whisper", "ctranslate2",

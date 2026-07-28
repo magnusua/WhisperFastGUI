@@ -19,7 +19,7 @@ if defined PYEXE if exist "!PYEXE!" (
     echo Використовується Python з settings.json:
     echo   !PYEXE!
     echo.
-    "!PYEXE!" installer.py
+    "!PYEXE!" -m whisperfast.setup.installer
     if not errorlevel 1 (
         pause
         exit /b 0
@@ -29,7 +29,7 @@ if defined PYEXE if exist "!PYEXE!" (
 :: Попытка запуска установщика
 echo Запуск установщика зависимостей...
 echo.
-python installer.py
+python -m whisperfast.setup.installer
 if not errorlevel 1 (
     pause
     exit /b 0
@@ -54,6 +54,6 @@ python --version
 echo ✓ Python найден
 echo.
 echo ❌ Ошибка при запуске установщика зависимостей
-echo Попробуйте запустить вручную: python installer.py
+echo Попробуйте запустить вручную: python -m whisperfast.setup.installer
 pause
 exit /b 1

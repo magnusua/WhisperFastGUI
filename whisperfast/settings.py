@@ -22,9 +22,17 @@ _DEFAULTS = {
     "whisper_model": DEFAULT_MODEL,
     "has_nvidia": False,
     "gpu_model": "",
-    "send_txt_to_cursor": False,
+    "send_txt_to_ai": False,
+    "send_txt_to_cursor": False,  # legacy alias → send_txt_to_ai
     "export_md_to_docx": False,
+    "ai_provider": "cursor",
     "cursor_api_key": "",
+    "gemini_api_key": "",
+    "gemini_model": "gemini-2.0-flash",
+    "azure_openai_endpoint": "",
+    "azure_openai_api_key": "",
+    "azure_openai_deployment": "",
+    "azure_openai_api_version": "2024-08-01-preview",
     "python_path": "",
     "python_version": "",
 }
@@ -66,11 +74,16 @@ def load_app_settings():
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # Legacy: send_txt_to_cursor → send_txt_to_ai
+        if "send_txt_to_ai" not in data and "send_txt_to_cursor" in data:
+            data["send_txt_to_ai"] = bool(data.get("send_txt_to_cursor"))
         missing = False
         for k, v in defaults.items():
             if k not in data:
                 data[k] = v
                 missing = True
+        # Keep both flags in sync when loading
+        data["send_txt_to_cursor"] = bool(data.get("send_txt_to_ai", False))
         if missing:
             try:
                 with open(path, "w", encoding="utf-8") as f:

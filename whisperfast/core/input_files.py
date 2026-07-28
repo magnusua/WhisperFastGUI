@@ -171,7 +171,11 @@ def get_valid_files_from_directory(directory, recursive=True):
                     valid_files.append(file_path)
     except (PermissionError, OSError) as e:
         if not isinstance(e, PermissionError):
-            print(f"Ошибка при сканировании каталога {directory}: {e}")
+            try:
+                from whisperfast.i18n import t
+                print(t("dir_scan_error", directory=directory, error=str(e)))
+            except ImportError:
+                print(f"{directory}: {e}")
     return valid_files
 
 

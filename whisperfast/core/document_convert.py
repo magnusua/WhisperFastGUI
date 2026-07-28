@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 import shutil
-from typing import Tuple
+from typing import Optional, Tuple
 
 from whisperfast.config import OFFICE_TO_MD_EXTENSIONS, TEXT_EXTENSIONS
 
@@ -35,18 +35,27 @@ def _read_text_file(path: str) -> str:
 
 def convert_office_to_markdown(source_path: str, md_path: str) -> str:
     """Convert PDF/DOC/DOCX to Markdown via markitdown. Returns md_path."""
+    from whisperfast.i18n import t
+
     try:
         from markitdown import MarkItDown
     except ImportError as e:
-        raise RuntimeError(
-            "markitdown is not installed. Use [Dependencies] or: pip install \"markitdown[pdf]\""
-        ) from e
+        raise RuntimeError(t("markitdown_missing")) from e
 
     converter = MarkItDown()
-    result = converter.convert(source_path)
+    try:
+        result = converter.convert(source_path)
+    except Exception as e:
+        msg = str(e)
+        if "docx" in msg.lower() and ("optional dependency" in msg.lower() or "MissingDependency" in type(e).__name__ or "dependencies needed" in msg.lower()):
+            raise RuntimeError(t("markitdown_docx_extra")) from e
+        if "pdf" in msg.lower() and ("optional dependency" in msg.lower() or "dependencies needed" in msg.lower()):
+            raise RuntimeError(t("markitdown_pdf_extra")) from e
+        raise
+
     text = (getattr(result, "text_content", None) or "").strip()
     if not text:
-        raise RuntimeError("conversion produced empty Markdown")
+        raise RuntimeError(t("markitdown_empty"))
     os.makedirs(os.path.dirname(md_path) or ".", exist_ok=True)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(text)
@@ -55,7 +64,11 @@ def convert_office_to_markdown(source_path: str, md_path: str) -> str:
     return md_path
 
 
-def ensure_markdown_for_cursor(source_path: str, output_dir: str) -> Tuple[str, bool]:
+def ensure_markdown_for_cursor(
+    source_path: str,
+    output_dir: str,
+    target_md_path: Optional[str] = None,
+) -> Tuple[str, bool]:
     """
     Prepare a Markdown file for Cursor.
 
@@ -64,7 +77,7 @@ def ensure_markdown_for_cursor(source_path: str, output_dir: str) -> Tuple[str, 
     """
     source_path = os.path.abspath(source_path)
     ext = os.path.splitext(source_path)[1].lower()
-    md_path = markdown_output_path(source_path, output_dir)
+    md_path = os.path.abspath(target_md_path) if target_md_path else markdown_output_path(source_path, output_dir)
 
     if needs_office_to_md(source_path):
         convert_office_to_markdown(source_path, md_path)
@@ -73,13 +86,13 @@ def ensure_markdown_for_cursor(source_path: str, output_dir: str) -> Tuple[str, 
     if ext in (".md", ".markdown"):
         if os.path.normcase(os.path.abspath(source_path)) == os.path.normcase(md_path):
             return source_path, False
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(md_path) or ".", exist_ok=True)
         shutil.copy2(source_path, md_path)
         return md_path, False
 
     # Other text formats → write .md copy in the output directory
     text = _read_text_file(source_path)
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.dirname(md_path) or ".", exist_ok=True)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(text)
         if text and not text.endswith("\n"):

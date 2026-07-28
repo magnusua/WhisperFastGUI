@@ -67,12 +67,11 @@ def _build_pandoc_args(
     reference_doc: Optional[str] = None,
     extra_args: Optional[Sequence[str]] = None,
 ) -> List[str]:
+    from whisperfast.i18n import t
+
     exe = find_pandoc()
     if not exe:
-        raise RuntimeError(
-            "Pandoc is not installed or not in PATH. "
-            "Install from https://pandoc.org/installing.html"
-        )
+        raise RuntimeError(t("pandoc_missing_runtime"))
     fmt = fmt.lower().lstrip(".")
     args: List[str] = [exe, md_path, "-o", output_path, f"--to={fmt}"]
 
@@ -105,11 +104,16 @@ def convert_markdown_with_pandoc(
     if not os.path.isfile(md_path):
         raise FileNotFoundError(md_path)
 
+    from whisperfast.i18n import t
+
     fmt = (fmt or "docx").lower().lstrip(".")
     if fmt not in SUPPORTED_EXPORT_FORMATS:
         raise ValueError(
-            f"Export format '{fmt}' is not supported yet. "
-            f"Supported: {', '.join(SUPPORTED_EXPORT_FORMATS)}"
+            t(
+                "pandoc_unsupported_format",
+                fmt=fmt,
+                supported=", ".join(SUPPORTED_EXPORT_FORMATS),
+            )
         )
 
     output_path = os.path.abspath(output_path or office_output_path(md_path, fmt))
@@ -133,14 +137,14 @@ def convert_markdown_with_pandoc(
             **win_no_window_kwargs(),
         )
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError("Pandoc timed out while converting Markdown") from e
+        raise RuntimeError(t("pandoc_timeout")) from e
 
     if result.returncode != 0:
         err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
-        raise RuntimeError(f"Pandoc failed: {err}")
+        raise RuntimeError(t("pandoc_failed", error=err))
 
     if not os.path.isfile(output_path):
-        raise RuntimeError(f"Pandoc did not create output file: {output_path}")
+        raise RuntimeError(t("pandoc_no_output", path=output_path))
     return output_path
 
 
@@ -176,5 +180,5 @@ def export_markdown(
                 from whisperfast.i18n import t
                 log_func(t("pandoc_export_error", fmt=fmt_norm, error=str(e)))
             except ImportError:
-                log_func(f"❌ Pandoc {fmt_norm} export failed: {e}")
+                log_func(str(e))
     return created

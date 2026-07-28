@@ -394,40 +394,271 @@ def show_model_dialog(app):
 
 
 def show_cursor_api_key_dialog(app):
-    """Окреме модальне вікно API-ключа; закриття через X не зберігає зміни."""
+    """Сумісність: відкриває спільне вікно AI API keys."""
+    show_ai_api_keys_dialog(app)
+
+
+def show_ai_api_keys_dialog(app):
+    """Модальне вікно ключів Cursor / Gemini / Azure OpenAI (Copilot)."""
     dialog = tk.Toplevel(app.root)
-    dialog.title(t("cursor_api_key_title"))
+    dialog.title(t("ai_api_keys_title"))
     dialog.transient(app.root)
     dialog.resizable(False, False)
     dialog.grab_set()
 
     frame = ttk.Frame(dialog, padding=15)
     frame.pack(fill="both", expand=True)
-    ttk.Label(frame, text=t("cursor_api_key_prompt")).pack(anchor="w", pady=(0, 6))
 
-    draft_key = tk.StringVar(value=app.cursor_api_key.get())
-    entry = ttk.Entry(frame, textvariable=draft_key, width=52, show="*")
-    entry.pack(fill="x", pady=(0, 12))
+    cursor_key = tk.StringVar(value=app.cursor_api_key.get())
+    gemini_key = tk.StringVar(value=app.gemini_api_key.get())
+    gemini_model = tk.StringVar(value=app.gemini_model.get() or "gemini-2.0-flash")
+    azure_endpoint = tk.StringVar(value=app.azure_openai_endpoint.get())
+    azure_key = tk.StringVar(value=app.azure_openai_api_key.get())
+    azure_deployment = tk.StringVar(value=app.azure_openai_deployment.get())
+    azure_version = tk.StringVar(
+        value=app.azure_openai_api_version.get() or "2024-08-01-preview"
+    )
+
+    def section(title_key):
+        ttk.Label(frame, text=t(title_key), font=("Segoe UI", 9, "bold")).pack(
+            anchor="w", pady=(10, 4)
+        )
+
+    section("ai_api_keys_cursor")
+    ttk.Label(frame, text=t("cursor_api_key_prompt")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=cursor_key, width=56, show="*").pack(fill="x", pady=(2, 0))
+
+    section("ai_api_keys_gemini")
+    ttk.Label(frame, text=t("gemini_api_key_prompt")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=gemini_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    model_row = ttk.Frame(frame)
+    model_row.pack(fill="x")
+    ttk.Label(model_row, text=t("gemini_model_label")).pack(side="left")
+    ttk.Entry(model_row, textvariable=gemini_model, width=28).pack(
+        side="left", fill="x", expand=True, padx=(8, 0)
+    )
+
+    section("ai_api_keys_copilot")
+    ttk.Label(frame, text=t("azure_openai_hint"), wraplength=420).pack(anchor="w", pady=(0, 4))
+    ttk.Label(frame, text=t("azure_openai_endpoint_label")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=azure_endpoint, width=56).pack(fill="x", pady=(2, 4))
+    ttk.Label(frame, text=t("azure_openai_api_key_label")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=azure_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    dep_row = ttk.Frame(frame)
+    dep_row.pack(fill="x", pady=(0, 4))
+    ttk.Label(dep_row, text=t("azure_openai_deployment_label")).pack(side="left")
+    ttk.Entry(dep_row, textvariable=azure_deployment, width=24).pack(
+        side="left", fill="x", expand=True, padx=(8, 0)
+    )
+    ver_row = ttk.Frame(frame)
+    ver_row.pack(fill="x")
+    ttk.Label(ver_row, text=t("azure_openai_api_version_label")).pack(side="left")
+    ttk.Entry(ver_row, textvariable=azure_version, width=24).pack(
+        side="left", fill="x", expand=True, padx=(8, 0)
+    )
 
     buttons = ttk.Frame(frame)
-    buttons.pack(fill="x")
+    buttons.pack(fill="x", pady=(14, 0))
 
     def close_without_saving():
         dialog.destroy()
 
-    def save_key():
-        app.cursor_api_key.set((draft_key.get() or "").strip())
+    def save_keys():
+        app.cursor_api_key.set((cursor_key.get() or "").strip())
+        app.gemini_api_key.set((gemini_key.get() or "").strip())
+        app.gemini_model.set((gemini_model.get() or "").strip() or "gemini-2.0-flash")
+        app.azure_openai_endpoint.set((azure_endpoint.get() or "").strip().rstrip("/"))
+        app.azure_openai_api_key.set((azure_key.get() or "").strip())
+        app.azure_openai_deployment.set((azure_deployment.get() or "").strip())
+        app.azure_openai_api_version.set(
+            (azure_version.get() or "").strip() or "2024-08-01-preview"
+        )
         app._persist_settings()
         dialog.destroy()
 
     ttk.Button(buttons, text=t("cancel_btn"), command=close_without_saving).pack(
         side="right", padx=(5, 0)
     )
-    ttk.Button(buttons, text=t("save"), command=save_key).pack(side="right")
+    ttk.Button(buttons, text=t("save"), command=save_keys).pack(side="right")
 
     dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
     dialog.bind("<Escape>", lambda event: close_without_saving())
-    dialog.bind("<Return>", lambda event: save_key())
     center_toplevel(app, dialog)
-    entry.focus_set()
+
+
+def show_cursor_prompts_dialog(app, file_name, prompts, on_result, provider_id=None):
+    """Сумісність: делегує в show_ai_prompts_dialog."""
+    return show_ai_prompts_dialog(
+        app, file_name, prompts, on_result, provider_id=provider_id
+    )
+
+
+def show_ai_prompts_dialog(app, file_name, prompts, on_result, provider_id=None):
+    """Вікно вибору промптів і AI-провайдера.
+
+    on_result(selected_or_none, provider_id):
+      - selected None — скасовано
+      - list of prompts + provider_id — запуск
+    """
+    from whisperfast.postprocess.providers import (
+        PROVIDER_CURSOR,
+        normalize_provider_id,
+        provider_choices,
+    )
+
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("cursor_prompts_title"))
+    dialog.transient(app.root)
+    dialog.minsize(440, 380)
+    dialog.geometry("500x460")
+    dialog.grab_set()
+
+    settled = {"done": False}
+    initial = normalize_provider_id(
+        provider_id
+        if provider_id is not None
+        else (getattr(app, "ai_provider", None) and app.ai_provider.get())
+        or PROVIDER_CURSOR
+    )
+    provider_var = tk.StringVar(value=initial)
+
+    frame = ttk.Frame(dialog, padding=15)
+    frame.pack(fill="both", expand=True)
+
+    ttk.Label(
+        frame,
+        text=t("cursor_prompts_for_file", name=file_name),
+        wraplength=460,
+        font=("Segoe UI", 10, "bold"),
+    ).pack(anchor="w", pady=(0, 4))
+    ttk.Label(frame, text=t("cursor_prompts_hint"), wraplength=460).pack(
+        anchor="w", pady=(0, 8)
+    )
+
+    ttk.Label(frame, text=t("ai_provider_label"), font=("Segoe UI", 9, "bold")).pack(
+        anchor="w", pady=(0, 4)
+    )
+    prov_row = ttk.Frame(frame)
+    prov_row.pack(fill="x", pady=(0, 10))
+    for pid, label_key in provider_choices():
+        ttk.Radiobutton(
+            prov_row,
+            text=t(label_key),
+            variable=provider_var,
+            value=pid,
+        ).pack(side="left", padx=(0, 12))
+
+    list_wrap = ttk.Frame(frame)
+    list_wrap.pack(fill="both", expand=True)
+
+    canvas = tk.Canvas(list_wrap, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(list_wrap, orient="vertical", command=canvas.yview)
+    rows_frame = ttk.Frame(canvas)
+    rows_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+    )
+    canvas_window = canvas.create_window((0, 0), window=rows_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    def _on_canvas_configure(event):
+        canvas.itemconfigure(canvas_window, width=event.width)
+
+    canvas.bind("<Configure>", _on_canvas_configure)
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    check_vars = []
+    for i, (num, name, _text) in enumerate(prompts):
+        var = tk.BooleanVar(value=(i == 0))
+        check_vars.append(var)
+        label = name or f"#{num}"
+        row = ttk.Frame(rows_frame)
+        row.pack(fill="x", pady=2)
+        ttk.Checkbutton(row, variable=var).pack(side="left")
+        name_lbl = ttk.Label(
+            row,
+            text=t("cursor_prompt_row", num=num, name=label),
+            cursor="hand2",
+        )
+        name_lbl.pack(side="left", fill="x", expand=True, padx=(4, 0))
+
+        def _toggle(_event=None, v=var):
+            v.set(not v.get())
+
+        def _run_one(_event=None, prompt=(num, name, _text)):
+            finish([prompt])
+
+        name_lbl.bind("<Button-1>", _toggle)
+        name_lbl.bind("<Double-Button-1>", _run_one)
+
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    canvas.bind("<MouseWheel>", _on_mousewheel)
+    rows_frame.bind("<MouseWheel>", _on_mousewheel)
+
+    buttons = ttk.Frame(frame)
+    buttons.pack(fill="x", pady=(12, 0))
+    buttons.columnconfigure(0, weight=1)
+    buttons.columnconfigure(1, weight=2)
+
+    def finish(result):
+        if settled["done"]:
+            return
+        settled["done"] = True
+        pid = normalize_provider_id(provider_var.get())
+        try:
+            dialog.grab_release()
+        except tk.TclError:
+            pass
+        dialog.destroy()
+        if on_result:
+            on_result(result, pid)
+
+    def on_close():
+        finish(None)
+
+    def on_run_selected(_event=None):
+        if settled["done"]:
+            return "break"
+        selected = [p for p, v in zip(prompts, check_vars) if v.get()]
+        if not selected:
+            messagebox.showwarning(
+                t("cursor_prompts_title"),
+                t("cursor_prompts_none_selected"),
+                parent=dialog,
+            )
+            return "break"
+        finish(selected)
+        return "break"
+
+    def on_all():
+        """Як «Виконати» з усіма відміченими промптами."""
+        for v in check_vars:
+            v.set(True)
+        on_run_selected()
+
+    ttk.Button(buttons, text=t("cursor_prompts_all"), command=on_all).grid(
+        row=0, column=0, sticky="ew", padx=(0, 6)
+    )
+    ttk.Button(buttons, text=t("cursor_prompts_run"), command=on_run_selected).grid(
+        row=0, column=1, sticky="ew"
+    )
+
+    def _bind_space(widget):
+        widget.bind("<KeyPress-space>", on_run_selected)
+        widget.bind("<space>", on_run_selected)
+        for child in widget.winfo_children():
+            _bind_space(child)
+
+    dialog.protocol("WM_DELETE_WINDOW", on_close)
+    dialog.bind("<Escape>", lambda e: on_close())
+    dialog.bind("<KeyPress-space>", on_run_selected)
+    dialog.bind("<space>", on_run_selected)
+    center_toplevel(app, dialog)
+    dialog.update_idletasks()
+    _bind_space(dialog)
+    dialog.focus_set()
+    return dialog
 

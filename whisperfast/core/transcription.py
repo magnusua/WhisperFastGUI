@@ -48,7 +48,7 @@ def segment_file_suffix(start_sec, end_sec):
 def _process_document_item(app, path, opts):
     """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально Cursor / DOCX."""
     out_dir = app._resolve_output_dir(path, opts)
-    send_to_cursor = bool(opts.get("send_txt_to_cursor"))
+    send_to_cursor = bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor")))
     export_md_to_docx = bool(opts.get("export_md_to_docx"))
     cursor_api_key = opts.get("cursor_api_key") or ""
     src_name = os.path.basename(path)
@@ -59,7 +59,13 @@ def _process_document_item(app, path, opts):
     if needs_office_to_md(path):
         app.log(t("doc_converting", name=src_name))
 
-    md_path, was_converted = ensure_markdown_for_cursor(path, out_dir)
+    intended_md = os.path.abspath(os.path.join(out_dir, os.path.splitext(src_name)[0] + ".md"))
+    if hasattr(app, "resolve_output_path"):
+        # Не питати, якщо цільовий MD — той самий, що й джерело (режим beside)
+        if os.path.normcase(intended_md) != os.path.normcase(os.path.abspath(path)):
+            intended_md = app.resolve_output_path(intended_md)
+
+    md_path, was_converted = ensure_markdown_for_cursor(path, out_dir, target_md_path=intended_md)
     app.queue_ctrl.register_output_paths([md_path])
     md_name = os.path.basename(md_path)
 
@@ -88,7 +94,6 @@ def _process_document_item(app, path, opts):
         app.log(t("doc_not_sent_to_cursor", name=src_name))
 
     if send_to_cursor:
-        app.log(t("doc_md_sent_to_cursor", name=md_name))
         # DOCX после Cursor: экспорт каждого созданного *.md
         app._schedule_cursor_postprocess(
             md_path,
@@ -237,15 +242,18 @@ def run_queue(app, mode, target_idx, options=None):
                         segment_start_sec=start_sec if is_segment else None,
                         segment_end_sec=end_sec if is_segment else None,
                         output_opts=opts,
-                        send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
+                        send_txt_to_cursor=bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor"))),
                         cursor_api_key=opts.get("cursor_api_key") or "",
                     )
                     app.root.after(0, lambda p=path: app._mark_done_by_path(p))
                     done += 1
             except Exception as e:
-                app.log(t("file_skipped", name=name))
+                app.log(t("file_processing_failed", name=name))
                 app.log(t("error_occurred", error=str(e)))
-                if app.queue_ctrl.notify_decode_failed(path):
+                # Retry через watch pending — только для медиа; документы не «декодируются»
+                if is_document_file(path):
+                    skipped_paths.append(path)
+                elif app.queue_ctrl.notify_decode_failed(path):
                     app.root.after(0, lambda p=path: app.queue_ctrl.remove_paths([p]))
                 else:
                     skipped_paths.append(path)
@@ -256,14 +264,18 @@ def run_queue(app, mode, target_idx, options=None):
         if app.cancel_requested:
             app.log(f"\n{t('cancelled', count=to_do - done)}")
         else:
-            app.log(f"\n{t('all_tasks_complete')}")
             will_continue = (
                 app.queue_ctrl.watch_pending_continue
                 and any(not q.get("processed") for q in app.queue)
             )
+            send_cursor = bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor")))
+            app._maybe_log_all_complete(
+                send_txt_to_cursor=send_cursor,
+                will_continue=will_continue,
+            )
             app._maybe_play_finish_sound(
                 play_requested=bool(opts.get("play_sound_on_finish")),
-                send_txt_to_cursor=bool(opts.get("send_txt_to_cursor")),
+                send_txt_to_cursor=send_cursor,
                 will_continue=will_continue,
             )
 
@@ -287,11 +299,25 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
         base = base + segment_file_suffix(segment_start_sec, segment_end_sec)
     txt_p = os.path.abspath(os.path.join(out, base + ".txt"))
     srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
-    out_paths = [txt_p, srt_p]
     mp3_out = None
+    mp3_p = None
     if audio_segment is not None:
         mp3_out = app._resolve_mp3_output_dir(path, opts)
-        out_paths.append(os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3")))
+        mp3_p = os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3"))
+
+    resolve = getattr(app, "resolve_output_paths", None)
+    if resolve:
+        group = [txt_p, srt_p]
+        if mp3_p:
+            group.append(mp3_p)
+        resolved = resolve(group)
+        txt_p, srt_p = resolved[0], resolved[1]
+        if mp3_p:
+            mp3_p = resolved[2]
+
+    out_paths = [txt_p, srt_p]
+    if mp3_p:
+        out_paths.append(mp3_p)
     app.queue_ctrl.register_output_paths(out_paths)
 
     with open(txt_p, "w", encoding="utf-8") as f:
@@ -302,14 +328,13 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
             timestamp = f"{format_timestamp_srt(s.start)} --> {format_timestamp_srt(s.end)}"
             f.write(f"{i}\n{timestamp}\n{(s.text or '').strip()}\n\n")
 
-    app.log(t("files_created", name=base))
+    app.log(t("files_created", name=os.path.splitext(os.path.basename(txt_p))[0]))
     app.log(t("txt_file"), None)
     app.log(txt_p, "link")
     app.log(t("srt_file"), None)
     app.log(srt_p, "link")
 
-    if audio_segment is not None and mp3_out is not None:
-        mp3_p = os.path.abspath(os.path.join(mp3_out, base + "_audio.mp3"))
+    if audio_segment is not None and mp3_p is not None:
         try:
             audio_segment.export(mp3_p, format="mp3")
             app.log(t("audio_mp3_file"), None)

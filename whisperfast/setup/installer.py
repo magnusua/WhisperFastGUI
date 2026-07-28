@@ -145,7 +145,19 @@ def check_updates(log_func):
                 updates_found.append((pkg, None, latest))
                 log_func(t("package_not_installed", package=pkg, latest=latest))
     model_updates = check_downloaded_whisper_model_updates(log_func=log_func)
-    return {"packages": updates_found, "models": model_updates, "app": app_update}
+    from whisperfast.setup.external_tools import check_external_tool_updates
+
+    external_updates = check_external_tool_updates(log_func=log_func)
+    return {
+        "packages": updates_found,
+        "models": model_updates,
+        "app": app_update,
+        "external": external_updates,
+    }
+
+
+# Spec for MarkItDown: all office formats used by the queue (no Azure extras).
+MARKITDOWN_PIP_SPEC = "markitdown[pdf,docx,pptx,xlsx,xls]"
 
 
 def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
@@ -156,8 +168,14 @@ def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     if use_cuda_torch is None:
         use_cuda_torch, _ = refresh_gpu_settings()
     multimedia_packages = [
-        "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow", "cursor-sdk",
-        "markitdown[pdf]",
+        "pygame",
+        "pydub",
+        "tkinterdnd2-universal",
+        "pystray",
+        "Pillow",
+        "cursor-sdk",
+        "packaging",
+        MARKITDOWN_PIP_SPEC,
     ]
     if needs_pyaudioop():
         multimedia_packages.append("pyaudioop")
@@ -190,7 +208,7 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
             if pkg == "torch":
                 cmd = _torch_install_cmd(use_cuda_torch)
             elif pkg == "markitdown":
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "markitdown[pdf]"]
+                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", MARKITDOWN_PIP_SPEC]
             else:
                 cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
             commands.append([t("updating_package", package=pkg), cmd])
@@ -205,7 +223,7 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
     for name, cmd in commands:
         if force and not packages_to_update:
             cmd.extend(["--force-reinstall", "--no-cache-dir"])
-        log_func(f"📦 {name}...")
+        log_func(t("install_step_progress", name=name))
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, **win_no_window_kwargs())
         if result.returncode != 0 and result.stderr:
             log_func(t("install_step_failed", name=name))
@@ -215,9 +233,14 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
             for line in err.splitlines():
                 log_func(line)
     log_func(t("install_complete"))
+    log_func(t("install_external_tools_check"))
+    from whisperfast.setup.external_tools import log_external_tools_status
+
+    log_external_tools_status(log_func)
+
 
 def check_system(log_func):
-    """Проверяет состояние системы: Torch, CUDA и наличие FFmpeg."""
+    """Проверяет состояние системы: Torch, CUDA, FFmpeg, Pandoc и pip-пакеты."""
     has_nvidia, gpu_name = refresh_gpu_settings()
     if gpu_name:
         log_func(t("gpu_info", name=gpu_name))
@@ -249,24 +272,28 @@ def check_system(log_func):
     except ImportError:
         log_func(t("torch_not_installed"))
 
-    # Проверка FFmpeg (необходим для работы pydub и декодирования аудио/видео)
-    try:
-        # Пытаемся запустить ffmpeg для проверки его наличия в PATH
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **win_no_window_kwargs())
-        log_func(t("ffmpeg_found"))
-    except FileNotFoundError:
-        log_func(t("ffmpeg_not_found"))
-        log_func(t("ffmpeg_required"))
+    # Ключевые pip-пакеты приложения
+    for pkg, import_name in (
+        ("faster-whisper", "faster_whisper"),
+        ("ctranslate2", "ctranslate2"),
+        ("pygame", "pygame"),
+        ("pydub", "pydub"),
+        ("tkinterdnd2-universal", "tkinterdnd2"),
+        ("pystray", "pystray"),
+        ("Pillow", "PIL"),
+        ("cursor-sdk", "cursor_sdk"),
+        ("markitdown", "markitdown"),
+        ("packaging", "packaging"),
+    ):
+        try:
+            ver = importlib.metadata.version(pkg)
+            log_func(t("package_ok", package=pkg, version=ver))
+        except importlib.metadata.PackageNotFoundError:
+            log_func(t("package_missing_hint", package=pkg))
 
-    # Pandoc (опционально: MD → DOCX)
-    from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
+    from whisperfast.setup.external_tools import log_external_tools_status
 
-    if is_pandoc_available():
-        ver = pandoc_version() or "pandoc"
-        log_func(t("pandoc_found", version=ver))
-    else:
-        log_func(t("pandoc_not_found"))
-        log_func(t("pandoc_required"))
+    log_external_tools_status(log_func)
 
 def _check_package_verbose(pkg_name, import_name=None):
     """Проверяет наличие пакета и выводит сообщение через t(). Возвращает True если установлен."""
@@ -300,6 +327,7 @@ def run_full_installation():
     _check_package_verbose("Pillow", "PIL")
     _check_package_verbose("cursor-sdk", "cursor_sdk")
     _check_package_verbose("markitdown")
+    _check_package_verbose("packaging")
     if needs_pyaudioop():
         if not _check_package_verbose("pyaudioop"):
             print(t("pyaudioop_not_installed"))
@@ -334,6 +362,8 @@ def run_full_installation():
     _check_package_verbose("pystray")
     _check_package_verbose("Pillow", "PIL")
     _check_package_verbose("cursor-sdk", "cursor_sdk")
+    _check_package_verbose("markitdown")
+    _check_package_verbose("packaging")
     try:
         import tkinter
         print(t("install_tkinter_ok"))
@@ -348,11 +378,15 @@ def run_full_installation():
         print(t("install_ffmpeg_ok"))
     except (FileNotFoundError, subprocess.CalledProcessError):
         print(t("install_ffmpeg_missing"))
+        from whisperfast.setup.external_tools import log_ffmpeg_install_howto
+        log_ffmpeg_install_howto(print)
     from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
     if is_pandoc_available():
         print(t("install_pandoc_ok", version=pandoc_version() or "pandoc"))
     else:
         print(t("install_pandoc_missing"))
+        from whisperfast.setup.external_tools import log_pandoc_install_howto
+        log_pandoc_install_howto(print)
     print()
     print(t("install_step_cuda"))
     try:

@@ -175,9 +175,14 @@
     "RU": "Укажите корректное название каталога."
   },
   "send_txt_to_cursor": {
-    "EN": "To Cursor",
-    "UK": "У Cursor",
-    "RU": "В Cursor"
+    "EN": "To AI",
+    "UK": "В AI",
+    "RU": "В AI"
+  },
+  "send_txt_to_ai": {
+    "EN": "To AI",
+    "UK": "В AI",
+    "RU": "В AI"
   },
   "export_md_to_docx": {
     "EN": "MD → Word",
@@ -185,9 +190,9 @@
     "RU": "MD → Word"
   },
   "tooltip_export_md_to_docx": {
-    "EN": "Export Markdown to Word (.docx) via Pandoc. Without Cursor — after MD is ready; with Cursor — after each prompt result. Optional styles: resources/templates/reference.docx",
-    "UK": "Експорт Markdown у Word (.docx) через Pandoc. Без Cursor — після MD; з Cursor — після кожного результату промпта. Стилі (опційно): resources/templates/reference.docx",
-    "RU": "Экспорт Markdown в Word (.docx) через Pandoc. Без Cursor — после MD; с Cursor — после каждого результата промпта. Стили (опционально): resources/templates/reference.docx"
+    "EN": "Export Markdown to Word (.docx) via Pandoc. Without AI — after MD is ready; with AI — after each prompt result. Optional styles: resources/templates/reference.docx",
+    "UK": "Експорт Markdown у Word (.docx) через Pandoc. Без AI — після MD; з AI — після кожного результату промпта. Стилі (опційно): resources/templates/reference.docx",
+    "RU": "Экспорт Markdown в Word (.docx) через Pandoc. Без AI — после MD; с AI — после каждого результата промпта. Стили (опционально): resources/templates/reference.docx"
   },
   "pandoc_found": {
     "EN": "✅ Pandoc: {version}",
@@ -200,14 +205,99 @@
     "RU": "❌ Pandoc: НЕ НАЙДЕН"
   },
   "pandoc_required": {
-    "EN": "   (Pandoc is needed for MD → Word. Install: https://pandoc.org/installing.html)",
-    "UK": "   (Pandoc потрібен для MD → Word. Встановлення: https://pandoc.org/installing.html)",
-    "RU": "   (Pandoc нужен для MD → Word. Установка: https://pandoc.org/installing.html)"
+    "EN": "   (Pandoc is needed for MD → Word)",
+    "UK": "   (Pandoc потрібен для MD → Word)",
+    "RU": "   (Pandoc нужен для MD → Word)"
   },
   "pandoc_missing_prompt": {
-    "EN": "Pandoc was not found in PATH.\nMD → Word export will not work until Pandoc is installed.\n\nhttps://pandoc.org/installing.html",
-    "UK": "Pandoc не знайдено в PATH.\nЕкспорт MD → Word не працюватиме, доки Pandoc не встановлено.\n\nhttps://pandoc.org/installing.html",
-    "RU": "Pandoc не найден в PATH.\nЭкспорт MD → Word не будет работать, пока Pandoc не установлен.\n\nhttps://pandoc.org/installing.html"
+    "EN": "Pandoc was not found in PATH.\nMD → Word export will not work until Pandoc is installed.",
+    "UK": "Pandoc не знайдено в PATH.\nЕкспорт MD → Word не працюватиме, доки Pandoc не встановлено.",
+    "RU": "Pandoc не найден в PATH.\nЭкспорт MD → Word не будет работать, пока Pandoc не установлен."
+  },
+  "pandoc_install_howto_title": {
+    "EN": "👉 How to install Pandoc:",
+    "UK": "👉 Як встановити Pandoc:",
+    "RU": "👉 Как установить Pandoc:"
+  },
+  "pandoc_install_howto_url": {
+    "EN": "   Official site: https://pandoc.org/installing.html",
+    "UK": "   Офіційний сайт: https://pandoc.org/installing.html",
+    "RU": "   Официальный сайт: https://pandoc.org/installing.html"
+  },
+  "pandoc_install_howto_win_winget": {
+    "EN": "   Windows (winget): winget install --id JohnMacFarlane.Pandoc -e",
+    "UK": "   Windows (winget): winget install --id JohnMacFarlane.Pandoc -e",
+    "RU": "   Windows (winget): winget install --id JohnMacFarlane.Pandoc -e"
+  },
+  "pandoc_install_howto_win_choco": {
+    "EN": "   Windows (Chocolatey): choco install pandoc",
+    "UK": "   Windows (Chocolatey): choco install pandoc",
+    "RU": "   Windows (Chocolatey): choco install pandoc"
+  },
+  "pandoc_install_howto_win_msi": {
+    "EN": "   Or download the Windows installer (.msi) from the site above",
+    "UK": "   Або завантажте інсталятор Windows (.msi) з сайту вище",
+    "RU": "   Или скачайте установщик Windows (.msi) с сайта выше"
+  },
+  "pandoc_install_howto_mac": {
+    "EN": "   macOS (Homebrew): brew install pandoc",
+    "UK": "   macOS (Homebrew): brew install pandoc",
+    "RU": "   macOS (Homebrew): brew install pandoc"
+  },
+  "pandoc_install_howto_linux": {
+    "EN": "   Linux: sudo apt install pandoc   (or: sudo dnf install pandoc / sudo pacman -S pandoc)",
+    "UK": "   Linux: sudo apt install pandoc   (або: sudo dnf install pandoc / sudo pacman -S pandoc)",
+    "RU": "   Linux: sudo apt install pandoc   (или: sudo dnf install pandoc / sudo pacman -S pandoc)"
+  },
+  "pandoc_install_howto_restart": {
+    "EN": "   After install: restart the terminal/app so PATH updates, then press [System] again.",
+    "UK": "   Після встановлення: перезапустіть термінал/програму (оновлення PATH), потім знову [Система].",
+    "RU": "   После установки: перезапустите терминал/программу (обновление PATH), затем снова [Система]."
+  },
+  "ffmpeg_install_howto_title": {
+    "EN": "👉 How to install FFmpeg:",
+    "UK": "👉 Як встановити FFmpeg:",
+    "RU": "👉 Как установить FFmpeg:"
+  },
+  "ffmpeg_install_howto_url": {
+    "EN": "   Official builds: https://ffmpeg.org/download.html",
+    "UK": "   Офіційні збірки: https://ffmpeg.org/download.html",
+    "RU": "   Официальные сборки: https://ffmpeg.org/download.html"
+  },
+  "ffmpeg_install_howto_win_winget": {
+    "EN": "   Windows (winget): winget install --id Gyan.FFmpeg -e",
+    "UK": "   Windows (winget): winget install --id Gyan.FFmpeg -e",
+    "RU": "   Windows (winget): winget install --id Gyan.FFmpeg -e"
+  },
+  "ffmpeg_install_howto_win_choco": {
+    "EN": "   Windows (Chocolatey): choco install ffmpeg",
+    "UK": "   Windows (Chocolatey): choco install ffmpeg",
+    "RU": "   Windows (Chocolatey): choco install ffmpeg"
+  },
+  "ffmpeg_install_howto_mac": {
+    "EN": "   macOS (Homebrew): brew install ffmpeg",
+    "UK": "   macOS (Homebrew): brew install ffmpeg",
+    "RU": "   macOS (Homebrew): brew install ffmpeg"
+  },
+  "ffmpeg_install_howto_linux": {
+    "EN": "   Linux: sudo apt install ffmpeg   (or: sudo dnf install ffmpeg / sudo pacman -S ffmpeg)",
+    "UK": "   Linux: sudo apt install ffmpeg   (або: sudo dnf install ffmpeg / sudo pacman -S ffmpeg)",
+    "RU": "   Linux: sudo apt install ffmpeg   (или: sudo dnf install ffmpeg / sudo pacman -S ffmpeg)"
+  },
+  "external_tool_path_hint": {
+    "EN": "   Make sure the program folder is on PATH, then restart Whisper Fast GUI.",
+    "UK": "   Переконайтеся, що каталог програми в PATH, потім перезапустіть Whisper Fast GUI.",
+    "RU": "   Убедитесь, что каталог программы в PATH, затем перезапустите Whisper Fast GUI."
+  },
+  "install_external_tools_check": {
+    "EN": "▶ Checking system tools (FFmpeg, Pandoc)…",
+    "UK": "▶ Перевірка системних утиліт (FFmpeg, Pandoc)…",
+    "RU": "▶ Проверка системных утилит (FFmpeg, Pandoc)…"
+  },
+  "package_missing_hint": {
+    "EN": "⚠ {package}: not installed — use [Dependencies] or [Updates]",
+    "UK": "⚠ {package}: не встановлено — використайте [Залежності] або [Оновлення]",
+    "RU": "⚠ {package}: не установлен — используйте [Зависимости] или [Обновления]"
   },
   "pandoc_docx_created": {
     "EN": "✅ Word created: {name}",
@@ -225,9 +315,9 @@
     "RU": "✓ Pandoc найден в PATH ({version})"
   },
   "install_pandoc_missing": {
-    "EN": "⚠ Pandoc NOT found in PATH (optional, for MD → Word). See https://pandoc.org/installing.html",
-    "UK": "⚠ Pandoc НЕ знайдено в PATH (опційно, для MD → Word). Див. https://pandoc.org/installing.html",
-    "RU": "⚠ Pandoc НЕ найден в PATH (опционально, для MD → Word). См. https://pandoc.org/installing.html"
+    "EN": "⚠ Pandoc NOT found in PATH (optional, for MD → Word).",
+    "UK": "⚠ Pandoc НЕ знайдено в PATH (опційно, для MD → Word).",
+    "RU": "⚠ Pandoc НЕ найден в PATH (опционально, для MD → Word)."
   },
   "edit_redactor": {
     "EN": "Change prompt",
@@ -235,9 +325,89 @@
     "RU": "Изменить промт"
   },
   "cursor_api_key_button": {
-    "EN": "api_key",
-    "UK": "api_key",
-    "RU": "api_key"
+    "EN": "API keys",
+    "UK": "API keys",
+    "RU": "API keys"
+  },
+  "ai_api_keys_button": {
+    "EN": "API keys",
+    "UK": "API keys",
+    "RU": "API keys"
+  },
+  "ai_api_keys_title": {
+    "EN": "AI API keys",
+    "UK": "AI API ключі",
+    "RU": "AI API ключи"
+  },
+  "ai_api_keys_cursor": {
+    "EN": "Cursor",
+    "UK": "Cursor",
+    "RU": "Cursor"
+  },
+  "ai_api_keys_gemini": {
+    "EN": "Google Gemini",
+    "UK": "Google Gemini",
+    "RU": "Google Gemini"
+  },
+  "ai_api_keys_copilot": {
+    "EN": "Microsoft Copilot (Azure OpenAI)",
+    "UK": "Microsoft Copilot (Azure OpenAI)",
+    "RU": "Microsoft Copilot (Azure OpenAI)"
+  },
+  "gemini_api_key_prompt": {
+    "EN": "Gemini API key (Google AI Studio). Empty = open gemini.google.com with prompt in clipboard.",
+    "UK": "Gemini API ключ (Google AI Studio). Порожнє = відкрити gemini.google.com з промптом у буфері.",
+    "RU": "Gemini API ключ (Google AI Studio). Пусто = открыть gemini.google.com с промптом в буфере."
+  },
+  "gemini_model_label": {
+    "EN": "Model:",
+    "UK": "Модель:",
+    "RU": "Модель:"
+  },
+  "azure_openai_hint": {
+    "EN": "API mode uses Azure OpenAI (endpoint + key + deployment). Without credentials, Microsoft Copilot opens in the browser.",
+    "UK": "API-режим: Azure OpenAI (endpoint + ключ + deployment). Без облікових даних відкривається Microsoft Copilot у браузері.",
+    "RU": "API-режим: Azure OpenAI (endpoint + ключ + deployment). Без учётных данных открывается Microsoft Copilot в браузере."
+  },
+  "azure_openai_endpoint_label": {
+    "EN": "Azure endpoint (https://….openai.azure.com)",
+    "UK": "Azure endpoint (https://….openai.azure.com)",
+    "RU": "Azure endpoint (https://….openai.azure.com)"
+  },
+  "azure_openai_api_key_label": {
+    "EN": "Azure OpenAI API key",
+    "UK": "Azure OpenAI API ключ",
+    "RU": "Azure OpenAI API ключ"
+  },
+  "azure_openai_deployment_label": {
+    "EN": "Deployment:",
+    "UK": "Deployment:",
+    "RU": "Deployment:"
+  },
+  "azure_openai_api_version_label": {
+    "EN": "API version:",
+    "UK": "API version:",
+    "RU": "API version:"
+  },
+  "ai_provider_label": {
+    "EN": "Integration",
+    "UK": "Інтеграція",
+    "RU": "Интеграция"
+  },
+  "ai_provider_cursor": {
+    "EN": "Cursor",
+    "UK": "Cursor",
+    "RU": "Cursor"
+  },
+  "ai_provider_gemini": {
+    "EN": "Gemini",
+    "UK": "Gemini",
+    "RU": "Gemini"
+  },
+  "ai_provider_copilot": {
+    "EN": "Copilot",
+    "UK": "Copilot",
+    "RU": "Copilot"
   },
   "cursor_api_key_title": {
     "EN": "Cursor API key",
@@ -245,9 +415,9 @@
     "RU": "Cursor API ключ"
   },
   "cursor_api_key_prompt": {
-    "EN": "Enter or paste the Cursor API key:",
-    "UK": "Введіть або вставте Cursor API ключ:",
-    "RU": "Введите или вставьте Cursor API ключ:"
+    "EN": "Enter or paste the Cursor API key (empty = Chat fallback):",
+    "UK": "Введіть або вставте Cursor API ключ (порожнє = режим Chat):",
+    "RU": "Введите или вставьте Cursor API ключ (пусто = режим Chat):"
   },
   "save": {
     "EN": "Save",
@@ -255,24 +425,209 @@
     "RU": "Сохранить"
   },
   "tooltip_send_txt_to_cursor": {
-    "EN": "Enable/disable Cursor post-processing of TXT (after transcription) or Markdown (for documents in the queue).",
-    "UK": "Увімкнути/вимкнути постпроцесинг у Cursor: TXT після транскрибації або Markdown для документів у черзі.",
-    "RU": "Включить/выключить постобработку в Cursor: TXT после транскрибации или Markdown для документов в очереди."
+    "EN": "After processing, open Prompts and run via Cursor / Gemini / Copilot (API or browser fallback).",
+    "UK": "Після обробки відкрити «Промпти» і виконати через Cursor / Gemini / Copilot (API або браузерний fallback).",
+    "RU": "После обработки открыть «Промты» и выполнить через Cursor / Gemini / Copilot (API или браузерный fallback)."
+  },
+  "tooltip_send_txt_to_ai": {
+    "EN": "After processing, open Prompts and run via Cursor / Gemini / Copilot (API or browser fallback).",
+    "UK": "Після обробки відкрити «Промпти» і виконати через Cursor / Gemini / Copilot (API або браузерний fallback).",
+    "RU": "После обработки открыть «Промты» и выполнить через Cursor / Gemini / Copilot (API или браузерный fallback)."
   },
   "tooltip_edit_redactor": {
-    "EN": "Open redactor1.md to edit numbered prompts (## Prompt #1 \"name\"). Output files use the prompt name.",
-    "UK": "Відкрити redactor1.md для редагування промптів (## Промпт №1 \"name\"). Ім'я файлу = назва промпта.",
-    "RU": "Открыть redactor1.md для редактирования промптов (## Промпт №1 \"name\"). Имя файла = название промпта."
+    "EN": "Open redactor1.md to edit numbered prompts (## Prompt #1 \"name\"). Output files use the prompt name. To AI checkbox enables post-processing.",
+    "UK": "Відкрити redactor1.md для редагування промптів (## Промпт №1 \"name\"). Ім'я файлу = назва промпта. Чекбокс «В AI» вмикає постпроцесинг.",
+    "RU": "Открыть redactor1.md для редактирования промптов (## Промпт №1 \"name\"). Имя файла = название промпта. Чекбокс «В AI» включает постпроцессинг."
   },
   "tooltip_cursor_api_key": {
-    "EN": "Open the API key window. The key is saved only after pressing Save. Empty = Chat fallback.",
-    "UK": "Відкрити вікно API-ключа. Ключ зберігається лише після натискання «Зберегти». Порожнє = режим Chat.",
-    "RU": "Открыть окно API-ключа. Ключ сохраняется только после нажатия «Сохранить». Пусто = режим Chat."
+    "EN": "Open AI API keys (Cursor, Gemini, Azure OpenAI / Copilot). Empty credentials → browser/Chat fallback.",
+    "UK": "Відкрити ключі AI (Cursor, Gemini, Azure OpenAI / Copilot). Порожні облікові дані → браузерний/Chat fallback.",
+    "RU": "Открыть ключи AI (Cursor, Gemini, Azure OpenAI / Copilot). Пустые учётные данные → браузерный/Chat fallback."
+  },
+  "tooltip_ai_api_keys": {
+    "EN": "Open AI API keys (Cursor, Gemini, Azure OpenAI / Copilot). Empty credentials → browser/Chat fallback.",
+    "UK": "Відкрити ключі AI (Cursor, Gemini, Azure OpenAI / Copilot). Порожні облікові дані → браузерний/Chat fallback.",
+    "RU": "Открыть ключи AI (Cursor, Gemini, Azure OpenAI / Copilot). Пустые учётные данные → браузерный/Chat fallback."
   },
   "cursor_waiting": {
     "EN": "⏳ Waiting {seconds}s before Cursor post-process…",
     "UK": "⏳ Очікування {seconds} с перед постпроцесингом Cursor…",
     "RU": "⏳ Ожидание {seconds} с перед постпроцессингом Cursor…"
+  },
+  "ai_waiting": {
+    "EN": "⏳ Waiting {seconds}s before AI ({provider})…",
+    "UK": "⏳ Очікування {seconds} с перед AI ({provider})…",
+    "RU": "⏳ Ожидание {seconds} с перед AI ({provider})…"
+  },
+  "ai_using_provider": {
+    "EN": "▶ AI provider: {provider} — {name}",
+    "UK": "▶ AI провайдер: {provider} — {name}",
+    "RU": "▶ AI провайдер: {provider} — {name}"
+  },
+  "ai_unexpected_error": {
+    "EN": "❌ AI post-process error: {error}",
+    "UK": "❌ Помилка постпроцесингу AI: {error}",
+    "RU": "❌ Ошибка постпроцессинга AI: {error}"
+  },
+  "ai_browser_open_error": {
+    "EN": "❌ Failed to open browser: {url}",
+    "UK": "❌ Не вдалося відкрити браузер: {url}",
+    "RU": "❌ Не удалось открыть браузер: {url}"
+  },
+  "ai_handoff": {
+    "EN": "▶ Sending to AI: {name}",
+    "UK": "▶ Передаю в AI: {name}",
+    "RU": "▶ Передаю в AI: {name}"
+  },
+  "cursor_handoff": {
+    "EN": "▶ Sending to AI: {name}",
+    "UK": "▶ Передаю в AI: {name}",
+    "RU": "▶ Передаю в AI: {name}"
+  },
+  "cursor_prompts_title": {
+    "EN": "Prompts",
+    "UK": "Промпти",
+    "RU": "Промты"
+  },
+  "cursor_prompts_for_file": {
+    "EN": "File: {name}",
+    "UK": "Файл: {name}",
+    "RU": "Файл: {name}"
+  },
+  "cursor_prompts_hint": {
+    "EN": "Choose integration, select prompts (checkbox or click). Run = selected, All = every prompt. Double-click a name to run only that one. Close = skip.",
+    "UK": "Оберіть інтеграцію, позначте промпти (галочка або клік). «Виконати» = обрані, «Всі» = усі. Подвійний клік — лише цей. Закриття = без AI.",
+    "RU": "Выберите интеграцию, отметьте промты (галочка или клик). «Выполнить» = выбранные, «Все» = все. Двойной клик — только этот. Закрытие = без AI."
+  },
+  "cursor_prompt_row": {
+    "EN": "Prompt #{num} — {name}",
+    "UK": "Промпт №{num} — {name}",
+    "RU": "Промт №{num} — {name}"
+  },
+  "cursor_prompts_all": {
+    "EN": "All",
+    "UK": "Всі",
+    "RU": "Все"
+  },
+  "cursor_prompts_run": {
+    "EN": "Run",
+    "UK": "Виконати",
+    "RU": "Выполнить"
+  },
+  "cursor_prompts_none_selected": {
+    "EN": "Select at least one prompt, or press All.",
+    "UK": "Оберіть хоча б один промпт або натисніть «Всі».",
+    "RU": "Выберите хотя бы один промт или нажмите «Все»."
+  },
+  "ai_skipped": {
+    "EN": "⚠ AI post-process was not run: {name}",
+    "UK": "⚠ Обробку AI не виконано: {name}",
+    "RU": "⚠ Обработка AI не выполнена: {name}"
+  },
+  "ai_select_prompts_again": {
+    "EN": "▶ Select prompts for AI…",
+    "UK": "▶ Вибрати промпти для AI…",
+    "RU": "▶ Выбрать промты для AI…"
+  },
+  "cursor_skipped": {
+    "EN": "⚠ AI post-process was not run: {name}",
+    "UK": "⚠ Обробку AI не виконано: {name}",
+    "RU": "⚠ Обработка AI не выполнена: {name}"
+  },
+  "cursor_select_prompts_again": {
+    "EN": "▶ Select prompts for AI…",
+    "UK": "▶ Вибрати промпти для AI…",
+    "RU": "▶ Выбрать промты для AI…"
+  },
+  "gemini_no_api_key_fallback": {
+    "EN": "⚠ No Gemini API key — opening Gemini in the browser (paste prompt from clipboard).",
+    "UK": "⚠ Немає Gemini API ключа — відкриваю Gemini у браузері (вставте промпт з буфера).",
+    "RU": "⚠ Нет Gemini API ключа — открываю Gemini в браузере (вставьте промпт из буфера)."
+  },
+  "gemini_browser_opened": {
+    "EN": "💬 Gemini opened in browser for: {name}",
+    "UK": "💬 Gemini відкрито в браузері для: {name}",
+    "RU": "💬 Gemini открыт в браузере для: {name}"
+  },
+  "gemini_browser_prompt_copied": {
+    "EN": "📋 Prompt copied to clipboard — paste it into Gemini and confirm.",
+    "UK": "📋 Промпт скопійовано в буфер — вставте в Gemini і підтвердіть.",
+    "RU": "📋 Промпт скопирован в буфер — вставьте в Gemini и подтвердите."
+  },
+  "gemini_browser_manual_hint": {
+    "EN": "💡 Open Gemini and paste the prompt from redactor1.md, then confirm.",
+    "UK": "💡 Відкрийте Gemini, вставте промпт з redactor1.md і підтвердіть.",
+    "RU": "💡 Откройте Gemini, вставьте промпт из redactor1.md и подтвердите."
+  },
+  "gemini_processing_prompt": {
+    "EN": "▶ Gemini: processing prompt #{num} ({name})…",
+    "UK": "▶ Gemini: обробка промпту №{num} ({name})…",
+    "RU": "▶ Gemini: обработка промпта №{num} ({name})…"
+  },
+  "gemini_file_created": {
+    "EN": "✅ Gemini processed prompt #{num} and created: {name}",
+    "UK": "✅ Gemini обробив промпт №{num} і створив: {name}",
+    "RU": "✅ Gemini обработал промпт №{num} и создал: {name}"
+  },
+  "gemini_prompt_error": {
+    "EN": "❌ Gemini prompt #{num} failed: {error}",
+    "UK": "❌ Помилка Gemini (промпт №{num}): {error}",
+    "RU": "❌ Ошибка Gemini (промпт №{num}): {error}"
+  },
+  "gemini_chain_done": {
+    "EN": "✅ Gemini finished ({count} file(s)) for: {name}",
+    "UK": "✅ Gemini завершив ({count} файл(ів)) для: {name}",
+    "RU": "✅ Gemini завершил ({count} файл(ов)) для: {name}"
+  },
+  "gemini_chain_no_output": {
+    "EN": "⚠ Gemini finished with no output files for: {name}",
+    "UK": "⚠ Gemini завершив без вихідних файлів для: {name}",
+    "RU": "⚠ Gemini завершил без выходных файлов для: {name}"
+  },
+  "copilot_no_api_key_fallback": {
+    "EN": "⚠ No Azure OpenAI credentials — opening Microsoft Copilot in the browser.",
+    "UK": "⚠ Немає облікових даних Azure OpenAI — відкриваю Microsoft Copilot у браузері.",
+    "RU": "⚠ Нет учётных данных Azure OpenAI — открываю Microsoft Copilot в браузере."
+  },
+  "copilot_browser_opened": {
+    "EN": "💬 Microsoft Copilot opened in browser for: {name}",
+    "UK": "💬 Microsoft Copilot відкрито в браузері для: {name}",
+    "RU": "💬 Microsoft Copilot открыт в браузере для: {name}"
+  },
+  "copilot_browser_prompt_copied": {
+    "EN": "📋 Prompt copied to clipboard — paste it into Copilot and confirm.",
+    "UK": "📋 Промпт скопійовано в буфер — вставте в Copilot і підтвердіть.",
+    "RU": "📋 Промпт скопирован в буфер — вставьте в Copilot и подтвердите."
+  },
+  "copilot_browser_manual_hint": {
+    "EN": "💡 Open Copilot and paste the prompt from redactor1.md, then confirm.",
+    "UK": "💡 Відкрийте Copilot, вставте промпт з redactor1.md і підтвердіть.",
+    "RU": "💡 Откройте Copilot, вставьте промпт из redactor1.md и подтвердите."
+  },
+  "copilot_processing_prompt": {
+    "EN": "▶ Copilot/Azure: processing prompt #{num} ({name})…",
+    "UK": "▶ Copilot/Azure: обробка промпту №{num} ({name})…",
+    "RU": "▶ Copilot/Azure: обработка промпта №{num} ({name})…"
+  },
+  "copilot_file_created": {
+    "EN": "✅ Copilot/Azure processed prompt #{num} and created: {name}",
+    "UK": "✅ Copilot/Azure обробив промпт №{num} і створив: {name}",
+    "RU": "✅ Copilot/Azure обработал промпт №{num} и создал: {name}"
+  },
+  "copilot_prompt_error": {
+    "EN": "❌ Copilot/Azure prompt #{num} failed: {error}",
+    "UK": "❌ Помилка Copilot/Azure (промпт №{num}): {error}",
+    "RU": "❌ Ошибка Copilot/Azure (промпт №{num}): {error}"
+  },
+  "copilot_chain_done": {
+    "EN": "✅ Copilot/Azure finished ({count} file(s)) for: {name}",
+    "UK": "✅ Copilot/Azure завершив ({count} файл(ів)) для: {name}",
+    "RU": "✅ Copilot/Azure завершил ({count} файл(ов)) для: {name}"
+  },
+  "copilot_chain_no_output": {
+    "EN": "⚠ Copilot/Azure finished with no output files for: {name}",
+    "UK": "⚠ Copilot/Azure завершив без вихідних файлів для: {name}",
+    "RU": "⚠ Copilot/Azure завершил без выходных файлов для: {name}"
   },
   "cursor_no_prompts": {
     "EN": "❌ No numbered prompts found in redactor1.md (use ## Prompt #1 \"name\" / ## Промпт №1 \"name\").",
@@ -379,6 +734,16 @@
     "UK": "Збереження",
     "RU": "Сохранение"
   },
+  "log_day_header": {
+    "EN": "{mark} {date}",
+    "UK": "{mark} {date}",
+    "RU": "{mark} {date}"
+  },
+  "log_day_header_today": {
+    "EN": "{mark} {date} — today",
+    "UK": "{mark} {date} — сьогодні",
+    "RU": "{mark} {date} — сегодня"
+  },
   "clear_log": {
     "EN": "🧹 Clear Log",
     "UK": "🧹 Очистити лог",
@@ -454,6 +819,16 @@
     "UK": "✅ Всі завдання виконано!",
     "RU": "✅ Все задачи выполнены!"
   },
+  "file_exists_title": {
+    "EN": "File already exists",
+    "UK": "Файл уже існує",
+    "RU": "Файл уже существует"
+  },
+  "file_exists_msg": {
+    "EN": "File already exists:\n{name}\n\nYes — overwrite\nNo — save as {alt}",
+    "UK": "Файл уже існує:\n{name}\n\nТак — перезаписати\nНі — зберегти як {alt}",
+    "RU": "Файл уже существует:\n{name}\n\nДа — перезаписать\nНет — сохранить как {alt}"
+  },
   "error_occurred": {
     "EN": "❌ Error: {error}",
     "UK": "❌ Помилка: {error}",
@@ -465,14 +840,19 @@
     "RU": "💡 В файле может не быть звука или звуковая дорожка отсутствует — проверьте файл."
   },
   "already_processing": {
-    "EN": "Processing is already running.",
-    "UK": "Обробка вже виконується.",
-    "RU": "Обработка уже выполняется."
+    "EN": "⚠ Processing is already running.",
+    "UK": "⚠ Обробка вже виконується.",
+    "RU": "⚠ Обработка уже выполняется."
   },
   "file_skipped": {
     "EN": "⏭ Skipped (file not found): {name}",
     "UK": "⏭ Пропущено (файл не знайдено): {name}",
     "RU": "⏭ Пропущено (файл не найден): {name}"
+  },
+  "file_processing_failed": {
+    "EN": "⏭ Skipped (processing failed): {name}",
+    "UK": "⏭ Пропущено (помилка обробки): {name}",
+    "RU": "⏭ Пропущено (ошибка обработки): {name}"
   },
   "skipped_report_title": {
     "EN": "Skipped files",
@@ -689,6 +1069,56 @@
     "UK": "▶ Перевірка оновлень компонентів...",
     "RU": "▶ Проверка обновлений компонентов..."
   },
+  "checking_external_tools_update": {
+    "EN": "▶ Checking external tools (Pandoc, FFmpeg)...",
+    "UK": "▶ Перевірка зовнішніх інструментів (Pandoc, FFmpeg)...",
+    "RU": "▶ Проверка внешних инструментов (Pandoc, FFmpeg)..."
+  },
+  "external_tool_ok": {
+    "EN": "✓ {tool}: up to date ({version})",
+    "UK": "✓ {tool}: актуально ({version})",
+    "RU": "✓ {tool}: актуально ({version})"
+  },
+  "external_tool_update": {
+    "EN": "⚠ {tool}: {current} -> {latest}",
+    "UK": "⚠ {tool}: {current} -> {latest}",
+    "RU": "⚠ {tool}: {current} -> {latest}"
+  },
+  "external_tool_missing": {
+    "EN": "⚠ {tool}: not installed -> {latest} (manual install)",
+    "UK": "⚠ {tool}: не встановлено -> {latest} (вручну)",
+    "RU": "⚠ {tool}: не установлен -> {latest} (вручную)"
+  },
+  "external_tool_missing_no_latest": {
+    "EN": "⚠ {tool}: not installed (manual install)",
+    "UK": "⚠ {tool}: не встановлено (вручну)",
+    "RU": "⚠ {tool}: не установлен (вручную)"
+  },
+  "external_tool_check_failed": {
+    "EN": "⚠ {tool}: could not check latest version (installed: {version})",
+    "UK": "⚠ {tool}: не вдалося перевірити останню версію (встановлено: {version})",
+    "RU": "⚠ {tool}: не удалось проверить последнюю версию (установлено: {version})"
+  },
+  "external_tool_update_line": {
+    "EN": "{tool}: {current} -> {latest} (manual)",
+    "UK": "{tool}: {current} -> {latest} (вручну)",
+    "RU": "{tool}: {current} -> {latest} (вручную)"
+  },
+  "external_tool_not_installed": {
+    "EN": "not installed",
+    "UK": "не встановлено",
+    "RU": "не установлен"
+  },
+  "external_tool_manual_hint": {
+    "EN": "Pandoc/FFmpeg cannot be installed via pip — instructions will be shown in the log.",
+    "UK": "Pandoc/FFmpeg не встановлюються через pip — інструкції з’являться в журналі.",
+    "RU": "Pandoc/FFmpeg не устанавливаются через pip — инструкции появятся в журнале."
+  },
+  "external_tool_manual_howto_header": {
+    "EN": "▶ Manual install/update for external tools:",
+    "UK": "▶ Встановлення/оновлення зовнішніх інструментів вручну:",
+    "RU": "▶ Установка/обновление внешних инструментов вручную:"
+  },
   "checking_app_update": {
     "EN": "▶ Checking app version on {url}...",
     "UK": "▶ Перевірка версії програми на {url}...",
@@ -884,15 +1314,20 @@
     "UK": "✅ FFmpeg: Знайдено",
     "RU": "✅ FFmpeg: Найден"
   },
+  "ffmpeg_found_version": {
+    "EN": "✅ FFmpeg: {version}",
+    "UK": "✅ FFmpeg: {version}",
+    "RU": "✅ FFmpeg: {version}"
+  },
   "ffmpeg_not_found": {
     "EN": "❌ FFmpeg: NOT FOUND",
     "UK": "❌ FFmpeg: НЕ ЗНАЙДЕНО",
     "RU": "❌ FFmpeg: НЕ НАЙДЕН"
   },
   "ffmpeg_required": {
-    "EN": "   (FFmpeg is required for pydub library and media file processing)",
-    "UK": "   (FFmpeg необхідний для роботи бібліотеки pydub та обробки медіафайлів)",
-    "RU": "   (FFmpeg необходим для работы библиотеки pydub и обработки медиафайлов)"
+    "EN": "   (FFmpeg is required for media decoding and pydub)",
+    "UK": "   (FFmpeg потрібен для декодування медіа та pydub)",
+    "RU": "   (FFmpeg необходим для декодирования медиа и pydub)"
   },
   "select_file": {
     "EN": "Select file to add",
@@ -1215,9 +1650,9 @@
     "RU": "✓ FFmpeg найден в PATH"
   },
   "install_ffmpeg_missing": {
-    "EN": "⚠ FFmpeg NOT found in PATH. Required for pydub. See https://ffmpeg.org/download.html",
-    "UK": "⚠ FFmpeg НЕ знайдено в PATH. Потрібен для pydub. Див. https://ffmpeg.org/download.html",
-    "RU": "⚠ FFmpeg НЕ найден в PATH. Необходим для pydub. См. https://ffmpeg.org/download.html"
+    "EN": "⚠ FFmpeg NOT found in PATH. Required for media processing.",
+    "UK": "⚠ FFmpeg НЕ знайдено в PATH. Потрібен для обробки медіа.",
+    "RU": "⚠ FFmpeg НЕ найден в PATH. Необходим для обработки медиа."
   },
   "install_step_cuda": {
     "EN": "[10/10] Checking CUDA support...",
@@ -1320,14 +1755,14 @@
     "RU": "Открыть настройки сохранения всех файлов программы (TXT, SRT, Cursor и т.д.)."
   },
   "tooltip_system": {
-    "EN": "Check GPU (CUDA) and FFmpeg availability.",
-    "UK": "Перевірити наявність GPU (CUDA) та FFmpeg.",
-    "RU": "Проверить наличие GPU (CUDA) и FFmpeg."
+    "EN": "Check GPU (CUDA), FFmpeg, Pandoc, and key Python packages.",
+    "UK": "Перевірити GPU (CUDA), FFmpeg, Pandoc та ключові Python-пакети.",
+    "RU": "Проверить GPU (CUDA), FFmpeg, Pandoc и ключевые Python-пакеты."
   },
   "tooltip_updates": {
-    "EN": "Check updates: PyPI packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, and WhisperFastGUI app on GitHub.",
-    "UK": "Перевірити оновлення: пакети PyPI, Torch (CUDA 12.1 при NVIDIA), моделі Whisper та саму програму на GitHub.",
-    "RU": "Проверить обновления: пакеты PyPI, Torch (CUDA 12.1 при NVIDIA), модели Whisper и саму программу на GitHub."
+    "EN": "Check updates: PyPI packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, Pandoc/FFmpeg, and WhisperFastGUI app on GitHub.",
+    "UK": "Перевірити оновлення: пакети PyPI, Torch (CUDA 12.1 при NVIDIA), моделі Whisper, Pandoc/FFmpeg та саму програму на GitHub.",
+    "RU": "Проверить обновления: пакеты PyPI, Torch (CUDA 12.1 при NVIDIA), модели Whisper, Pandoc/FFmpeg и саму программу на GitHub."
   },
   "tray_mode_panel": {
     "EN": "Panel",
@@ -1588,5 +2023,120 @@
     "EN": "Stop the current transcription (after finishing the current segment).",
     "UK": "Зупинити поточну транскрибацію (після завершення поточного сегмента).",
     "RU": "Остановить текущую транскрибацию (после завершения текущего сегмента)."
+  },
+  "pydub_import_error": {
+    "EN": "{error_label}: Failed to import pydub.\n\nPython {major}.{minor} requires pyaudioop.\n\nInstall with:\npip install pyaudioop\n\nOr use the [{deps}] button for automatic installation.",
+    "UK": "{error_label}: Не вдалося імпортувати pydub.\n\nДля Python {major}.{minor} потрібен pyaudioop.\n\nВстановіть командою:\npip install pyaudioop\n\nАбо скористайтеся кнопкою [{deps}] для автоматичного встановлення.",
+    "RU": "{error_label}: Не удалось импортировать pydub.\n\nДля Python {major}.{minor} требуется pyaudioop.\n\nУстановите командой:\npip install pyaudioop\n\nИли используйте кнопку [{deps}] для автоматической установки."
+  },
+  "not_installed_short": {
+    "EN": "not installed",
+    "UK": "не встановлено",
+    "RU": "не установлено"
+  },
+  "package_check_line": {
+    "EN": "{package}: {current} -> {latest}",
+    "UK": "{package}: {current} -> {latest}",
+    "RU": "{package}: {current} -> {latest}"
+  },
+  "redactor_opened": {
+    "EN": "📝 {name}",
+    "UK": "📝 {name}",
+    "RU": "📝 {name}"
+  },
+  "redactor_open_error": {
+    "EN": "❌ Failed to open redactor file: {error}",
+    "UK": "❌ Не вдалося відкрити файл промптів: {error}",
+    "RU": "❌ Не удалось открыть файл промптов: {error}"
+  },
+  "install_step_progress": {
+    "EN": "📦 {name}...",
+    "UK": "📦 {name}...",
+    "RU": "📦 {name}..."
+  },
+  "dir_scan_error": {
+    "EN": "Error scanning directory {directory}: {error}",
+    "UK": "Помилка сканування каталогу {directory}: {error}",
+    "RU": "Ошибка при сканировании каталога {directory}: {error}"
+  },
+  "model_unloaded": {
+    "EN": "AI resources unloaded successfully.",
+    "UK": "Ресурси AI успішно вивантажено.",
+    "RU": "Ресурсы AI успешно выгружены."
+  },
+  "markitdown_missing": {
+    "EN": "markitdown is not installed. Use [Dependencies] or: pip install \"markitdown[pdf,docx,pptx,xlsx,xls]\"",
+    "UK": "markitdown не встановлено. Використайте [Залежності] або: pip install \"markitdown[pdf,docx,pptx,xlsx,xls]\"",
+    "RU": "markitdown не установлен. Используйте [Зависимости] или: pip install \"markitdown[pdf,docx,pptx,xlsx,xls]\""
+  },
+  "markitdown_docx_extra": {
+    "EN": "MarkItDown needs the DOCX extra. Install: pip install \"markitdown[docx]\" or use [Dependencies] / [Updates].",
+    "UK": "MarkItDown потребує DOCX-додаток. Встановіть: pip install \"markitdown[docx]\" або [Залежності] / [Оновлення].",
+    "RU": "MarkItDown нужен DOCX-аддон. Установите: pip install \"markitdown[docx]\" или [Зависимости] / [Обновление]."
+  },
+  "markitdown_pdf_extra": {
+    "EN": "MarkItDown needs the PDF extra. Install: pip install \"markitdown[pdf]\" or use [Dependencies] / [Updates].",
+    "UK": "MarkItDown потребує PDF-додаток. Встановіть: pip install \"markitdown[pdf]\" або [Залежності] / [Оновлення].",
+    "RU": "MarkItDown нужен PDF-аддон. Установите: pip install \"markitdown[pdf]\" или [Зависимости] / [Обновление]."
+  },
+  "markitdown_empty": {
+    "EN": "Conversion produced empty Markdown.",
+    "UK": "Конвертація дала порожній Markdown.",
+    "RU": "Конвертация дала пустой Markdown."
+  },
+  "pandoc_missing_runtime": {
+    "EN": "Pandoc is not installed or not in PATH. Install from https://pandoc.org/installing.html",
+    "UK": "Pandoc не встановлено або не в PATH. Встановіть з https://pandoc.org/installing.html",
+    "RU": "Pandoc не установлен или не в PATH. Установите с https://pandoc.org/installing.html"
+  },
+  "pandoc_timeout": {
+    "EN": "Pandoc timed out while converting Markdown.",
+    "UK": "Pandoc перевищив час очікування під час конвертації Markdown.",
+    "RU": "Pandoc превысил время ожидания при конвертации Markdown."
+  },
+  "pandoc_failed": {
+    "EN": "Pandoc failed: {error}",
+    "UK": "Помилка Pandoc: {error}",
+    "RU": "Ошибка Pandoc: {error}"
+  },
+  "pandoc_no_output": {
+    "EN": "Pandoc did not create output file: {path}",
+    "UK": "Pandoc не створив вихідний файл: {path}",
+    "RU": "Pandoc не создал выходной файл: {path}"
+  },
+  "pandoc_unsupported_format": {
+    "EN": "Export format '{fmt}' is not supported yet. Supported: {supported}",
+    "UK": "Формат експорту '{fmt}' ще не підтримується. Підтримуються: {supported}",
+    "RU": "Формат экспорта '{fmt}' ещё не поддерживается. Поддерживаются: {supported}"
+  },
+  "gemini_no_candidates": {
+    "EN": "Gemini returned no candidates: {detail}",
+    "UK": "Gemini не повернув candidates: {detail}",
+    "RU": "Gemini не вернул candidates: {detail}"
+  },
+  "gemini_empty_text": {
+    "EN": "Gemini returned empty text.",
+    "UK": "Gemini повернув порожній текст.",
+    "RU": "Gemini вернул пустой текст."
+  },
+  "azure_no_choices": {
+    "EN": "Azure OpenAI returned no choices: {detail}",
+    "UK": "Azure OpenAI не повернув choices: {detail}",
+    "RU": "Azure OpenAI не вернул choices: {detail}"
+  },
+  "azure_empty_content": {
+    "EN": "Azure OpenAI returned empty content.",
+    "UK": "Azure OpenAI повернув порожній вміст.",
+    "RU": "Azure OpenAI вернул пустое содержимое."
+  },
+  "http_request_error": {
+    "EN": "HTTP {code}: {detail}",
+    "UK": "HTTP {code}: {detail}",
+    "RU": "HTTP {code}: {detail}"
+  },
+  "cursor_agent_failed": {
+    "EN": "Cursor agent run failed: {run_id}",
+    "UK": "Помилка запуску Cursor agent: {run_id}",
+    "RU": "Ошибка запуска Cursor agent: {run_id}"
   }
 }

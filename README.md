@@ -1,7 +1,7 @@
 # Whisper Fast GUI
 
-**Версія:** 1.2.1
-**Дата публікації:** 22.07.2026
+**Версія:** 1.2.2
+**Дата публікації:** 28.07.2026
 
 Графічний інтерфейс для транскрибації аудіо та відео на основі Faster-Whisper (OpenAI Whisper). Також обробляє текстові/офісні документи (конвертація в Markdown, опційно Cursor і Word).
 
@@ -36,7 +36,7 @@
 - **Відкриття файлів з логу:** `open` (звичайний клік) та `open -R` (Shift+клік — показати у Finder).
 - **Звук завершення:** як на Linux (системні звуки за відсутності .mp3 у resources/).
 
-На всіх ОС потрібні: **Python 3.9–3.13** (на практиці найстабільніше **3.11 або 3.12**), **FFmpeg** у PATH, залежності (faster-whisper, torch, pydub тощо). **Python 3.14+** часто не підходить: для нього ще немає коліс **ctranslate2** / **torch** на PyPI — встановлення падає; використовуйте 3.12. Рекомендовано відеокарту NVIDIA з CUDA для прискорення на Windows та Linux.
+На всіх ОС потрібні: **Python 3.9–3.13** (на практиці найстабільніше **3.11 або 3.12**), **FFmpeg** у PATH, залежності (faster-whisper, torch, pydub, markitdown тощо — через [Залежності]). Для **MD → Word** додатково **Pandoc** у PATH. **Python 3.14+** часто не підходить: для нього ще немає коліс **ctranslate2** / **torch** на PyPI — встановлення падає; використовуйте 3.12. Рекомендовано відеокарту NVIDIA з CUDA для прискорення на Windows та Linux.
 
 ---
 
@@ -75,6 +75,7 @@ WhisperFastGUI/
 │   │   └── lang.json       — тексти інтерфейсу
 │   ├── setup/
 │   │   ├── installer.py        — pip-залежності, перевірка системи
+│   │   ├── external_tools.py   — підказки встановлення FFmpeg / Pandoc (не pip)
 │   │   ├── python_selector.py  — вибір Python → settings.json
 │   │   └── gpu_info.py         — NVIDIA GPU → settings.json
 │   ├── updates/
@@ -169,7 +170,7 @@ WhisperFastGUI/
 | Текст      | .md, .markdown, .txt, .text, .rst, .csv, .html, .htm |
 | Документи  | .pdf, .doc, .docx (конвертуються в Markdown) |
 
-Для аудіо/відео потрібен FFmpeg у PATH. Для PDF/DOC/DOCX — пакет `markitdown` (ставиться через [Залежності] / [Оновлення]).
+Для аудіо/відео потрібен **FFmpeg** у PATH. Для PDF/DOC/DOCX — **`markitdown[pdf,docx,pptx,xlsx,xls]`** (ставиться через [Залежності] / [Оновлення]). Для **MD → Word** — **Pandoc** у PATH (не pip; інструкції показує [Система] / [Залежності], якщо Pandoc відсутній).
 
 ---
 
@@ -221,7 +222,7 @@ WhisperFastGUI/
 1. **.pdf / .doc / .docx** — конвертація в **.md** (через `markitdown`); у лог пишеться, що **вихідний** файл у Cursor не передавався.
 2. **.md** та інші текстові формати — готується Markdown у каталозі збереження (копія/запис `.md`).
 3. Якщо увімкнено **«У Cursor»** — у Cursor передається **Markdown** для стандартного прогону промптів із `redactor1.md`; кроки й результати видно в логу.
-4. Якщо увімкнено **«MD → Word»** — після готовності MD (або після кожного результату Cursor) створюється **.docx** через **Pandoc** (має бути в PATH). Опційні стилі Word: `resources/templates/reference.docx`.
+4. Якщо увімкнено **«MD → Word»** — після готовності MD (або після кожного результату Cursor) створюється **.docx** через **Pandoc** (має бути в PATH). Якщо Pandoc не знайдено — у логу та діалозі з’являються команди встановлення для Windows / macOS / Linux. Опційні стилі Word: `resources/templates/reference.docx`.
 
 ---
 
@@ -288,9 +289,9 @@ WhisperFastGUI/
 | [Додати файли]       | Вибір одного або кількох файлів |
 | [Додати каталог]     | Додавання всіх підтримуваних файлів з каталогу рекурсивно |
 | [Очистити чергу]     | Видалення всіх файлів зі списку |
-| [Система]            | Перевірка GPU (NVIDIA), PyTorch/CUDA, FFmpeg та Pandoc; модель відеокарти зберігається в `settings.json` |
-| [Залежності]         | Встановлення або перевстановлення бібліотек (у т. ч. pystray, Pillow, cursor-sdk, markitdown), опція Force Reinstall; помилки pip виводяться в лог |
-| [Оновлення]          | Перевірка оновлень: спочатку версія програми на GitHub, далі pip-пакети (для NVIDIA — torch з індексу CUDA 12.1 / cu121), моделі Whisper на Hugging Face Hub; після підтвердження встановлює вибране |
+| [Система]            | Перевірка Python, ключових pip-пакетів, GPU/CUDA, FFmpeg і Pandoc; якщо FFmpeg/Pandoc відсутні — у лог виводяться інструкції встановлення |
+| [Залежності]         | Повна установка/перевстановлення pip-пакетів (torch, whisper, multimedia, cursor-sdk, markitdown з office-extras, packaging…); після pip — перевірка FFmpeg/Pandoc з підказками; опція Force Reinstall |
+| [Оновлення]          | Перевірка оновлень: спочатку версія програми на GitHub, далі pip-пакети (для NVIDIA — torch з індексу CUDA 12.1 / cu121), моделі Whisper; після підтвердження встановлює вибране (markitdown — з extras) |
 | Кнопка моделі        | Діалог вибору моделі Whisper: список (завантажені / не завантажені), «Завантажити модель», «Оновити модель», «OK», «Скасувати» |
 | [Очистити лог]       | Очищення вікна логу |
 | [Автозапуск]         | Запуск `autorun_delayed.bat`: додає програму в автозавантаження Windows з затримкою 25 с (тільки Windows) |
@@ -335,11 +336,23 @@ WhisperFastGUI/
 
 ---
 
+## Що нового в 1.2.2
+
+- **Без вікна консолі при Cursor:** на Windows Chat і cursor-sdk bridge запускаються без `.cmd`-обгорток (`Cursor.exe`/`node.exe` + `CREATE_NO_WINDOW`), консоль більше не лишається відкритою.
+- **Стійкіший Cursor SDK:** окремий bridge на кожен промпт, drain stderr і повтор при `WinError 10061` (відмова з’єднання до «мертвого» bridge).
+- **Конфлікт імен вихідних файлів:** якщо цільовий файл уже є — діалог перезапису або збереження з суфіксом `_HHMM`.
+- **FFmpeg / Pandoc:** окремий модуль підказок і перевірки оновлень зовнішніх утиліт; інструкції встановлення в README та в логу [Система] / [Залежності].
+- **Відкриття шляхів:** спільний helper для відкриття файлу / показу в провіднику з логу.
+
+---
+
 ## Що нового в 1.2.1
 
 - **Документи в черзі:** `.md`, `.txt` та інші текстові формати; `.pdf`, `.doc`, `.docx` конвертуються в Markdown (`markitdown`), без виклику Whisper.
 - **Cursor для документів:** у промпти передається Markdown; у логу фіксується, що вихідний PDF/DOC/DOCX у Cursor не передавався; кроки й результати обробки видно в логу.
-- **MD → Word:** опція експорту Markdown у `.docx` через Pandoc (після MD або після кожного результату Cursor); перевірка Pandoc у [Система].
+- **MD → Word:** опція експорту Markdown у `.docx` через Pandoc (після MD або після кожного результату Cursor).
+- **Залежності «по максимуму»:** [Залежності] / [Оновлення] ставлять повний набір pip-пакетів, зокрема `markitdown[pdf,docx,pptx,xlsx,xls]`, `cursor-sdk`, `packaging`.
+- **FFmpeg і Pandoc:** після установки та в [Система] — перевірка; якщо відсутні — покрокові команди (winget / Chocolatey / Homebrew / apt) і нагадування перезапустити програму після оновлення PATH.
 - **Оновлення:** перевірка версії програми на GitHub виконується першою в списку [Оновлення].
 
 ---
@@ -407,20 +420,30 @@ WhisperFastGUI/
    Python 3.12.10 для Windows (64-bit): https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe  
    Усі версії: https://www.python.org/downloads/
 
-2. **Встановіть FFmpeg** і додайте його в PATH.  
-   https://ffmpeg.org/download.html
+2. **Встановіть FFmpeg** і додайте його в PATH (обов’язково для аудіо/відео).  
+   - Сайт: https://ffmpeg.org/download.html  
+   - Windows: `winget install --id Gyan.FFmpeg -e` або `choco install ffmpeg`  
+   - macOS: `brew install ffmpeg`  
+   - Linux: `sudo apt install ffmpeg`  
 
-3. **Запустіть `install.bat`.** Скрипт:
+3. **(Опційно) Pandoc** — лише для **MD → Word**:  
+   - Сайт: https://pandoc.org/installing.html  
+   - Windows: `winget install --id JohnMacFarlane.Pandoc -e` або `choco install pandoc`  
+   - macOS: `brew install pandoc`  
+   - Linux: `sudo apt install pandoc`  
+   Після встановлення перезапустіть термінал / програму, щоб оновився PATH. Якщо Pandoc відсутній, [Система] і [Залежності] покажуть ці підказки в логу.
+
+4. **Запустіть `install.bat`** (або [Залежності] у GUI). Скрипт:
    - перевіряє Python та вже встановлені пакети;
-   - оновлює pip, setuptools, wheel;
-   - встановлює PyTorch (CUDA 12.1), faster-whisper, ctranslate2;
-   - пропускає nvidia-cublas-cu12 та nvidia-cudnn-cu12 при першому встановленні (їх можна встановити з GUI: [Оновлення] або [Залежності]);
-   - встановлює pygame, pydub, tkinterdnd2-universal, pystray, Pillow, cursor-sdk;
-   - перевіряє пакети, FFmpeg та CUDA.
+   - оновлює pip, setuptools, wheel, packaging;
+   - встановлює PyTorch (CUDA 12.1 за наявності NVIDIA), faster-whisper, ctranslate2;
+   - пропускає nvidia-cublas-cu12 / nvidia-cudnn-cu12 при першому встановленні (їх можна поставити з GUI: [Оновлення] або [Залежності]);
+   - встановлює pygame, pydub, tkinterdnd2-universal, pystray, Pillow, cursor-sdk, **markitdown[pdf,docx,pptx,xlsx,xls]**;
+   - перевіряє пакети, FFmpeg, Pandoc і CUDA; для відсутніх системних утиліт друкує інструкції.
 
-4. **Запустіть Whisper Fast GUI.** Якщо знайдено кілька версій Python, виберіть потрібну в діалозі першого запуску. Вибір зберігається у `settings.json`. Щоб повторити вибір, видаліть ключі `python_path` і `python_version` з цього файла.
+5. **Запустіть Whisper Fast GUI.** Якщо знайдено кілька версій Python, виберіть потрібну в діалозі першого запуску. Вибір зберігається у `settings.json`. Щоб повторити вибір, видаліть ключі `python_path` і `python_version` з цього файла.
 
-5. **Запуск:**
+6. **Запуск:**
    - `run_whisper.vbs` — подвійний клік (вікно консолі не показується).
    - Ярлик можна створити вручну: ціль — `run_whisper.vbs` або `main.py`.  
    Для відлагодження з CMD: `py main.py` (з папки проекту).
@@ -431,7 +454,7 @@ WhisperFastGUI/
 
 ### Встановлення вручну
 
-У командному рядку в каталозі проекту виконайте: `python installer.py`.
+У командному рядку в каталозі проекту виконайте: `python -m whisperfast.setup.installer` (або `install.bat` / кнопку [Залежності] у GUI).
 
 ---
 
@@ -457,16 +480,18 @@ WhisperFastGUI/
 | **pystray** | Іконка програми в системному треї (область сповіщень). |
 | **Pillow** | Завантаження та підготовка зображення іконки для трею (favicon.ico). |
 | **cursor-sdk** | Cursor SDK для автоматичного постпроцесингу TXT/MD (кнопка [Оновлення] / [Залежності]). |
-| **markitdown** | Конвертація PDF/DOC/DOCX (та інших підтримуваних форматів) у Markdown. |
+| **markitdown** | Конвертація PDF/DOC/DOCX (та ін.) у Markdown; ставиться як `markitdown[pdf,docx,pptx,xlsx,xls]`. |
+| **packaging** | Порівняння версій пакетів при перевірці оновлень. |
 | **pyaudioop** | Заміна видаленого модуля `audioop` у Python 3.13+ (потрібен для pydub). |
-| **ffmpeg** | Системна програма (не pip): декодування аудіо/відео, перевірка тривалості. Потрібно встановити окремо і додати в PATH. |
-| **pandoc** | Системна програма (не pip, опційно): експорт Markdown → Word (.docx). Див. https://pandoc.org/installing.html |
+| **ffmpeg** | Системна програма (не pip): декодування аудіо/відео. Інструкції — у розділі встановлення та в логу [Система]/[Залежності]. |
+| **pandoc** | Системна програма (не pip, опційно): MD → Word. Інструкції — у розділі встановлення та в логу, якщо Pandoc відсутній. |
 
 **Примітки:**
 - **nvidia-cublas-cu12** та **nvidia-cudnn-cu12** при першому запуску (install.bat або автоустановка) не ставляться; їх встановлюють кнопки [Оновлення] або [Залежності] в програмі.
 - **pyaudioop** потрібен лише для Python 3.13+; за потреби встановлюється автоматично.
 - **tkinter** — частина стандартної поставки Python; використовується для графічного інтерфейсу.
 - **pandoc** потрібен лише для опції **MD → Word**; без нього транскрибація й Cursor працюють як раніше.
+- Після встановлення FFmpeg/Pandoc перезапустіть програму (оновлення PATH).
 
 ---
 

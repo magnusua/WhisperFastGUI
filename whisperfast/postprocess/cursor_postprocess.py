@@ -7,9 +7,11 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from typing import Callable, List, Optional, Tuple
 
 from whisperfast.config import BASE_DIR
+from whisperfast.open_path import open_file
 from whisperfast.platform_util import win_no_window_kwargs
 
 REDACTOR_FILENAME = "redactor1.md"
@@ -105,6 +107,52 @@ def _ensure_os_blocking_compat() -> None:
     os._wf_blocking_compat = True  # type: ignore[attr-defined]
 
 
+def _windows_direct_bridge_argv() -> Optional[List[str]]:
+    """node.exe + bridge.js замість cursor-sdk-bridge.cmd (без вікна cmd)."""
+    try:
+        from cursor_sdk._vendor import resolve_bridge_path
+    except ImportError:
+        return None
+    launcher = os.path.abspath(resolve_bridge_path())
+    if not launcher.lower().endswith(".cmd"):
+        return None
+    bin_dir = os.path.dirname(launcher)
+    node = os.path.join(bin_dir, "node.exe")
+    js = os.path.join(bin_dir, "..", "dist", "bin", "cursor-sdk-bridge.js")
+    js = os.path.normpath(js)
+    if os.path.isfile(node) and os.path.isfile(js):
+        return [node, js]
+    return None
+
+
+def _drain_bridge_stderr(process: subprocess.Popen) -> None:
+    """Читає stderr bridge у фоні, щоб pipe не забивався після discovery."""
+    stream = getattr(process, "stderr", None)
+    if stream is None:
+        return
+    try:
+        while True:
+            chunk = stream.read(8192)
+            if not chunk:
+                break
+    except (OSError, ValueError):
+        pass
+
+
+def _is_bridge_connection_error(exc: BaseException) -> bool:
+    text = f"{type(exc).__name__}: {exc}".lower()
+    markers = (
+        "10061",
+        "connection refused",
+        "actively refused",
+        "connecterror",
+        "failed to establish a new connection",
+        "connectionreset",
+        "connection aborted",
+    )
+    return any(m in text for m in markers)
+
+
 def _prepare_cursor_sdk() -> None:
     """Імпорт cursor_sdk + Windows-сумісність (blocking API і pipe discovery без selectors)."""
     _ensure_os_blocking_compat()
@@ -177,6 +225,41 @@ def _prepare_cursor_sdk() -> None:
             os.set_blocking(stderr_fd, was_blocking)
 
     bridge._read_discovery = _read_discovery_windows  # type: ignore[assignment]
+
+    # Bridge.launch spawns node via .cmd without CREATE_NO_WINDOW → console stays open.
+    _orig_popen = bridge.subprocess.Popen
+
+    def _popen_no_window(*args, **kwargs):
+        no_win = win_no_window_kwargs()
+        flags = kwargs.get("creationflags", 0) | no_win.get("creationflags", 0)
+        if flags:
+            kwargs["creationflags"] = flags
+        if "startupinfo" not in kwargs and "startupinfo" in no_win:
+            kwargs["startupinfo"] = no_win["startupinfo"]
+        return _orig_popen(*args, **kwargs)
+
+    bridge.subprocess.Popen = _popen_no_window  # type: ignore[assignment]
+
+    _orig_launch = bridge.Bridge.launch
+
+    @classmethod
+    def _launch_no_console(cls, command=None, **kwargs):
+        if command is None:
+            direct = _windows_direct_bridge_argv()
+            if direct:
+                command = direct
+        launched = _orig_launch.__func__(cls, command, **kwargs)
+        proc = getattr(launched, "process", None)
+        if proc is not None and getattr(proc, "stderr", None) is not None:
+            threading.Thread(
+                target=_drain_bridge_stderr,
+                args=(proc,),
+                name="cursor-sdk-stderr-drain",
+                daemon=True,
+            ).start()
+        return launched
+
+    bridge.Bridge.launch = _launch_no_console  # type: ignore[assignment]
     sys._wf_cursor_sdk_bridge_patched = True  # type: ignore[attr-defined]
 
 
@@ -275,36 +358,98 @@ def open_redactor_file(log_func: Optional[LogFunc] = None) -> str:
     """Гарантує наявність redactor1.md і відкриває його системним редактором."""
     path = ensure_redactor_file()
     try:
-        if sys.platform == "win32":
-            os.startfile(path)  # type: ignore[attr-defined]
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", path])
-        else:
-            subprocess.Popen(["xdg-open", path])
+        open_file(path)
         if log_func:
-            log_func(f"📝 {os.path.basename(path)}")
-            log_func(path, "link")
+            try:
+                from whisperfast.i18n import t
+                log_func(t("redactor_opened", name=os.path.basename(path)))
+            except ImportError:
+                pass
     except OSError as e:
         if log_func:
-            log_func(f"❌ {e}")
+            try:
+                from whisperfast.i18n import t
+                log_func(t("redactor_open_error", error=str(e)))
+            except ImportError:
+                pass
     return path
 
 
+def _find_cursor_gui_exe() -> Optional[str]:
+    """Шлях до Cursor.exe (GUI), без cursor.cmd."""
+    if sys.platform != "win32":
+        return None
+    candidates = [
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor", "Cursor.exe"),
+        os.path.join(os.environ.get("ProgramFiles", ""), "Cursor", "Cursor.exe"),
+    ]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    for name in ("cursor.cmd", "cursor"):
+        found = shutil.which(name)
+        if not found:
+            continue
+        # …/resources/app/bin/cursor.cmd → …/Cursor.exe
+        bin_dir = os.path.dirname(os.path.abspath(found))
+        gui = os.path.normpath(os.path.join(bin_dir, "..", "..", "..", "Cursor.exe"))
+        if os.path.isfile(gui):
+            return gui
+    return None
+
+
 def _find_cursor_executable() -> Optional[str]:
+    gui = _find_cursor_gui_exe()
+    if gui:
+        return gui
     for name in ("cursor", "cursor.cmd", "cursor.exe"):
         found = shutil.which(name)
         if found:
             return found
     if sys.platform == "win32":
-        candidates = [
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor", "Cursor.exe"),
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor", "resources", "app", "bin", "cursor.cmd"),
-            os.path.join(os.environ.get("ProgramFiles", ""), "Cursor", "Cursor.exe"),
-        ]
-        for c in candidates:
-            if c and os.path.isfile(c):
-                return c
+        cmd = os.path.join(
+            os.environ.get("LOCALAPPDATA", ""),
+            "Programs",
+            "cursor",
+            "resources",
+            "app",
+            "bin",
+            "cursor.cmd",
+        )
+        if os.path.isfile(cmd):
+            return cmd
     return None
+
+
+def _cursor_cli_popen_args(cli_args: List[str]) -> Tuple[List[str], dict]:
+    """Команда + kwargs для Cursor CLI без вікна консолі.
+
+    cursor.cmd залишає чорне вікно; на Windows запускаємо Cursor.exe + cli.js
+    напряму з ELECTRON_RUN_AS_NODE=1 і CREATE_NO_WINDOW.
+    """
+    kwargs: dict = {}
+    env = os.environ.copy()
+    if sys.platform == "win32":
+        kwargs.update(win_no_window_kwargs())
+        gui = _find_cursor_gui_exe()
+        if gui:
+            cli_js = os.path.join(os.path.dirname(gui), "resources", "app", "out", "cli.js")
+            if os.path.isfile(cli_js):
+                env["ELECTRON_RUN_AS_NODE"] = "1"
+                env["VSCODE_DEV"] = env.get("VSCODE_DEV", "")
+                kwargs["env"] = env
+                kwargs["stdout"] = subprocess.DEVNULL
+                kwargs["stderr"] = subprocess.DEVNULL
+                return [gui, cli_js, *cli_args], kwargs
+    cursor_bin = _find_cursor_executable()
+    if not cursor_bin:
+        from whisperfast.i18n import t
+        raise FileNotFoundError(t("cursor_not_found"))
+    kwargs["env"] = env
+    if sys.platform == "win32":
+        kwargs["stdout"] = subprocess.DEVNULL
+        kwargs["stderr"] = subprocess.DEVNULL
+    return [cursor_bin, *cli_args], kwargs
 
 
 def open_cursor_chat_fallback(
@@ -314,14 +459,13 @@ def open_cursor_chat_fallback(
 ) -> bool:
     """Відкриває Cursor Chat з TXT; промпт копіює в буфер (автозапуск не гарантований)."""
     txt_path = os.path.abspath(txt_path)
-    cursor_bin = _find_cursor_executable()
-    if not cursor_bin:
+    if not _find_cursor_executable():
         if log_func:
             try:
                 from whisperfast.i18n import t
                 log_func(t("cursor_not_found"))
             except ImportError:
-                log_func("❌ Cursor executable not found.")
+                pass
         return False
 
     clipboard_ok = False
@@ -348,10 +492,7 @@ def open_cursor_chat_fallback(
         clipboard_ok = False
 
     try:
-        cmd = [cursor_bin, "--chat", "-n", "-g", txt_path]
-        kwargs = {}
-        if sys.platform == "win32":
-            kwargs.update(win_no_window_kwargs())
+        cmd, kwargs = _cursor_cli_popen_args(["--chat", "-n", "-g", txt_path])
         subprocess.Popen(cmd, **kwargs)
         if log_func:
             try:
@@ -362,15 +503,15 @@ def open_cursor_chat_fallback(
                 else:
                     log_func(t("cursor_chat_manual_hint"))
             except ImportError:
-                log_func(f"Cursor Chat opened for {txt_path}")
+                pass
         return True
-    except OSError as e:
+    except (OSError, FileNotFoundError) as e:
         if log_func:
             try:
                 from whisperfast.i18n import t
                 log_func(t("cursor_chat_error", error=str(e)))
             except ImportError:
-                log_func(f"❌ Cursor Chat error: {e}")
+                pass
         return False
 
 
@@ -391,30 +532,45 @@ def _run_sdk_one(
     api_key: str,
 ) -> None:
     _prepare_cursor_sdk()
-    from cursor_sdk import Agent, AgentOptions, LocalAgentOptions
+    from cursor_sdk import Agent, AgentOptions, Client, LocalAgentOptions
+    from cursor_sdk._client import close_default_client
 
     cwd = os.path.dirname(os.path.abspath(input_path)) or BASE_DIR
     full_prompt = _build_agent_prompt(input_path, output_path, prompt_text)
+    local = LocalAgentOptions(cwd=cwd)
+    options = AgentOptions(
+        api_key=api_key,
+        model="composer-2.5",
+        local=local,
+    )
+
+    def _prompt_once():
+        # Окремий bridge на промпт (не глобальний singleton) — уникаємо WinError 10061
+        # після «мертвого» default client у довгій GUI-сесії.
+        client = Client.launch_bridge(workspace=cwd, local=local)
+        try:
+            return Agent.prompt(full_prompt, options, client=client)
+        finally:
+            client.close()
+
     try:
-        result = Agent.prompt(
-            full_prompt,
-            AgentOptions(
-                api_key=api_key,
-                model="composer-2.5",
-                local=LocalAgentOptions(cwd=cwd),
-            ),
-        )
-    except TypeError:
-        # Alternate keyword signature
-        result = Agent.prompt(
-            full_prompt,
-            api_key=api_key,
-            model="composer-2.5",
-            local=LocalAgentOptions(cwd=cwd),
-        )
+        result = _prompt_once()
+    except Exception as first_err:
+        if not _is_bridge_connection_error(first_err):
+            raise
+        try:
+            close_default_client()
+        except Exception:
+            pass
+        time.sleep(0.5)
+        result = _prompt_once()
+
     status = getattr(result, "status", None)
     if status == "error":
-        raise RuntimeError(f"Cursor agent run failed: {getattr(result, 'id', '')}")
+        from whisperfast.i18n import t
+        raise RuntimeError(
+            t("cursor_agent_failed", run_id=str(getattr(result, "id", "") or ""))
+        )
 
 
 def run_sdk_chain(
@@ -423,6 +579,7 @@ def run_sdk_chain(
     api_key: str,
     log_func: Optional[LogFunc] = None,
     on_file_created: Optional[Callable[[str], None]] = None,
+    resolve_output_path: Optional[Callable[[str], str]] = None,
 ) -> List[str]:
     """Послідовно виконує промпти SDK. Повертає список створених шляхів."""
     created: List[str] = []
@@ -433,7 +590,7 @@ def run_sdk_chain(
                 from whisperfast.i18n import t
                 log_func(t("cursor_no_prompts"))
             except ImportError:
-                log_func("❌ No numbered prompts found in redactor1.md")
+                pass
         return created
 
     try:
@@ -445,20 +602,22 @@ def run_sdk_chain(
                 from whisperfast.i18n import t
                 log_func(t("cursor_sdk_missing"))
             except ImportError:
-                log_func("❌ cursor-sdk not installed. pip install cursor-sdk")
+                pass
         open_cursor_chat_fallback(txt_path, prompts[0][2], log_func)
         return created
 
     current_input = txt_path
     for num, name, text in prompts:
         out_path = edited_output_path(txt_path, num, name)
+        if resolve_output_path:
+            out_path = resolve_output_path(out_path)
         label = name or f"#{num}"
         if log_func:
             try:
                 from whisperfast.i18n import t
                 log_func(t("cursor_processing_prompt", num=num, name=label))
             except ImportError:
-                log_func(f"▶ Cursor prompt #{num} ({label})…")
+                pass
         try:
             _run_sdk_one(current_input, out_path, text, api_key)
         except Exception as e:
@@ -467,7 +626,7 @@ def run_sdk_chain(
                     from whisperfast.i18n import t
                     log_func(t("cursor_prompt_error", num=num, error=str(e)))
                 except ImportError:
-                    log_func(f"❌ Cursor prompt #{num}: {e}")
+                    pass
             break
         if not os.path.isfile(out_path):
             # Якщо агент не записав файл — вважаємо крок невдалим і зупиняємо ланцюжок.
@@ -476,7 +635,7 @@ def run_sdk_chain(
                     from whisperfast.i18n import t
                     log_func(t("cursor_output_missing", path=out_path))
                 except ImportError:
-                    log_func(f"❌ Output file not created: {out_path}")
+                    pass
             break
         created.append(out_path)
         if on_file_created:
@@ -486,8 +645,7 @@ def run_sdk_chain(
                 from whisperfast.i18n import t
                 log_func(t("cursor_file_created", num=num, name=os.path.basename(out_path)))
             except ImportError:
-                log_func(f"✅ Cursor created: {os.path.basename(out_path)}")
-            log_func(out_path, "link")
+                pass
         current_input = out_path
     return created
 
@@ -498,26 +656,29 @@ def process_txt_with_cursor(
     log_func: Optional[LogFunc] = None,
     on_file_created: Optional[Callable[[str], None]] = None,
     delay_s: float = CURSOR_POSTPROCESS_DELAY_S,
+    resolve_output_path: Optional[Callable[[str], str]] = None,
+    prompts: Optional[List[Tuple[int, str, str]]] = None,
 ) -> None:
-    """Затримка → парсинг промптів → SDK (якщо є ключ) або Chat fallback."""
+    """Затримка → промпти (передані або з redactor1.md) → SDK / Chat fallback."""
     if delay_s > 0:
         if log_func:
             try:
                 from whisperfast.i18n import t
                 log_func(t("cursor_waiting", seconds=int(delay_s)))
             except ImportError:
-                log_func(f"⏳ Waiting {int(delay_s)}s before Cursor…")
+                pass
         threading.Event().wait(delay_s)
 
     ensure_redactor_file()
-    prompts = parse_redactor_prompts()
+    if prompts is None:
+        prompts = parse_redactor_prompts()
     if not prompts:
         if log_func:
             try:
                 from whisperfast.i18n import t
                 log_func(t("cursor_no_prompts"))
             except ImportError:
-                log_func("❌ No numbered prompts in redactor1.md")
+                pass
         return
 
     api_key = resolve_cursor_api_key(api_key_from_settings)
@@ -528,28 +689,25 @@ def process_txt_with_cursor(
             api_key,
             log_func=log_func,
             on_file_created=on_file_created,
+            resolve_output_path=resolve_output_path,
         )
         if log_func:
             try:
                 from whisperfast.i18n import t
                 if created:
+                    # Шляхи вже залоговані після кожного промпту — тут лише підсумок
                     log_func(t("cursor_chain_done", count=len(created), name=os.path.basename(txt_path)))
-                    for out in created:
-                        log_func(out, "link")
                 else:
                     log_func(t("cursor_chain_no_output", name=os.path.basename(txt_path)))
             except ImportError:
-                if created:
-                    log_func(f"✅ Cursor done ({len(created)} file(s)) for {txt_path}")
-                else:
-                    log_func(f"⚠ Cursor produced no output for {txt_path}")
+                pass
     else:
         if log_func:
             try:
                 from whisperfast.i18n import t
                 log_func(t("cursor_no_api_key_fallback"))
             except ImportError:
-                log_func("⚠ No Cursor API key — opening Chat (manual confirm).")
+                pass
         open_cursor_chat_fallback(txt_path, prompts[0][2], log_func)
 
 
@@ -560,6 +718,8 @@ def start_txt_postprocess_async(
     on_file_created: Optional[Callable[[str], None]] = None,
     on_complete: Optional[Callable[[], None]] = None,
     delay_s: float = CURSOR_POSTPROCESS_DELAY_S,
+    resolve_output_path: Optional[Callable[[str], str]] = None,
+    prompts: Optional[List[Tuple[int, str, str]]] = None,
 ) -> None:
     """Запускає process_txt_with_cursor у daemon-потоці."""
     def _run():
@@ -570,6 +730,8 @@ def start_txt_postprocess_async(
                 log_func=log_func,
                 on_file_created=on_file_created,
                 delay_s=delay_s,
+                resolve_output_path=resolve_output_path,
+                prompts=prompts,
             )
         except Exception as e:
             if log_func:
@@ -577,7 +739,7 @@ def start_txt_postprocess_async(
                     from whisperfast.i18n import t
                     log_func(t("cursor_unexpected_error", error=str(e)))
                 except ImportError:
-                    log_func(f"❌ Cursor postprocess error: {e}")
+                    pass
         finally:
             if on_complete:
                 try:
