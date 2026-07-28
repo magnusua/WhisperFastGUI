@@ -1,6 +1,6 @@
 # Whisper Fast GUI — Help
 
-Whisper Fast GUI converts speech in audio and video files into text and subtitles. You can also add text and office documents to the queue (convert to Markdown, then optionally Cursor and Word).
+Whisper Fast GUI converts speech in audio and video files into text and subtitles. You can also add text and office documents to the queue (convert to Markdown, then optionally AI post-processing and Word).
 
 ## Quick start
 
@@ -15,7 +15,7 @@ For audio/video the program creates:
 - `.srt` — subtitles with timestamps;
 - `_audio.mp3` — extracted audio when **Save MP3** is enabled.
 
-For documents it creates Markdown (`.md`), and optionally Cursor outputs and Word (`.docx`).
+For documents it creates Markdown (`.md`), and optionally AI outputs and Word (`.docx`).
 
 ## Adding and managing files
 
@@ -47,10 +47,10 @@ Supported documents: `.pdf`, `.doc`, `.docx` (converted to Markdown; Whisper is 
 
 1. PDF/DOC/DOCX are converted to `.md` (package `markitdown`).
 2. Other text formats are prepared as Markdown in the save folder.
-3. If **To Cursor** is on, **Markdown** is sent for the usual prompt chain; the log notes that the original PDF/DOC/DOCX was **not** passed to Cursor.
-4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each Cursor result). Install Pandoc and keep it on PATH: https://pandoc.org/installing.html
+3. If **To AI** is on, a prompt dialog opens (Cursor / Gemini / Copilot); **Markdown** is sent to AI. The log notes that the original PDF/DOC/DOCX was **not** passed to AI.
+4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each AI result). Install Pandoc and keep it on PATH: https://pandoc.org/installing.html
 
-The log shows conversion steps, output paths, Cursor progress, and final results.
+The log shows conversion steps, output paths, AI progress, and final results.
 
 ## Processing part of a file
 
@@ -69,7 +69,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 
 ## Output options
 
-- **Play sound** notifies you when the queue finishes.
+- **Play sound** notifies you when the queue finishes (including after AI post-processing, if enabled).
 - **Save MP3** extracts the processed audio to a separate file.
 - **MD → Word** exports Markdown to `.docx` via Pandoc.
 - **Save directory** selects where results are written. An empty field means “next to the source file.”
@@ -82,14 +82,34 @@ Enable **Watch** and use **Folder** to set one or more directories (saved in `se
 
 If another task is running, new files wait in the queue and start automatically afterward.
 
-## Cursor post-processing
+## AI post-processing (Cursor / Gemini / Copilot)
 
-Enable **To Cursor** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from `redactor1.md`.
+Enable **To AI** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from `redactor1.md`.
 
-- The **To Cursor** label opens the prompt file.
-- **api_key** saves a Cursor API key for automatic processing.
-- With a working API key and Cursor SDK, prompts run in sequence and create files named after the prompt (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`).
-- Without an API key, Cursor Chat opens and the first prompt is copied for manual confirmation.
+- The **To AI** label opens the prompt file.
+- **API keys** opens one dialog for Cursor, Gemini, and Azure OpenAI (Copilot). Closing with X discards changes. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `AZURE_OPENAI_*`.
+
+After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens:
+
+- Choose integration: **Cursor** | **Gemini** | **Copilot**.
+- Checkboxes / click a name to select prompts (the first is checked by default).
+- **Run** (or **Space**) — only checked prompts; **All** — select all and run.
+- Closing the dialog skips AI; you can reopen the picker from the log link.
+
+| Integration | With API key | Without key (fallback) |
+|-------------|--------------|------------------------|
+| **Cursor** | Cursor SDK, prompt chain | Cursor Chat + prompt on clipboard |
+| **Gemini** | Google Generative Language API | Browser gemini.google.com + clipboard |
+| **Copilot** | Azure OpenAI (endpoint + key + deployment) | Browser copilot.microsoft.com + clipboard |
+
+Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`). Empty sections are skipped.
+
+## Log
+
+- The log is stored in `app_log.json` next to the program.
+- Entries are grouped by day; click a date header to collapse or expand that day.
+- Past days start collapsed; **today** stays expanded, with auto-scroll to new lines.
+- **Clear log** clears the window and `app_log.json`.
 
 ## Buttons
 
@@ -101,8 +121,10 @@ Enable **To Cursor** to process generated `.txt` (after transcription) or `.md` 
 - **Dependencies** — install or reinstall required packages (including `markitdown`).
 - **Updates** — check program (first), package, and model updates.
 - **Model name** — select and manage the Whisper model.
-- **Clear log** — clear messages.
+- **Clear log** — clear the log window and `app_log.json`.
 - **Autostart** — add delayed startup on Windows.
+- **To AI** — enable AI post-processing; the label opens `redactor1.md`.
+- **API keys** — Cursor / Gemini / Azure OpenAI keys.
 - **Help** — open this file in the interface language.
 
 ## Display modes
@@ -114,11 +136,12 @@ Enable **To Cursor** to process generated `.txt` (after transcription) or `.md` 
 ## Keyboard and mouse
 
 - **Enter** — add files when the queue is empty, otherwise start processing.
-- **Space** — toggle **Save MP3** when focus is not in a text field.
+- **Space** — toggle **Save MP3** when focus is not in a text field; in the **Prompts** dialog — same as **Run**.
 - **Delete** — remove selected queue items.
 - **Ctrl+V** — paste a directory path into the save-folder field (or a row in the watch-folders dialog).
 - **Double-click a queue row** — edit its time range.
 - **Shift+click a queue row** — show the source file.
+- **Click a log link** — open the file; **Shift+click** — show it in the folder.
 
 ## Interface language
 
