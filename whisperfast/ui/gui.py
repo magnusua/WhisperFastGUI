@@ -412,6 +412,7 @@ class WhisperGUI:
         scroll_q.pack(side="right", fill="y")
         self.queue_list.bind("<Double-1>", self._on_queue_row_double_click)
         self.queue_list.bind("<Button-1>", self.on_drag_start)
+        self.queue_list.bind("<Shift-Button-1>", self._on_queue_shift_click)
         self.queue_list.bind("<B1-Motion>", self.on_drag_motion)
         self.queue_list.bind("<Delete>", self.delete_selected_queue_items)
         self.queue_list.bind("<Button-3>", self._on_queue_context_menu)
@@ -824,6 +825,7 @@ class WhisperGUI:
         output_opts=None,
         send_txt_to_cursor=False,
         cursor_api_key="",
+        log_file_id=None,
     ):
         save_transcription_files(
             self,
@@ -835,6 +837,7 @@ class WhisperGUI:
             output_opts=output_opts,
             send_txt_to_cursor=send_txt_to_cursor,
             cursor_api_key=cursor_api_key,
+            log_file_id=log_file_id,
         )
 
     def mark_done(self, idx, name):
@@ -958,6 +961,27 @@ class WhisperGUI:
 
     def log_action(self, msg, callback):
         self.log_panel.log_action(msg, callback)
+
+    def begin_file_log(self, source, name=None, current=None, total=None):
+        return self.log_panel.begin_file(source, name=name, current=current, total=total)
+
+    def log_file_event(self, msg, tag=None, file_id=None, callback=None):
+        self.log_panel.log_file_event(msg, tag=tag, file_id=file_id, callback=callback)
+
+    def log_file_segment(self, t_str, text, count=None, file_id=None):
+        self.log_panel.log_file_segment(t_str, text, count=count, file_id=file_id)
+
+    def add_file_output(self, role, path, label=None, file_id=None):
+        self.log_panel.add_file_output(role, path, label=label, file_id=file_id)
+
+    def end_file_log(self, status="done", error=None, file_id=None):
+        self.log_panel.end_file(status=status, error=error, file_id=file_id)
+
+    def find_file_log_id(self, path):
+        return self.log_panel.find_file_id_for_path(path)
+
+    def make_file_logger(self, file_id):
+        return self.log_panel.make_file_logger(file_id)
 
     def clear_log(self):
         self.log_panel.clear()
@@ -1159,6 +1183,10 @@ class WhisperGUI:
                 self._tray_icon.stop()
             except Exception:
                 pass
+        try:
+            self.log_panel.flush()
+        except Exception:
+            pass
         self._persist_settings()
 
     def _model_button_label(self):
@@ -1268,7 +1296,7 @@ class WhisperGUI:
     def _maybe_log_all_complete(self, send_txt_to_cursor, will_continue):
         self.ai_jobs.maybe_log_all_complete(send_txt_to_cursor, will_continue)
 
-    def _export_markdown_to_docx(self, md_path):
+    def _export_markdown_to_docx(self, md_path, log_file_id=None):
         """MD → DOCX через Pandoc."""
         from whisperfast.core.pandoc_export import convert_markdown_with_pandoc, office_output_path
 
@@ -1276,11 +1304,21 @@ class WhisperGUI:
         try:
             created_path = convert_markdown_with_pandoc(md_path, output_path=out, fmt="docx")
         except Exception as e:
-            self.log(t("pandoc_export_error", fmt="docx", error=str(e)))
+            if log_file_id:
+                self.log_file_event(
+                    t("pandoc_export_error", fmt="docx", error=str(e)),
+                    file_id=log_file_id,
+                )
+            else:
+                self.log(t("pandoc_export_error", fmt="docx", error=str(e)))
             return []
         self.queue_ctrl.register_output_paths([created_path])
-        self.log(t("pandoc_docx_created", name=os.path.basename(created_path)))
-        self.log(created_path, "link")
+        fid = log_file_id or self.find_file_log_id(md_path)
+        if fid:
+            self.add_file_output("docx", created_path, file_id=fid)
+        else:
+            self.log(t("pandoc_docx_created", name=os.path.basename(created_path)))
+            self.log(created_path, "link")
         return [created_path]
 
     def _edit_redactor_file(self):
@@ -1295,11 +1333,23 @@ class WhisperGUI:
     def _maybe_play_finish_sound(self, play_requested, send_txt_to_cursor, will_continue):
         self.ai_jobs.maybe_play_finish_sound(play_requested, send_txt_to_cursor, will_continue)
 
-    def _schedule_cursor_postprocess(self, txt_path, cursor_api_key="", export_md_to_docx=None):
+    def _register_ai_job(self, txt_path, export_md_to_docx=None, log_file_id=None):
+        return self.ai_jobs.register_job(
+            txt_path, export_md_to_docx=export_md_to_docx, log_file_id=log_file_id
+        )
+
+    def _log_ai_select_prompt_action(self, msg, job_id):
+        self.ai_jobs.log_select_prompt_action(msg, job_id)
+
+    def _schedule_cursor_postprocess(
+        self, txt_path, cursor_api_key="", export_md_to_docx=None, job_id=None, log_file_id=None
+    ):
         self.ai_jobs.schedule_postprocess(
             txt_path,
             cursor_api_key=cursor_api_key,
             export_md_to_docx=export_md_to_docx,
+            job_id=job_id,
+            log_file_id=log_file_id,
         )
 
     def _pump_cursor_prompt_queue(self):
@@ -1389,18 +1439,25 @@ class WhisperGUI:
     def on_drag_start(self, event):
         iid = self.queue_list.identify_row(event.y)
         if iid and (event.state & 0x0001):
-            try:
-                idx = self.queue_list.index(iid)
-            except tk.TclError:
-                idx = -1
-            if 0 <= idx < len(self.queue):
-                open_file_location(self.queue[idx]["path"])
-                return "break"
+            return self._on_queue_shift_click(event)
         self._drag_iid = iid
         try:
             self._drag_index = self.queue_list.index(iid) if iid else -1
         except tk.TclError:
             self._drag_index = -1
+
+    def _on_queue_shift_click(self, event):
+        """Shift+клік по рядку черги — відкрити розташування файлу в Провіднику."""
+        iid = self.queue_list.identify_row(event.y)
+        if not iid:
+            return "break"
+        try:
+            idx = self.queue_list.index(iid)
+        except tk.TclError:
+            return "break"
+        if 0 <= idx < len(self.queue):
+            open_file_location(self.queue[idx]["path"])
+        return "break"
 
     def on_drag_motion(self, event):
         iid = self.queue_list.identify_row(event.y)

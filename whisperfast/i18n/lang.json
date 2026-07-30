@@ -744,6 +744,51 @@
     "UK": "{mark} {date} — сьогодні",
     "RU": "{mark} {date} — сегодня"
   },
+  "log_file_header": {
+    "EN": "▸ {name}  [{status}]",
+    "UK": "▸ {name}  [{status}]",
+    "RU": "▸ {name}  [{status}]"
+  },
+  "log_file_header_indexed": {
+    "EN": "▸ ({current}/{total}) {name}  [{status}]",
+    "UK": "▸ ({current}/{total}) {name}  [{status}]",
+    "RU": "▸ ({current}/{total}) {name}  [{status}]"
+  },
+  "log_file_status_running": {
+    "EN": "running",
+    "UK": "в процесі",
+    "RU": "в процессе"
+  },
+  "log_file_status_done": {
+    "EN": "done",
+    "UK": "готово",
+    "RU": "готово"
+  },
+  "log_file_status_failed": {
+    "EN": "failed",
+    "UK": "помилка",
+    "RU": "ошибка"
+  },
+  "log_file_status_skipped": {
+    "EN": "skipped",
+    "UK": "пропущено",
+    "RU": "пропущено"
+  },
+  "log_file_segments": {
+    "EN": "Segments: {count}",
+    "UK": "Сегментів: {count}",
+    "RU": "Сегментов: {count}"
+  },
+  "log_file_output_ai": {
+    "EN": "🤖 AI: {label}",
+    "UK": "🤖 AI: {label}",
+    "RU": "🤖 AI: {label}"
+  },
+  "log_file_output_docx": {
+    "EN": "📘 Word:",
+    "UK": "📘 Word:",
+    "RU": "📘 Word:"
+  },
   "clear_log": {
     "EN": "🧹 Clear Log",
     "UK": "🧹 Очистити лог",
@@ -868,6 +913,11 @@
     "EN": "✅ Files created for: {name}",
     "UK": "✅ Файли створено для: {name}",
     "RU": "✅ Файлы созданы для: {name}"
+  },
+  "files_created_select_prompt": {
+    "EN": "✅ Files created for: {name} — click to choose prompts",
+    "UK": "✅ Файли створено для: {name} — натисніть щоб обрати промт",
+    "RU": "✅ Файлы созданы для: {name} — нажмите чтобы выбрать промт"
   },
   "txt_file": {
     "EN": "📄 TXT: ",
@@ -1368,6 +1418,11 @@
     "EN": "✅ Document result for: {name}",
     "UK": "✅ Результат для документа: {name}",
     "RU": "✅ Результат для документа: {name}"
+  },
+  "doc_files_created_select_prompt": {
+    "EN": "✅ Document result for: {name} — click to choose prompts",
+    "UK": "✅ Результат для документа: {name} — натисніть щоб обрати промт",
+    "RU": "✅ Результат для документа: {name} — нажмите чтобы выбрать промт"
   },
   "doc_md_file": {
     "EN": "📄 Markdown: ",

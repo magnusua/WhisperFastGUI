@@ -106,9 +106,9 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 
 ## Log
 
-- The log is stored in `app_log.json` next to the program.
-- Entries are grouped by day; click a date header to collapse or expand that day.
-- Past days start collapsed; **today** stays expanded, with auto-scroll to new lines.
+- The log is stored in `app_log.json` next to the program (batched writes).
+- Entries are grouped by day; past days load when expanded; **today** stays expanded.
+- One input file → one log block (segments, TXT/SRT/AI paths, etc.).
 - **Clear log** clears the window and `app_log.json`.
 
 ## Buttons

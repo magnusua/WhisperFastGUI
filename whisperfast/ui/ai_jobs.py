@@ -85,9 +85,8 @@ class AiJobQueue:
             if not will_continue:
                 play_finish_sound()
 
-    def schedule_postprocess(self, txt_path, cursor_api_key="", export_md_to_docx=None):
-        """Після TXT/MD: клікабельний «Передаю в AI» + вікно вибору промптів/провайдера."""
-        del cursor_api_key  # сумісність виклику; ключі з settings / env
+    def register_job(self, txt_path, export_md_to_docx=None, log_file_id=None):
+        """Створює pending AI-job без логу/діалогу. Повертає job_id."""
         app = self.app
         do_export = (
             app.export_md_to_docx.get()
@@ -95,23 +94,58 @@ class AiJobQueue:
             else bool(export_md_to_docx)
         )
         txt_path = os.path.abspath(txt_path)
-        file_name = os.path.basename(txt_path)
+        file_id = log_file_id or app.find_file_log_id(txt_path)
         job_id = uuid.uuid4().hex
-        job = {
+        self._jobs[job_id] = {
             "id": job_id,
             "txt_path": txt_path,
             "export_md_to_docx": do_export,
             "provider_id": normalize_provider_id(app.ai_provider.get()),
             "status": "pending",  # pending | selecting | skipped | running | done
             "dialog": None,
+            "log_file_id": file_id,
         }
-        self._jobs[job_id] = job
         self._job_begin()
-        app.log_action(
-            t("ai_handoff", name=file_name),
-            lambda jid=job_id: self.open_prompt_dialog(jid),
-        )
-        self._prompt_queue.append(job_id)
+        return job_id
+
+    def log_select_prompt_action(self, msg, job_id):
+        """Клікабельний рядок лога → вікно вибору промптів для job."""
+        job = self._jobs.get(job_id) or {}
+        file_id = job.get("log_file_id")
+        cb = lambda jid=job_id: self.open_prompt_dialog(jid)
+        if file_id:
+            self.app.log_file_event(msg, file_id=file_id, callback=cb)
+        else:
+            self.app.log_action(msg, cb)
+
+    def schedule_postprocess(
+        self, txt_path, cursor_api_key="", export_md_to_docx=None, job_id=None, log_file_id=None
+    ):
+        """Після TXT/MD: клікабельний «Передаю в AI» + вікно вибору промптів/провайдера."""
+        del cursor_api_key  # сумісність виклику; ключі з settings / env
+        app = self.app
+        if job_id and job_id in self._jobs:
+            job = self._jobs[job_id]
+            txt_path = job["txt_path"]
+            if export_md_to_docx is not None:
+                job["export_md_to_docx"] = bool(export_md_to_docx)
+            if log_file_id and not job.get("log_file_id"):
+                job["log_file_id"] = log_file_id
+        else:
+            job_id = self.register_job(
+                txt_path, export_md_to_docx=export_md_to_docx, log_file_id=log_file_id
+            )
+            job = self._jobs[job_id]
+            txt_path = job["txt_path"]
+        if job.get("log_file_id"):
+            app.log_panel.attach_file(job["log_file_id"])
+        file_name = os.path.basename(txt_path)
+        self.log_select_prompt_action(t("ai_handoff", name=file_name), job_id)
+        if job_id not in self._prompt_queue and job["status"] in (
+            "pending",
+            "skipped",
+        ):
+            self._prompt_queue.append(job_id)
         app.root.after(0, self.pump_prompt_queue)
 
     def pump_prompt_queue(self):
@@ -126,13 +160,31 @@ class AiJobQueue:
             self.open_prompt_dialog(job_id)
             return
 
+    def _dismiss_prompt_dialog(self, job, *, skip=False):
+        """Закрити діалог job без гонки з on_result (destroy не викликає WM_DELETE)."""
+        dialog = job.get("dialog") if job else None
+        job_id = job.get("id") if job else None
+        if job is not None:
+            job["dialog"] = None
+            if job_id and self._prompt_dialog_job_id == job_id:
+                self._prompt_dialog_job_id = None
+            if job["status"] == "selecting" and not skip:
+                job["status"] = "pending"
+        if dialog is None:
+            return
+        try:
+            if dialog.winfo_exists():
+                dialog.destroy()
+        except tk.TclError:
+            pass
+
     def open_prompt_dialog(self, job_id):
         """Відкриває (або піднімає) вікно вибору промптів для job."""
         app = self.app
         job = self._jobs.get(job_id)
         if not job:
             return
-        if job["status"] in ("running", "done"):
+        if job["status"] == "running":
             return
 
         dialog = job.get("dialog")
@@ -145,26 +197,16 @@ class AiJobQueue:
             except tk.TclError:
                 job["dialog"] = None
 
+        # Клік по іншому файлу в логу — перемкнути діалог на цей job
         if (
             self._prompt_dialog_job_id is not None
             and self._prompt_dialog_job_id != job_id
         ):
-            if job_id not in self._prompt_queue and job["status"] in (
-                "pending",
-                "skipped",
-            ):
-                self._prompt_queue.append(job_id)
             other = self._jobs.get(self._prompt_dialog_job_id)
-            if other and other.get("dialog"):
-                try:
-                    if other["dialog"].winfo_exists():
-                        other["dialog"].lift()
-                        other["dialog"].focus_force()
-                except tk.TclError:
-                    pass
-            return
+            self._dismiss_prompt_dialog(other, skip=False)
 
-        if job["status"] == "skipped":
+        # Повторний вибір після skip / після завершення AI
+        if job["status"] in ("skipped", "done"):
             job["status"] = "pending"
             self._job_begin()
 
@@ -172,7 +214,11 @@ class AiJobQueue:
         prompts = parse_redactor_prompts()
         file_name = os.path.basename(job["txt_path"])
         if not prompts:
-            app.log(t("cursor_no_prompts"))
+            fid = job.get("log_file_id")
+            if fid:
+                app.log_file_event(t("cursor_no_prompts"), file_id=fid)
+            else:
+                app.log(t("cursor_no_prompts"))
             job["status"] = "done"
             self._job_end()
             app.root.after(0, self.pump_prompt_queue)
@@ -182,19 +228,24 @@ class AiJobQueue:
         self._prompt_dialog_job_id = job_id
 
         def on_result(selected, provider_id):
+            if job.get("dialog") is None and self._prompt_dialog_job_id != job_id:
+                # Діалог уже знято через _dismiss_prompt_dialog (перемикання)
+                return
             job["dialog"] = None
-            self._prompt_dialog_job_id = None
+            if self._prompt_dialog_job_id == job_id:
+                self._prompt_dialog_job_id = None
             provider_id = normalize_provider_id(provider_id)
             job["provider_id"] = provider_id
             app.ai_provider.set(provider_id)
             app._persist_settings()
             if selected is None:
                 job["status"] = "skipped"
-                app.log(t("ai_skipped", name=file_name))
-                app.log_action(
-                    t("ai_select_prompts_again"),
-                    lambda jid=job_id: self.open_prompt_dialog(jid),
-                )
+                fid = job.get("log_file_id")
+                if fid:
+                    app.log_file_event(t("ai_skipped", name=file_name), file_id=fid)
+                else:
+                    app.log(t("ai_skipped", name=file_name))
+                self.log_select_prompt_action(t("ai_select_prompts_again"), job_id)
                 self._job_end()
                 app.root.after(0, self.pump_prompt_queue)
                 return
@@ -233,11 +284,19 @@ class AiJobQueue:
         do_export = job["export_md_to_docx"]
         credentials = self.credentials()
         provider_id = normalize_provider_id(provider_id)
+        file_id = job.get("log_file_id")
+        log_func = app.make_file_logger(file_id) if file_id else app.log
 
         def on_created(path):
             app.queue_ctrl.register_output_paths([path])
+            label = os.path.splitext(os.path.basename(path))[0]
+            # Prefer short suffix after last underscore as prompt label
+            if "_" in label:
+                label = label.rsplit("_", 1)[-1]
+            if file_id:
+                app.add_file_output("ai", path, label=label, file_id=file_id)
             if do_export and os.path.splitext(path)[1].lower() in (".md", ".markdown"):
-                app._export_markdown_to_docx(path)
+                app._export_markdown_to_docx(path, log_file_id=file_id)
 
         def on_complete():
             job["status"] = "done"
@@ -248,7 +307,7 @@ class AiJobQueue:
                 txt_path,
                 provider_id=provider_id,
                 credentials=credentials,
-                log_func=app.log,
+                log_func=log_func,
                 on_file_created=on_created,
                 on_complete=on_complete,
                 resolve_output_path=app.resolve_output_path,
@@ -272,7 +331,7 @@ class AiJobQueue:
                 def install_then():
                     try:
                         install_dependencies(
-                            log_func=app.log,
+                            log_func=log_func,
                             packages_to_update=[("cursor-sdk", None, None)],
                             include_nvidia=False,
                         )
@@ -282,7 +341,7 @@ class AiJobQueue:
                         raise
                 threading.Thread(target=install_then, daemon=True).start()
             else:
-                app.log(t("cursor_sdk_missing"))
+                log_func(t("cursor_sdk_missing"))
                 start()
 
         app.root.after(0, maybe_install_then_start)

@@ -511,7 +511,7 @@ def show_ai_prompts_dialog(app, file_name, prompts, on_result, provider_id=None)
     dialog.transient(app.root)
     dialog.minsize(440, 380)
     dialog.geometry("500x460")
-    dialog.grab_set()
+    # Без grab_set: кліки по «Передаю в AI» / «Файли створено» в логу лишаються активними
 
     settled = {"done": False}
     initial = normalize_provider_id(
@@ -609,10 +609,9 @@ def show_ai_prompts_dialog(app, file_name, prompts, on_result, provider_id=None)
         settled["done"] = True
         pid = normalize_provider_id(provider_var.get())
         try:
-            dialog.grab_release()
+            dialog.destroy()
         except tk.TclError:
             pass
-        dialog.destroy()
         if on_result:
             on_result(result, pid)
 

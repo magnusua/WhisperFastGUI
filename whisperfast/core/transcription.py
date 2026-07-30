@@ -45,7 +45,7 @@ def segment_file_suffix(start_sec, end_sec):
     return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
 
-def _process_document_item(app, path, opts):
+def _process_document_item(app, path, opts, file_id=None):
     """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально Cursor / DOCX."""
     out_dir = app._resolve_output_dir(path, opts)
     send_to_cursor = bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor")))
@@ -54,10 +54,13 @@ def _process_document_item(app, path, opts):
     src_name = os.path.basename(path)
     ext = os.path.splitext(path)[1].lower()
 
-    app.log(t("doc_processing_start", name=src_name, ext=ext or "?"))
+    app.log_file_event(
+        t("doc_processing_start", name=src_name, ext=ext or "?"),
+        file_id=file_id,
+    )
 
     if needs_office_to_md(path):
-        app.log(t("doc_converting", name=src_name))
+        app.log_file_event(t("doc_converting", name=src_name), file_id=file_id)
 
     intended_md = os.path.abspath(os.path.join(out_dir, os.path.splitext(src_name)[0] + ".md"))
     if hasattr(app, "resolve_output_path"):
@@ -79,19 +82,44 @@ def _process_document_item(app, path, opts):
     except OSError:
         pass
 
-    app.log(t("doc_files_created", name=os.path.splitext(src_name)[0]))
-    if was_converted or needs_office_to_md(path):
-        app.log(t("doc_converted", src=src_name, md=md_name))
+    result_name = os.path.splitext(src_name)[0]
+    ai_job_id = None
+    if send_to_cursor and hasattr(app, "_register_ai_job"):
+        ai_job_id = app._register_ai_job(
+            md_path,
+            export_md_to_docx=export_md_to_docx,
+            log_file_id=file_id,
+        )
+        app.log_file_event(
+            t("doc_files_created_select_prompt", name=result_name),
+            file_id=file_id,
+            callback=lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
+        )
     else:
-        app.log(t("doc_ready_md", name=md_name))
-    app.log(t("doc_md_file"), None)
-    app.log(md_path, "link")
+        app.log_file_event(
+            t("doc_files_created", name=result_name),
+            file_id=file_id,
+        )
+    if was_converted or needs_office_to_md(path):
+        app.log_file_event(
+            t("doc_converted", src=src_name, md=md_name),
+            file_id=file_id,
+        )
+    else:
+        app.log_file_event(t("doc_ready_md", name=md_name), file_id=file_id)
+    app.add_file_output("md", md_path, file_id=file_id)
     if chars or lines:
-        app.log(t("doc_md_stats", chars=chars, lines=lines))
+        app.log_file_event(
+            t("doc_md_stats", chars=chars, lines=lines),
+            file_id=file_id,
+        )
 
     # Исходный не-MD в Cursor не передаём — только Markdown.
     if was_converted or needs_office_to_md(path):
-        app.log(t("doc_not_sent_to_cursor", name=src_name))
+        app.log_file_event(
+            t("doc_not_sent_to_cursor", name=src_name),
+            file_id=file_id,
+        )
 
     if send_to_cursor:
         # DOCX после Cursor: экспорт каждого созданного *.md
@@ -99,16 +127,22 @@ def _process_document_item(app, path, opts):
             md_path,
             cursor_api_key=cursor_api_key,
             export_md_to_docx=export_md_to_docx,
+            job_id=ai_job_id,
+            log_file_id=file_id,
         )
     else:
         if not (was_converted or needs_office_to_md(path)):
-            app.log(t("doc_not_sent_to_cursor", name=src_name))
+            app.log_file_event(
+                t("doc_not_sent_to_cursor", name=src_name),
+                file_id=file_id,
+            )
         if export_md_to_docx:
-            app._export_markdown_to_docx(md_path)
-        app.log(t("doc_processing_done", name=src_name))
+            app._export_markdown_to_docx(md_path, log_file_id=file_id)
+        app.log_file_event(t("doc_processing_done", name=src_name), file_id=file_id)
 
     app.root.after(0, lambda: app._set_progress_value(100))
     app.root.after(0, lambda p=path: app._mark_done_by_path(p))
+    app.end_file_log("done", file_id=file_id)
 
 
 def run_queue(app, mode, target_idx, options=None):
@@ -150,15 +184,16 @@ def run_queue(app, mode, target_idx, options=None):
                 continue
             name = os.path.basename(path)
             if not os.path.isfile(path):
-                app.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
-                app.log(t("file_skipped", name=name))
+                file_id = app.begin_file_log(path, name=name, current=done + 1, total=to_do)
+                app.log_file_event(t("file_skipped", name=name), file_id=file_id)
+                app.end_file_log("skipped", file_id=file_id)
                 skipped_paths.append(path)
                 continue
-            app.log(f"\n{t('processing', current=done + 1, total=to_do, name=name)}")
+            file_id = app.begin_file_log(path, name=name, current=done + 1, total=to_do)
 
             try:
                 if is_document_file(path):
-                    _process_document_item(app, path, opts)
+                    _process_document_item(app, path, opts, file_id=file_id)
                     done += 1
                     continue
 
@@ -226,10 +261,23 @@ def run_queue(app, mode, target_idx, options=None):
                         last_progress_update[0] = now
                     if now - last_log_update[0] >= LOG_UPDATE_INTERVAL_S or segment_count[0] <= 2:
                         seg_text = (s.text or "").strip()
-                        app.log(f"   [{format_timestamp(s.start)}] {seg_text}")
+                        app.log_file_segment(
+                            format_timestamp(s.start),
+                            seg_text,
+                            count=segment_count[0],
+                            file_id=file_id,
+                        )
                         last_log_update[0] = now
 
                 if not app.cancel_requested:
+                    if res:
+                        last = res[-1]
+                        app.log_file_segment(
+                            format_timestamp(last.start),
+                            (last.text or "").strip(),
+                            count=segment_count[0],
+                            file_id=file_id,
+                        )
                     app.root.after(0, lambda: app._set_progress_value(100))
                     if start_sec > 0 or end_sec < duration:
                         res = [SegmentOffset(s.start + start_sec, s.end + start_sec, s.text or "") for s in res]
@@ -244,12 +292,14 @@ def run_queue(app, mode, target_idx, options=None):
                         output_opts=opts,
                         send_txt_to_cursor=bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor"))),
                         cursor_api_key=opts.get("cursor_api_key") or "",
+                        log_file_id=file_id,
                     )
                     app.root.after(0, lambda p=path: app._mark_done_by_path(p))
                     done += 1
+                else:
+                    app.end_file_log("skipped", file_id=file_id)
             except Exception as e:
-                app.log(t("file_processing_failed", name=name))
-                app.log(t("error_occurred", error=str(e)))
+                app.end_file_log("failed", error=str(e), file_id=file_id)
                 # Retry через watch pending — только для медиа; документы не «декодируются»
                 if is_document_file(path):
                     skipped_paths.append(path)
@@ -290,7 +340,7 @@ def run_queue(app, mode, target_idx, options=None):
         app.root.after(0, app.reset_ui)
 
 
-def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_opts=None, send_txt_to_cursor=False, cursor_api_key=""):
+def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_opts=None, send_txt_to_cursor=False, cursor_api_key="", log_file_id=None):
     opts = output_opts or {}
     out = app._resolve_output_dir(path, opts)
     marker = app._processed_marker()
@@ -328,24 +378,43 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
             timestamp = f"{format_timestamp_srt(s.start)} --> {format_timestamp_srt(s.end)}"
             f.write(f"{i}\n{timestamp}\n{(s.text or '').strip()}\n\n")
 
-    app.log(t("files_created", name=os.path.splitext(os.path.basename(txt_p))[0]))
-    app.log(t("txt_file"), None)
-    app.log(txt_p, "link")
-    app.log(t("srt_file"), None)
-    app.log(srt_p, "link")
+    file_id = log_file_id
+    result_name = os.path.splitext(os.path.basename(txt_p))[0]
+    ai_job_id = None
+    if send_txt_to_cursor and hasattr(app, "_register_ai_job"):
+        ai_job_id = app._register_ai_job(
+            txt_p,
+            export_md_to_docx=bool(opts.get("export_md_to_docx")),
+            log_file_id=file_id,
+        )
+        app.log_file_event(
+            t("files_created_select_prompt", name=result_name),
+            file_id=file_id,
+            callback=lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
+        )
+    else:
+        app.log_file_event(
+            t("files_created", name=result_name),
+            file_id=file_id,
+        )
+    app.add_file_output("txt", txt_p, file_id=file_id)
+    app.add_file_output("srt", srt_p, file_id=file_id)
 
     if audio_segment is not None and mp3_p is not None:
         try:
             audio_segment.export(mp3_p, format="mp3")
-            app.log(t("audio_mp3_file"), None)
-            app.log(mp3_p, "link")
+            app.add_file_output("mp3", mp3_p, file_id=file_id)
         except Exception as e:
-            app.log(t("audio_mp3_error", error=str(e)))
+            app.log_file_event(t("audio_mp3_error", error=str(e)), file_id=file_id)
 
     if send_txt_to_cursor:
         app._schedule_cursor_postprocess(
             txt_p,
             cursor_api_key=cursor_api_key,
             export_md_to_docx=bool(opts.get("export_md_to_docx")),
+            job_id=ai_job_id,
+            log_file_id=file_id,
         )
+
+    app.end_file_log("done", file_id=file_id)
 
