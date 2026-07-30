@@ -28,6 +28,10 @@ def main():
     from whisperfast.setup.python_selector import ensure_preferred_python
     ensure_preferred_python()
 
+    # Один екземпляр (після можливого re-exec Python)
+    from whisperfast.single_instance import ensure_single_instance
+    ensure_single_instance()
+
     # Python 3.14+: PyTorch / ctranslate2 / faster-whisper часто без колёс на PyPI — установка падает
     if sys.version_info >= (3, 14):
         if not messagebox.askokcancel(

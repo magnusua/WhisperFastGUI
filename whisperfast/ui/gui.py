@@ -1187,6 +1187,11 @@ class WhisperGUI:
             self.log_panel.flush()
         except Exception:
             pass
+        try:
+            from whisperfast.single_instance import release_lock_if_owned
+            release_lock_if_owned()
+        except Exception:
+            pass
         self._persist_settings()
 
     def _model_button_label(self):

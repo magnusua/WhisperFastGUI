@@ -13,6 +13,8 @@ settings.json
 request_queue.json
 app_log.json
 app_log.json.tmp
+.whisperfastgui.pid
+.whisperfastgui.pid.tmp
 
 # Тимчасові файли оновлення програми
 _update_staging/

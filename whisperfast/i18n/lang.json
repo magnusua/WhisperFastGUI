@@ -994,6 +994,31 @@
     "UK": "Закрити додаток? Поточні процеси будуть перервано.",
     "RU": "Закрыть приложение? Текущие процессы будут прерваны."
   },
+  "single_instance_title": {
+    "EN": "Already running",
+    "UK": "ПЗ вже запущено",
+    "RU": "ПО уже запущено"
+  },
+  "single_instance_message": {
+    "EN": "The application is already running (PID {pid}).\n\nKill the previous instance and continue, do nothing, or start another instance?",
+    "UK": "ПЗ вже запущено (PID {pid}).\n\nЗавершити попередній екземпляр і продовжити, нічого не робити, чи запустити ще один?",
+    "RU": "ПО уже запущено (PID {pid}).\n\nЗавершить предыдущий экземпляр и продолжить, ничего не делать, или запустить ещё один?"
+  },
+  "single_instance_kill": {
+    "EN": "Kill previous",
+    "UK": "Вбити попередній",
+    "RU": "Убить предыдущий"
+  },
+  "single_instance_abort": {
+    "EN": "Do nothing",
+    "UK": "Нічого не робити",
+    "RU": "Ничего не делать"
+  },
+  "single_instance_another": {
+    "EN": "Start another",
+    "UK": "Запустити ще один",
+    "RU": "Запустить ещё один"
+  },
   "import_error": {
     "EN": "Import Error",
     "UK": "Помилка імпорту",
