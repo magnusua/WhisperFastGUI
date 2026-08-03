@@ -502,7 +502,6 @@ class QueueController:
         self.add_files([path])
         if len(self.queue) <= before:
             return
-        idx = len(self.queue) - 1
         busy = False
         if self._is_processing:
             try:
@@ -513,22 +512,33 @@ class QueueController:
             self.watch_pending_continue = True
             self._log(t("watch_queued_for_later", name=os.path.basename(path)))
         elif self._start_processing:
-            self._start_processing(mode="single", target_idx=idx, from_watch=True)
+            # only_new: новий файл + увесь необроблений хвіст черги.
+            # Раніше було single → backlog стояв, поки відкриті «Промты».
+            self._start_processing(mode="only_new", from_watch=True)
 
-    def continue_after_processing(self, cancel_requested=False):
-        """Після завершення задачі — обробити файли, додані слідкуванням під час зайнятості."""
+    def continue_after_processing(self, cancel_requested=False, from_watch=False):
+        """Після Whisper — далі дренити чергу (не чекає вікна «Промты»).
+
+        Продовжуємо якщо:
+        - під час зайнятості прийшли файли зі слідкування (`watch_pending_continue`), або
+        - щойно закінчився прогін зі слідкування (`from_watch`) і лишився backlog.
+
+        Наступний авто-прогін стартує з from_watch=False, щоб failed/skipped
+        не крутились вічно (щонайбільше один доп. прохід).
+        """
         if cancel_requested:
             self.watch_pending_continue = False
             return False
-        if not self.watch_pending_continue:
-            return False
-        if not any(not q.get("processed") for q in self.queue):
+        has_unprocessed = any(not q.get("processed") for q in self.queue)
+        if not has_unprocessed:
             self.watch_pending_continue = False
+            return False
+        if not (self.watch_pending_continue or from_watch):
             return False
         self.watch_pending_continue = False
         self._log(t("watch_continue_queue"))
         if self._start_processing:
-            self._start_processing(mode="only_new", from_watch=True)
+            self._start_processing(mode="only_new", from_watch=False)
         return True
 
 

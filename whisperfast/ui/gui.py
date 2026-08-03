@@ -795,6 +795,7 @@ class WhisperGUI:
                 (self.azure_openai_api_version.get() or "").strip()
                 or "2024-08-01-preview"
             ),
+            "_from_watch": bool(from_watch),
         }
 
         def run_and_release():
@@ -802,13 +803,19 @@ class WhisperGUI:
                 self.process_queue(mode, target_idx, options)
             finally:
                 self._process_queue_lock.release()
-                self.root.after(0, self._continue_watch_queue)
+                # Whisper далі дренить чергу навіть якщо відкрите вікно «Промты»
+                self.root.after(
+                    0,
+                    lambda: self._continue_watch_queue(from_watch=from_watch),
+                )
         threading.Thread(target=run_and_release, daemon=True).start()
 
-    def _continue_watch_queue(self):
-        """Після завершення обробки запускає наступні файли, додані слідкуванням під час зайнятості."""
-        self.queue_ctrl.continue_after_processing(cancel_requested=self.cancel_requested)
-
+    def _continue_watch_queue(self, from_watch=False):
+        """Після Whisper — наступні необроблені (не чекає відповіді на промти AI)."""
+        self.queue_ctrl.continue_after_processing(
+            cancel_requested=self.cancel_requested,
+            from_watch=from_watch,
+        )
 
     def process_queue(self, mode, target_idx, options=None):
         self._all_complete_deferred = False

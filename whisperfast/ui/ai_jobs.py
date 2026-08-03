@@ -1,4 +1,4 @@
-"""Черга AI-постпроцесингу: вибір промптів, провайдер, відкладений звук/лог."""
+"""AI-постпроцесинг: вибір промптів (кілька вікон одночасно), API/fallback, finish hooks."""
 
 from __future__ import annotations
 
@@ -20,9 +20,13 @@ from whisperfast.setup.installer import install_dependencies
 from whisperfast.ui import dialogs as ui_dialogs
 from whisperfast.utils import play_finish_sound
 
+# Зсув cascade для кількох вікон «Промты», щоб не накривали одне одне
+_PROMPT_CASCADE_DX = 28
+_PROMPT_CASCADE_DY = 28
+
 
 class AiJobQueue:
-    """Оркестрація AI після TXT/MD: діалог промптів, API/fallback, finish hooks."""
+    """Оркестрація AI після TXT/MD: діалог промптів на кожен файл, finish hooks."""
 
     def __init__(self, app):
         self.app = app
@@ -31,11 +35,17 @@ class AiJobQueue:
         self._finish_sound_deferred = False
         self._all_complete_deferred = False
         self._jobs = {}
-        self._prompt_queue = []
+        # job_id з відкритим вікном «Промты» (кілька одночасно — норма)
+        self._open_prompt_job_ids = set()
+        # Сумісність зі старим кодом / overwrite-check
         self._prompt_dialog_job_id = None
 
     def edit_redactor_file(self):
         open_redactor_file(log_func=self.app.log)
+
+    def has_open_prompt_dialog(self) -> bool:
+        """True, якщо хоча б одне вікно «Промты» відкрите."""
+        return bool(self._open_prompt_job_ids)
 
     def maybe_log_all_complete(self, send_txt_to_ai, will_continue):
         """Лог «всі завдання виконано» лише після черги і (за потреби) після AI."""
@@ -121,7 +131,7 @@ class AiJobQueue:
     def schedule_postprocess(
         self, txt_path, cursor_api_key="", export_md_to_docx=None, job_id=None, log_file_id=None
     ):
-        """Після TXT/MD: клікабельний «Передаю в AI» + вікно вибору промптів/провайдера."""
+        """Після TXT/MD: клікабельний «Передаю в AI» + одразу вікно промптів для цього файлу."""
         del cursor_api_key  # сумісність виклику; ключі з settings / env
         app = self.app
         if job_id and job_id in self._jobs:
@@ -141,45 +151,26 @@ class AiJobQueue:
             app.log_panel.attach_file(job["log_file_id"])
         file_name = os.path.basename(txt_path)
         self.log_select_prompt_action(t("ai_handoff", name=file_name), job_id)
-        if job_id not in self._prompt_queue and job["status"] in (
-            "pending",
-            "skipped",
-        ):
-            self._prompt_queue.append(job_id)
-        app.root.after(0, self.pump_prompt_queue)
+        # Одразу вікно для цього файлу (паралельно з іншими відкритими «Промты»)
+        app.root.after(0, lambda jid=job_id: self.open_prompt_dialog(jid))
 
     def pump_prompt_queue(self):
-        """Показує наступне вікно вибору промптів, якщо немає відкритого."""
-        if self._prompt_dialog_job_id is not None:
-            return
-        while self._prompt_queue:
-            job_id = self._prompt_queue.pop(0)
-            job = self._jobs.get(job_id)
-            if not job or job["status"] not in ("pending", "skipped"):
-                continue
-            self.open_prompt_dialog(job_id)
-            return
+        """Сумісність: відкрити вікна для всіх pending/skipped без діалогу."""
+        for job_id, job in list(self._jobs.items()):
+            if job.get("status") in ("pending", "skipped") and not job.get("dialog"):
+                self.open_prompt_dialog(job_id)
 
-    def _dismiss_prompt_dialog(self, job, *, skip=False):
-        """Закрити діалог job без гонки з on_result (destroy не викликає WM_DELETE)."""
-        dialog = job.get("dialog") if job else None
-        job_id = job.get("id") if job else None
-        if job is not None:
-            job["dialog"] = None
-            if job_id and self._prompt_dialog_job_id == job_id:
-                self._prompt_dialog_job_id = None
-            if job["status"] == "selecting" and not skip:
-                job["status"] = "pending"
-        if dialog is None:
-            return
-        try:
-            if dialog.winfo_exists():
-                dialog.destroy()
-        except tk.TclError:
-            pass
+    def _unregister_open_dialog(self, job_id):
+        self._open_prompt_job_ids.discard(job_id)
+        if self._prompt_dialog_job_id == job_id:
+            self._prompt_dialog_job_id = next(iter(self._open_prompt_job_ids), None)
+
+    def _cascade_offset(self) -> tuple[int, int]:
+        n = len(self._open_prompt_job_ids)
+        return (n * _PROMPT_CASCADE_DX, n * _PROMPT_CASCADE_DY)
 
     def open_prompt_dialog(self, job_id):
-        """Відкриває (або піднімає) вікно вибору промптів для job."""
+        """Відкриває (або піднімає) вікно вибору промптів для job. Кілька вікон — ОК."""
         app = self.app
         job = self._jobs.get(job_id)
         if not job:
@@ -196,14 +187,7 @@ class AiJobQueue:
                     return
             except tk.TclError:
                 job["dialog"] = None
-
-        # Клік по іншому файлу в логу — перемкнути діалог на цей job
-        if (
-            self._prompt_dialog_job_id is not None
-            and self._prompt_dialog_job_id != job_id
-        ):
-            other = self._jobs.get(self._prompt_dialog_job_id)
-            self._dismiss_prompt_dialog(other, skip=False)
+                self._unregister_open_dialog(job_id)
 
         # Повторний вибір після skip / після завершення AI
         if job["status"] in ("skipped", "done"):
@@ -221,19 +205,16 @@ class AiJobQueue:
                 app.log(t("cursor_no_prompts"))
             job["status"] = "done"
             self._job_end()
-            app.root.after(0, self.pump_prompt_queue)
             return
 
         job["status"] = "selecting"
+        offset_x, offset_y = self._cascade_offset()
+        self._open_prompt_job_ids.add(job_id)
         self._prompt_dialog_job_id = job_id
 
         def on_result(selected, provider_id):
-            if job.get("dialog") is None and self._prompt_dialog_job_id != job_id:
-                # Діалог уже знято через _dismiss_prompt_dialog (перемикання)
-                return
             job["dialog"] = None
-            if self._prompt_dialog_job_id == job_id:
-                self._prompt_dialog_job_id = None
+            self._unregister_open_dialog(job_id)
             provider_id = normalize_provider_id(provider_id)
             job["provider_id"] = provider_id
             app.ai_provider.set(provider_id)
@@ -247,11 +228,9 @@ class AiJobQueue:
                     app.log(t("ai_skipped", name=file_name))
                 self.log_select_prompt_action(t("ai_select_prompts_again"), job_id)
                 self._job_end()
-                app.root.after(0, self.pump_prompt_queue)
                 return
             job["status"] = "running"
             self.start_after_prompt_choice(job, selected, provider_id)
-            app.root.after(0, self.pump_prompt_queue)
 
         dialog = ui_dialogs.show_ai_prompts_dialog(
             app,
@@ -259,6 +238,7 @@ class AiJobQueue:
             prompts,
             on_result,
             provider_id=job.get("provider_id") or app.ai_provider.get(),
+            cascade_offset=(offset_x, offset_y),
         )
         job["dialog"] = dialog
 

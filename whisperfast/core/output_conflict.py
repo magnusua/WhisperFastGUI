@@ -86,15 +86,37 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
     """
     Blocking ask from a worker thread using Tk main loop.
     Returns True (overwrite), False (use timed name), or None if cancelled/app closing.
+
+    Якщо відкрите вікно «Промты» — не питаємо (щоб messagebox не ховався
+    під діалогом і не стопорив Whisper); одразу збереження з суфіксом часу.
     """
     from tkinter import messagebox
 
     from whisperfast.i18n import t
 
+    ai_jobs = getattr(app, "ai_jobs", None)
+
+    def _prompts_open():
+        if ai_jobs is None:
+            return False
+        if hasattr(ai_jobs, "has_open_prompt_dialog"):
+            try:
+                return bool(ai_jobs.has_open_prompt_dialog())
+            except Exception:
+                pass
+        return bool(getattr(ai_jobs, "_prompt_dialog_job_id", None))
+
+    if _prompts_open():
+        return False
+
     choice: List[Optional[bool]] = [None]
 
     def ask():
         try:
+            # Якщо за час очікування відкрили «Промты» — без запитання
+            if _prompts_open():
+                choice[0] = False
+                return
             choice[0] = messagebox.askyesno(
                 t("file_exists_title"),
                 t(
@@ -114,6 +136,8 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
 
     while choice[0] is None:
         if getattr(app, "cancel_requested", False):
+            return False
+        if _prompts_open():
             return False
         time.sleep(0.05)
     return bool(choice[0])

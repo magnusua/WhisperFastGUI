@@ -315,7 +315,10 @@ def run_queue(app, mode, target_idx, options=None):
             app.log(f"\n{t('cancelled', count=to_do - done)}")
         else:
             will_continue = (
-                app.queue_ctrl.watch_pending_continue
+                (
+                    app.queue_ctrl.watch_pending_continue
+                    or bool(opts.get("_from_watch"))
+                )
                 and any(not q.get("processed") for q in app.queue)
             )
             send_cursor = bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor")))

@@ -493,12 +493,15 @@ def show_cursor_prompts_dialog(app, file_name, prompts, on_result, provider_id=N
     )
 
 
-def show_ai_prompts_dialog(app, file_name, prompts, on_result, provider_id=None):
-    """Вікно вибору промптів і AI-провайдера.
+def show_ai_prompts_dialog(
+    app, file_name, prompts, on_result, provider_id=None, cascade_offset=None
+):
+    """Вікно вибору промптів і AI-провайдера (можна відкрити кілька одночасно).
 
     on_result(selected_or_none, provider_id):
       - selected None — скасовано
       - list of prompts + provider_id — запуск
+    cascade_offset: (dx, dy) від центру батьківського вікна — щоб не накривали одне одне.
     """
     from whisperfast.postprocess.providers import (
         PROVIDER_CURSOR,
@@ -511,7 +514,7 @@ def show_ai_prompts_dialog(app, file_name, prompts, on_result, provider_id=None)
     dialog.transient(app.root)
     dialog.minsize(440, 380)
     dialog.geometry("500x460")
-    # Без grab_set: кліки по «Передаю в AI» / «Файли створено» в логу лишаються активними
+    # Без grab_set: кілька вікон + кліки по логу лишаються активними
 
     settled = {"done": False}
     initial = normalize_provider_id(
@@ -656,6 +659,24 @@ def show_ai_prompts_dialog(app, file_name, prompts, on_result, provider_id=None)
     dialog.bind("<KeyPress-space>", on_run_selected)
     dialog.bind("<space>", on_run_selected)
     center_toplevel(app, dialog)
+    if cascade_offset:
+        dx, dy = cascade_offset
+        try:
+            dialog.update_idletasks()
+            geo = dialog.geometry()  # WxH+X+Y
+            parts = geo.split("+")
+            if len(parts) >= 3:
+                x = int(parts[1]) + int(dx)
+                y = int(parts[2]) + int(dy)
+                sw = dialog.winfo_screenwidth()
+                sh = dialog.winfo_screenheight()
+                w = dialog.winfo_width() or 500
+                h = dialog.winfo_height() or 460
+                x = max(0, min(x, sw - w))
+                y = max(0, min(y, sh - h))
+                dialog.geometry(f"+{x}+{y}")
+        except (tk.TclError, ValueError, IndexError):
+            pass
     dialog.update_idletasks()
     _bind_space(dialog)
     dialog.focus_set()
