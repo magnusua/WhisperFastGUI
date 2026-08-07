@@ -1,4 +1,4 @@
-"""Resolve output path conflicts: overwrite or save with _HHMM time suffix."""
+"""Resolve output path conflicts: overwrite, timed name, or skip write."""
 from __future__ import annotations
 
 import os
@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Callable, List, Optional, Sequence
 
 AskOverwriteFn = Callable[[str, str], Optional[bool]]
-# ask(path, alt_name) -> True overwrite, False use alt, None cancel/skip as rename
+# ask(path, alt_name) -> True overwrite, False use alt, None skip write
 
 
 def make_timed_alt_path(path: str) -> str:
@@ -56,6 +56,7 @@ def resolve_output_paths(
     """
     If any path already exists, ask once (first existing file).
     Yes → keep paths (overwrite). No → append _HHMM to all paths in the group.
+    Skip → empty strings (caller must not write).
     """
     normalized = [os.path.abspath(p) if p else p for p in paths]
     existing = [p for p in normalized if p and os.path.isfile(p)]
@@ -65,6 +66,8 @@ def resolve_output_paths(
     sample = existing[0]
     alt = make_timed_alt_path(sample)
     overwrite = ask_overwrite(sample, os.path.basename(alt))
+    if overwrite is None:
+        return [""] * len(normalized)
     if overwrite:
         return normalized
 
@@ -85,12 +88,13 @@ def resolve_single_output_path(path: str, ask_overwrite: AskOverwriteFn) -> str:
 def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
     """
     Blocking ask from a worker thread using Tk main loop.
-    Returns True (overwrite), False (use timed name), or None if cancelled/app closing.
+    Returns True (overwrite), False (use timed name), or None (skip write / closed).
 
-    Якщо відкрите вікно «Промты» — не питаємо (щоб messagebox не ховався
-    під діалогом і не стопорив Whisper); одразу збереження з суфіксом часу.
+    Якщо відкрите вікно «Промты» — не питаємо (щоб діалог не ховався
+    під ним і не стопорив Whisper); одразу збереження з суфіксом часу.
     """
-    from tkinter import messagebox
+    import tkinter as tk
+    from tkinter import ttk
 
     from whisperfast.i18n import t
 
@@ -109,7 +113,8 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
     if _prompts_open():
         return False
 
-    choice: List[Optional[bool]] = [None]
+    pending = object()
+    choice: List[object] = [pending]
 
     def ask():
         try:
@@ -117,15 +122,62 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
             if _prompts_open():
                 choice[0] = False
                 return
-            choice[0] = messagebox.askyesno(
-                t("file_exists_title"),
-                t(
+
+            parent = getattr(app, "root", None)
+            dlg = tk.Toplevel(parent)
+            dlg.title(t("file_exists_title"))
+            dlg.resizable(False, False)
+            if parent is not None:
+                dlg.transient(parent)
+            dlg.grab_set()
+
+            body = ttk.Frame(dlg, padding=16)
+            body.pack(fill="both", expand=True)
+            ttk.Label(
+                body,
+                text=t(
                     "file_exists_msg",
                     name=os.path.basename(path),
                     alt=alt_name,
                 ),
-                parent=getattr(app, "root", None),
+                justify="left",
+                wraplength=420,
+            ).pack(anchor="w")
+
+            bf = ttk.Frame(body)
+            bf.pack(fill="x", pady=(16, 0))
+
+            def finish(val: Optional[bool]):
+                choice[0] = val
+                try:
+                    dlg.grab_release()
+                except Exception:
+                    pass
+                dlg.destroy()
+
+            # Right-aligned: Yes | No | Skip
+            ttk.Button(bf, text=t("file_exists_skip"), command=lambda: finish(None)).pack(
+                side="right"
             )
+            ttk.Button(bf, text=t("file_exists_no"), command=lambda: finish(False)).pack(
+                side="right", padx=(0, 8)
+            )
+            yes_btn = ttk.Button(bf, text=t("file_exists_yes"), command=lambda: finish(True))
+            yes_btn.pack(side="right", padx=(0, 8))
+
+            dlg.protocol("WM_DELETE_WINDOW", lambda: finish(None))
+            dlg.bind("<Escape>", lambda _e: finish(None))
+            dlg.bind("<Return>", lambda _e: finish(True))
+
+            dlg.update_idletasks()
+            if parent is not None:
+                try:
+                    from whisperfast.ui.dialogs import center_toplevel
+
+                    center_toplevel(app, dlg, parent=parent)
+                except Exception:
+                    pass
+            yes_btn.focus_set()
         except Exception:
             choice[0] = False
 
@@ -134,10 +186,16 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
     except Exception:
         return False
 
-    while choice[0] is None:
+    while choice[0] is pending:
         if getattr(app, "cancel_requested", False):
             return False
         if _prompts_open():
             return False
         time.sleep(0.05)
-    return bool(choice[0])
+
+    result = choice[0]
+    if result is True:
+        return True
+    if result is False:
+        return False
+    return None

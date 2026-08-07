@@ -38,7 +38,7 @@ GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
 CUDA_INDEX = "https://download.pytorch.org/whl/cu121"
 # Расширения по типам (единый источник для gui и input_files)
 AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg')
-VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov')
+VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv')
 # Текстовые / документные файлы (без Whisper; PDF/DOC/DOCX → MD, затем опционально Cursor)
 TEXT_EXTENSIONS = ('.md', '.markdown', '.txt', '.text', '.rst', '.csv', '.html', '.htm')
 OFFICE_TO_MD_EXTENSIONS = ('.pdf', '.doc', '.docx')

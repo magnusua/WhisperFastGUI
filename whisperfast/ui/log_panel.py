@@ -21,6 +21,7 @@ from whisperfast.open_path import open_file, open_file_location
 from whisperfast.ui.widgets import LOG_MAX_LINES
 
 _ROLE_I18N = {
+    "source": "log_file_output_source",
     "txt": "txt_file",
     "srt": "srt_file",
     "mp3": "audio_mp3_file",
@@ -46,6 +47,7 @@ class LogPanel:
         self._ui_day = None
         self._active_file_id = None
         self._file_block_tags = {}  # file_id -> tag name spanning the block
+        self._file_expanded = {}  # file_id -> bool (default True)
         self._file_action_callbacks = {}  # file_id -> latest action callback
 
     def bind_widget(self, log_box):
@@ -157,6 +159,20 @@ class LogPanel:
 
         self.root.after(0, _do)
 
+    def set_file_source(self, path, file_id=None):
+        """Оновити шлях исходника після переносу поруч із результатами."""
+        fid = file_id or self._active_file_id
+        if not fid or not path:
+            return
+        entry = self._store.set_file_source(fid, path)
+
+        def _do():
+            if entry:
+                self._render_file_entry(entry, insert_new=False)
+            self._scroll_to_end_if_today()
+
+        self.root.after(0, _do)
+
     def end_file(self, status="done", error=None, file_id=None):
         fid = file_id or self._active_file_id
         if not fid:
@@ -189,6 +205,7 @@ class LogPanel:
         self._day_expanded.clear()
         self._day_body_loaded.clear()
         self._file_block_tags.clear()
+        self._file_expanded.clear()
         self._ui_day = None
         self._active_file_id = None
         if self.log_box is None:
@@ -224,6 +241,9 @@ class LogPanel:
             foreground="#206040",
             font=("Consolas", 9, "bold"),
         )
+        box.tag_bind("file_header", "<Button-1>", self.on_file_header_click)
+        box.tag_bind("file_header", "<Enter>", lambda e: box.config(cursor="hand2"))
+        box.tag_bind("file_header", "<Leave>", lambda e: box.config(cursor=""))
         self.log_menu = tk.Menu(self.root, tearoff=0)
         self.log_menu.add_command(label=t("copy"), command=self.copy_selection)
         box.bind("<Button-3>", lambda e: self.log_menu.tk_popup(e.x_root, e.y_root))
@@ -237,6 +257,7 @@ class LogPanel:
         self._day_expanded.clear()
         self._day_body_loaded.clear()
         self._file_block_tags.clear()
+        self._file_expanded.clear()
         self._ui_day = None
         box = self.log_box
         box.config(state="normal")
@@ -392,6 +413,49 @@ class LogPanel:
     def _file_block_tag(self, file_id):
         return f"file_block_{file_id}"
 
+    def _file_header_tag(self, file_id):
+        return f"file_header_{file_id}"
+
+    def _file_body_tag(self, file_id):
+        return f"file_body_{file_id}"
+
+    def _is_file_expanded(self, file_id):
+        return self._file_expanded.get(file_id, True)
+
+    def _configure_file_body_elide(self, file_id, expanded):
+        body = self._file_body_tag(file_id)
+        try:
+            self.log_box.tag_config(body, elide=not expanded)
+        except tk.TclError:
+            pass
+
+    def _set_file_expanded(self, file_id, expanded):
+        """Згорнути/розгорнути тіло file-блоку; оновити ▶/▼ у заголовку."""
+        if not file_id or self.log_box is None:
+            return
+        expanded = bool(expanded)
+        self._file_expanded[file_id] = expanded
+        self._configure_file_body_elide(file_id, expanded)
+        header_tag = self._file_header_tag(file_id)
+        ranges = self.log_box.tag_ranges(header_tag)
+        if len(ranges) < 2:
+            return
+        entry = self._store.get_file(file_id)
+        if not entry:
+            return
+        day_key = entry.get("day") or today_key()
+        block_tag = self._file_block_tag(file_id)
+        body_day = self._day_body_tag(day_key)
+        header_text = self._format_file_header_line(entry, expanded)
+        self.log_box.config(state="normal")
+        self.log_box.delete(ranges[0], ranges[1])
+        self.log_box.insert(
+            ranges[0],
+            header_text,
+            (body_day, block_tag, "file_header", header_tag),
+        )
+        self.log_box.config(state="disabled")
+
     def _render_file_entry(self, entry, insert_new=False):
         if self.log_box is None or not entry:
             return
@@ -400,6 +464,9 @@ class LogPanel:
         file_id = entry.get("id")
         block_tag = self._file_block_tag(file_id)
         self._file_block_tags[file_id] = block_tag
+        # За замовчуванням розгорнуто; зберігаємо вибір користувача між оновленнями
+        if file_id not in self._file_expanded:
+            self._file_expanded[file_id] = True
 
         if not insert_new:
             ranges = self.log_box.tag_ranges(block_tag)
@@ -422,17 +489,27 @@ class LogPanel:
         day_key = day_key or entry.get("day") or today_key()
         file_id = entry.get("id")
         block_tag = self._file_block_tag(file_id)
-        body = self._day_body_tag(day_key)
-        base_tags = (body, block_tag)
+        header_tag = self._file_header_tag(file_id)
+        body_tag = self._file_body_tag(file_id)
+        body_day = self._day_body_tag(day_key)
         action_tag = f"file_action_{file_id}"
+        expanded = self._is_file_expanded(file_id)
+        self._configure_file_body_elide(file_id, expanded)
 
-        parts = self._format_file_parts(entry)
+        header_text = self._format_file_header_line(entry, expanded)
+        body_parts = self._format_file_body_parts(entry)
+
         cursor = index
-        for kind, text in parts:
-            tags = list(base_tags)
-            if kind == "header":
-                tags.append("file_header")
-            elif kind == "link":
+        box.insert(
+            cursor,
+            header_text,
+            (body_day, block_tag, "file_header", header_tag),
+        )
+        cursor = box.index(f"{cursor}+{len(header_text)}c")
+
+        for kind, text in body_parts:
+            tags = [body_day, block_tag, body_tag]
+            if kind == "link":
                 tags.append("link")
             elif kind == "action":
                 tags.append("action")
@@ -441,8 +518,7 @@ class LogPanel:
             cursor = box.index(f"{cursor}+{len(text)}c")
         return cursor
 
-    def _format_file_parts(self, entry):
-        """List of (kind, text) for a file session block."""
+    def _format_file_header_line(self, entry, expanded=True):
         name = entry.get("name") or os.path.basename(entry.get("source") or "") or "?"
         status = entry.get("status") or "running"
         idx = entry.get("index") or {}
@@ -451,18 +527,28 @@ class LogPanel:
         status_label = t(status_key)
         if status_label == status_key:
             status_label = status
+        mark = "▼" if expanded else "▶"
         if current is not None and total is not None:
             title = t(
                 "log_file_header_indexed",
+                mark=mark,
                 current=current,
                 total=total,
                 name=name,
                 status=status_label,
             )
         else:
-            title = t("log_file_header", name=name, status=status_label)
+            title = t(
+                "log_file_header",
+                mark=mark,
+                name=name,
+                status=status_label,
+            )
+        return title + "\n"
 
-        parts = [("header", title + "\n")]
+    def _format_file_body_parts(self, entry):
+        """List of (kind, text) for the collapsible body of a file session."""
+        parts = []
 
         segs = entry.get("segments") or {}
         count = int(segs.get("count") or 0)
@@ -512,6 +598,13 @@ class LogPanel:
 
         return parts
 
+    def _format_file_parts(self, entry):
+        """Сумісність: header + body як один список."""
+        expanded = self._is_file_expanded(entry.get("id"))
+        parts = [("header", self._format_file_header_line(entry, expanded))]
+        parts.extend(self._format_file_body_parts(entry))
+        return parts
+
     def _trim_if_needed(self):
         try:
             index_str = self.log_box.index("end-1c")
@@ -546,6 +639,19 @@ class LogPanel:
             return
         expanded = not self._day_expanded.get(day_key, False)
         self._set_day_expanded(day_key, expanded)
+
+    def on_file_header_click(self, event):
+        idx = self.log_box.index(f"@{event.x},{event.y}")
+        file_id = None
+        for tag in self.log_box.tag_names(idx):
+            if tag.startswith("file_header_") and tag != "file_header":
+                file_id = tag[len("file_header_") :]
+                break
+        if not file_id:
+            return "break"
+        expanded = not self._is_file_expanded(file_id)
+        self._set_file_expanded(file_id, expanded)
+        return "break"
 
     def _link_range_at(self, idx):
         if "link" not in self.log_box.tag_names(idx):

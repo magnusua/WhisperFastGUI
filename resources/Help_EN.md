@@ -29,7 +29,7 @@ For documents it creates Markdown (`.md`), and optionally AI outputs and Word (`
 
 Supported audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`.
 
-Supported video: `.mp4`, `.mkv`, `.avi`, `.mov`.
+Supported video: `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`.
 
 Supported text: `.md`, `.markdown`, `.txt`, `.text`, `.rst`, `.csv`, `.html`, `.htm`.
 

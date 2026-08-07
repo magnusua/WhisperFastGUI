@@ -67,6 +67,14 @@ def _process_document_item(app, path, opts, file_id=None):
         # Не питати, якщо цільовий MD — той самий, що й джерело (режим beside)
         if os.path.normcase(intended_md) != os.path.normcase(os.path.abspath(path)):
             intended_md = app.resolve_output_path(intended_md)
+            if not intended_md:
+                app.log_file_event(
+                    t("file_exists_skipped", name=os.path.splitext(src_name)[0] + ".md"),
+                    file_id=file_id,
+                )
+                if file_id:
+                    app.end_file_log("skipped", file_id=file_id)
+                return
 
     md_path, was_converted = ensure_markdown_for_cursor(path, out_dir, target_md_path=intended_md)
     app.queue_ctrl.register_output_paths([md_path])
@@ -140,8 +148,13 @@ def _process_document_item(app, path, opts, file_id=None):
             app._export_markdown_to_docx(md_path, log_file_id=file_id)
         app.log_file_event(t("doc_processing_done", name=src_name), file_id=file_id)
 
+    from whisperfast.core.source_relocate import finalize_source_after_processing
+
+    # Final out dir may differ from planned if MD was renamed on conflict
+    dest_dir = os.path.dirname(os.path.abspath(md_path))
+    finalize_source_after_processing(app, path, dest_dir, file_id=file_id)
+
     app.root.after(0, lambda: app._set_progress_value(100))
-    app.root.after(0, lambda p=path: app._mark_done_by_path(p))
     app.end_file_log("done", file_id=file_id)
 
 
@@ -283,7 +296,7 @@ def run_queue(app, mode, target_idx, options=None):
                         res = [SegmentOffset(s.start + start_sec, s.end + start_sec, s.text or "") for s in res]
                     is_segment = start_sec >= FULL_VIDEO_SEGMENT_EPS_S or (duration - end_sec) >= FULL_VIDEO_SEGMENT_EPS_S
                     # Через app.save_files — единая точка (GUI-обёртка → этот модуль)
-                    app.save_files(
+                    saved = app.save_files(
                         path,
                         res,
                         audio_segment=audio,
@@ -294,8 +307,9 @@ def run_queue(app, mode, target_idx, options=None):
                         cursor_api_key=opts.get("cursor_api_key") or "",
                         log_file_id=file_id,
                     )
-                    app.root.after(0, lambda p=path: app._mark_done_by_path(p))
-                    done += 1
+                    # mark_done / path update — внутри finalize_source_after_processing
+                    if saved:
+                        done += 1
                 else:
                     app.end_file_log("skipped", file_id=file_id)
             except Exception as e:
@@ -344,6 +358,7 @@ def run_queue(app, mode, target_idx, options=None):
 
 
 def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_opts=None, send_txt_to_cursor=False, cursor_api_key="", log_file_id=None):
+    """Save txt/srt/mp3, relocate source beside outputs. Returns final source path, or None if skipped."""
     opts = output_opts or {}
     out = app._resolve_output_dir(path, opts)
     marker = app._processed_marker()
@@ -364,6 +379,14 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
         if mp3_p:
             group.append(mp3_p)
         resolved = resolve(group)
+        if not resolved or not resolved[0]:
+            app.log_file_event(
+                t("file_exists_skipped", name=base + ".txt"),
+                file_id=log_file_id,
+            )
+            if log_file_id:
+                app.end_file_log("skipped", file_id=log_file_id)
+            return None
         txt_p, srt_p = resolved[0], resolved[1]
         if mp3_p:
             mp3_p = resolved[2]
@@ -419,5 +442,12 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
             log_file_id=file_id,
         )
 
+    from whisperfast.core.source_relocate import finalize_source_after_processing
+
+    # Source follows TXT/SRT output directory
+    dest_dir = os.path.dirname(os.path.abspath(txt_p))
+    final_source = finalize_source_after_processing(app, path, dest_dir, file_id=file_id)
+
     app.end_file_log("done", file_id=file_id)
+    return final_source
 

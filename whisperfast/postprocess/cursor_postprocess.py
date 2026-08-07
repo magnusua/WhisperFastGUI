@@ -611,6 +611,19 @@ def run_sdk_chain(
         out_path = edited_output_path(txt_path, num, name)
         if resolve_output_path:
             out_path = resolve_output_path(out_path)
+            if not out_path:
+                if log_func:
+                    try:
+                        from whisperfast.i18n import t
+                        log_func(
+                            t(
+                                "file_exists_skipped",
+                                name=os.path.basename(edited_output_path(txt_path, num, name)),
+                            )
+                        )
+                    except ImportError:
+                        pass
+                break
         label = name or f"#{num}"
         if log_func:
             try:

@@ -452,6 +452,35 @@ class QueueController:
         self.refresh_treeview()
         self.save_to_file()
 
+    def update_path(self, old_path, new_path):
+        """Оновлює path у черзі після переносу файлу. Повертає True якщо знайдено."""
+        keys = _path_match_keys(old_path)
+        new_norm = normalize_queue_path(new_path) or new_path
+        if not keys or not new_norm:
+            return False
+        for q in self.queue:
+            if _path_match_keys(q.get("path")) & keys:
+                q["path"] = new_norm
+                self.refresh_treeview()
+                self.save_to_file()
+                return True
+        return False
+
+    def relocate_and_mark_done(self, old_path, new_path):
+        """Оновлює шлях (якщо змінився) і позначає елемент обробленим."""
+        keys = _path_match_keys(old_path) | _path_match_keys(new_path)
+        new_norm = normalize_queue_path(new_path) or new_path
+        if not keys:
+            return
+        for q in self.queue:
+            if _path_match_keys(q.get("path")) & keys:
+                if new_norm:
+                    q["path"] = new_norm
+                q["processed"] = True
+                break
+        self.refresh_treeview()
+        self.save_to_file()
+
     def mark_done(self, idx):
         if 0 <= idx < len(self.queue):
             self.queue[idx]["processed"] = True

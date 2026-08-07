@@ -321,6 +321,15 @@ class LogStore:
 
         return self.update_file(file_id, _mut)
 
+    def set_file_source(self, file_id: str, path: str) -> Optional[Dict[str, Any]]:
+        """Update source path after relocating the original media/document file."""
+        src = os.path.abspath(path) if path else ""
+
+        def _mut(e: Dict[str, Any]) -> None:
+            e["source"] = src
+
+        return self.update_file(file_id, _mut)
+
     def add_file_output(
         self,
         file_id: str,
@@ -337,8 +346,16 @@ class LogStore:
 
         def _mut(e: Dict[str, Any]) -> None:
             outs = e.setdefault("outputs", [])
-            # Replace same role+path if already present
             norm = _norm_path(item["path"])
+            # role=source: single slot (path may change after move)
+            if role == "source":
+                for i, o in enumerate(outs):
+                    if o.get("role") == "source":
+                        outs[i] = item
+                        return
+                outs.insert(0, item)
+                return
+            # Replace same role+path if already present
             for i, o in enumerate(outs):
                 if o.get("role") == role and _norm_path(o.get("path")) == norm:
                     outs[i] = item
@@ -363,6 +380,19 @@ class LogStore:
         # Persist completed file promptly
         self.flush()
         return out
+
+    def get_file(self, file_id: str) -> Optional[Dict[str, Any]]:
+        """Повертає копію file-сесії за id або None."""
+        if not file_id:
+            return None
+        with self._lock:
+            for day_key, day in (self._data.get("days") or {}).items():
+                for e in day.get("entries") or []:
+                    if isinstance(e, dict) and e.get("id") == file_id and e.get("kind") == KIND_FILE:
+                        out = dict(e)
+                        out["day"] = day_key
+                        return out
+        return None
 
     def find_file_by_source(self, path: str) -> Optional[Dict[str, Any]]:
         norm = _norm_path(path)

@@ -834,7 +834,7 @@ class WhisperGUI:
         cursor_api_key="",
         log_file_id=None,
     ):
-        save_transcription_files(
+        return save_transcription_files(
             self,
             path,
             segments,
@@ -980,6 +980,9 @@ class WhisperGUI:
 
     def add_file_output(self, role, path, label=None, file_id=None):
         self.log_panel.add_file_output(role, path, label=label, file_id=file_id)
+
+    def set_file_source(self, file_id, path):
+        self.log_panel.set_file_source(path, file_id=file_id)
 
     def end_file_log(self, status="done", error=None, file_id=None):
         self.log_panel.end_file(status=status, error=error, file_id=file_id)
@@ -1294,7 +1297,7 @@ class WhisperGUI:
             messagebox.showwarning(t("export_md_to_docx"), pandoc_missing_dialog_text())
 
     def resolve_output_paths(self, paths):
-        """Якщо файл(и) вже існують — запитати перезапис або зберегти з суфіксом _HHMM."""
+        """Якщо файл(и) вже існують — Yes/No/Skip: overwrite, _HHMM, або порожні шляхи."""
         from whisperfast.core.output_conflict import ask_overwrite_via_tk, resolve_output_paths
 
         return resolve_output_paths(
@@ -1303,6 +1306,7 @@ class WhisperGUI:
         )
 
     def resolve_output_path(self, path):
+        """Повертає шлях або "" якщо користувач натиснув Skip."""
         return self.resolve_output_paths([path])[0]
 
     def _maybe_log_all_complete(self, send_txt_to_cursor, will_continue):
@@ -1313,6 +1317,13 @@ class WhisperGUI:
         from whisperfast.core.pandoc_export import convert_markdown_with_pandoc, office_output_path
 
         out = self.resolve_output_path(office_output_path(md_path, "docx"))
+        if not out:
+            name = os.path.basename(office_output_path(md_path, "docx"))
+            if log_file_id:
+                self.log_file_event(t("file_exists_skipped", name=name), file_id=log_file_id)
+            else:
+                self.log(t("file_exists_skipped", name=name))
+            return []
         try:
             created_path = convert_markdown_with_pandoc(md_path, output_path=out, fmt="docx")
         except Exception as e:

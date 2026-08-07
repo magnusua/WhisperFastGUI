@@ -745,14 +745,14 @@
     "RU": "{mark} {date} — сегодня"
   },
   "log_file_header": {
-    "EN": "▸ {name}  [{status}]",
-    "UK": "▸ {name}  [{status}]",
-    "RU": "▸ {name}  [{status}]"
+    "EN": "{mark} {name}  [{status}]",
+    "UK": "{mark} {name}  [{status}]",
+    "RU": "{mark} {name}  [{status}]"
   },
   "log_file_header_indexed": {
-    "EN": "▸ ({current}/{total}) {name}  [{status}]",
-    "UK": "▸ ({current}/{total}) {name}  [{status}]",
-    "RU": "▸ ({current}/{total}) {name}  [{status}]"
+    "EN": "{mark} ({current}/{total}) {name}  [{status}]",
+    "UK": "{mark} ({current}/{total}) {name}  [{status}]",
+    "RU": "{mark} ({current}/{total}) {name}  [{status}]"
   },
   "log_file_status_running": {
     "EN": "running",
@@ -788,6 +788,21 @@
     "EN": "📘 Word:",
     "UK": "📘 Word:",
     "RU": "📘 Word:"
+  },
+  "log_file_output_source": {
+    "EN": "📁 Source:",
+    "UK": "📁 Джерело:",
+    "RU": "📁 Исходник:"
+  },
+  "source_moved": {
+    "EN": "📁 Source moved to: {path}",
+    "UK": "📁 Джерело перенесено до: {path}",
+    "RU": "📁 Исходник перенесён в: {path}"
+  },
+  "source_move_error": {
+    "EN": "⚠ Could not move source {name}: {error}",
+    "UK": "⚠ Не вдалося перенести джерело {name}: {error}",
+    "RU": "⚠ Не удалось перенести исходник {name}: {error}"
   },
   "clear_log": {
     "EN": "🧹 Clear Log",
@@ -870,9 +885,29 @@
     "RU": "Файл уже существует"
   },
   "file_exists_msg": {
-    "EN": "File already exists:\n{name}\n\nYes — overwrite\nNo — save as {alt}",
-    "UK": "Файл уже існує:\n{name}\n\nТак — перезаписати\nНі — зберегти як {alt}",
-    "RU": "Файл уже существует:\n{name}\n\nДа — перезаписать\nНет — сохранить как {alt}"
+    "EN": "File already exists:\n{name}\n\nYes — overwrite\nNo — save as {alt}\nSkip — do not save",
+    "UK": "Файл уже існує:\n{name}\n\nТак — перезаписати\nНі — зберегти як {alt}\nПропустити — не зберігати",
+    "RU": "Файл уже существует:\n{name}\n\nДа — перезаписать\nНет — сохранить как {alt}\nПропустить — не сохранять"
+  },
+  "file_exists_yes": {
+    "EN": "Yes",
+    "UK": "Так",
+    "RU": "Да"
+  },
+  "file_exists_no": {
+    "EN": "No",
+    "UK": "Ні",
+    "RU": "Нет"
+  },
+  "file_exists_skip": {
+    "EN": "Skip",
+    "UK": "Пропустити",
+    "RU": "Пропустить"
+  },
+  "file_exists_skipped": {
+    "EN": "⏭ Skipped writing (file already exists): {name}",
+    "UK": "⏭ Пропущено запис (файл уже існує): {name}",
+    "RU": "⏭ Пропущена запись (файл уже существует): {name}"
   },
   "error_occurred": {
     "EN": "❌ Error: {error}",
