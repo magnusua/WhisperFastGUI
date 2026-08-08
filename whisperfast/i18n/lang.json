@@ -996,8 +996,28 @@
   },
   "help_title": {
     "EN": "Help - Whisper Fast GUI",
-    "UK": "Help - Whisper Fast GUI",
-    "RU": "Help - Whisper Fast GUI"
+    "UK": "Довідка - Whisper Fast GUI",
+    "RU": "Справка - Whisper Fast GUI"
+  },
+  "release_notes_title": {
+    "EN": "Release notes",
+    "UK": "Що нового",
+    "RU": "Что нового"
+  },
+  "release_notes_empty": {
+    "EN": "No release notes found (resources/release_notes.json).",
+    "UK": "Реліз-ноти не знайдено (resources/release_notes.json).",
+    "RU": "Релиз-ноты не найдены (resources/release_notes.json)."
+  },
+  "release_notes_version_header": {
+    "EN": "v{version}  ({date})",
+    "UK": "v{version}  ({date})",
+    "RU": "v{version}  ({date})"
+  },
+  "tooltip_version": {
+    "EN": "Open release notes (version and publication date).",
+    "UK": "Відкрити реліз-ноти (версія та дата публікації).",
+    "RU": "Открыть релиз-ноты (версия и дата публикации)."
   },
   "close": {
     "EN": "Close",
@@ -1298,6 +1318,46 @@
     "EN": "The program will close and restart to apply the update.\nContinue?",
     "UK": "Програма закриється та перезапуститься для застосування оновлення.\nПродовжити?",
     "RU": "Программа закроется и перезапустится для применения обновления.\nПродолжить?"
+  },
+  "startup_update_title": {
+    "EN": "Update available",
+    "UK": "Доступне оновлення",
+    "RU": "Доступно обновление"
+  },
+  "startup_update_msg": {
+    "EN": "A newer version of Whisper Fast GUI is available on GitHub.\n\nInstalled: v{current}\nLatest: v{latest}{date_part}\n\nUpdate now, remind on next launch, or skip this version?",
+    "UK": "На GitHub доступна новіша версія Whisper Fast GUI.\n\nВстановлено: v{current}\nАктуальна: v{latest}{date_part}\n\nОновити зараз, нагадати при наступному запуску чи пропустити цю версію?",
+    "RU": "На GitHub доступна более новая версия Whisper Fast GUI.\n\nУстановлено: v{current}\nАктуальная: v{latest}{date_part}\n\nОбновить сейчас, напомнить при следующем запуске или пропустить эту версию?"
+  },
+  "startup_update_date_part": {
+    "EN": " ({date})",
+    "UK": " ({date})",
+    "RU": " ({date})"
+  },
+  "startup_update_now": {
+    "EN": "Update",
+    "UK": "Оновити",
+    "RU": "Обновить"
+  },
+  "startup_update_later": {
+    "EN": "Later",
+    "UK": "Пізніше",
+    "RU": "Позже"
+  },
+  "startup_update_skip": {
+    "EN": "Skip this version",
+    "UK": "Пропустити цю версію",
+    "RU": "Пропустить эту версию"
+  },
+  "startup_update_skipped_log": {
+    "EN": "⏭ Update to v{version} skipped until a newer release",
+    "UK": "⏭ Оновлення до v{version} пропущено до наступного релізу",
+    "RU": "⏭ Обновление до v{version} пропущено до следующего релиза"
+  },
+  "startup_update_later_log": {
+    "EN": "⏱ Update to v{version} postponed until next launch",
+    "UK": "⏱ Оновлення до v{version} відкладено до наступного запуску",
+    "RU": "⏱ Обновление до v{version} отложено до следующего запуска"
   },
   "package_update": {
     "EN": "⚠ {package}: {current} -> {latest}",

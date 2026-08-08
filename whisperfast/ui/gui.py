@@ -67,7 +67,7 @@ from whisperfast.utils import (
 from whisperfast.core.model_manager import WhisperModelSingleton
 from whisperfast.core.transcription import run_queue, save_files as save_transcription_files
 from whisperfast.setup.installer import install_dependencies, check_system, check_updates
-from whisperfast.updates.app_updates import apply_app_update
+from whisperfast.updates.app_updates import apply_app_update, check_app_update
 from whisperfast.updates.model_updates import apply_whisper_model_updates
 from whisperfast.setup.gpu_info import refresh_gpu_settings
 from whisperfast.core.input_files import (
@@ -138,6 +138,9 @@ class WhisperGUI:
 
         self.log_panel = LogPanel(self.root)
         self.ai_jobs = AiJobQueue(self)
+        self._i18n_windows = []  # відкриті Toplevel з refresh при зміні мови
+        self._help_window = None
+        self._release_notes_window = None
 
         # Состояние приложения: очередь — QueueController (request_queue.json + слідкування)
         self.queue_ctrl = QueueController(
@@ -266,6 +269,9 @@ class WhisperGUI:
         # Иконка в системном трее (зависит от переключателя Панель / Трей / Панель + Трей)
         self._apply_tray_mode()
 
+        # Перевірка нової версії на GitHub (фоном, після показу вікна)
+        self.root.after(2000, self._schedule_startup_app_update_check)
+
 
     def _setup_tray(self):
         tray_ui.setup_tray(self)
@@ -367,13 +373,13 @@ class WhisperGUI:
         self.help_btn = ttk.Button(header_f, text=t("help"), width=10, command=self.show_help)
         self.help_btn.pack(side="right")
         
-        # Версия и дата слева от переключателя языка
-        self.version_label = ttk.Label(
+        # Версія/дата — кнопка реліз-нотів (ліворуч від перемикача мови)
+        self.version_btn = ttk.Button(
             header_f,
             text=f"v{APP_VERSION} ({APP_DATE})",
-            font=("Segoe UI", 9),
+            command=self.show_release_notes,
         )
-        self.version_label.pack(side="right", padx=(0, 10))
+        self.version_btn.pack(side="right", padx=(0, 10))
         # Переключатель языка слева от Help
         self.lang_selector_frame = ttk.Frame(header_f)
         self.lang_selector_frame.pack(side="right", padx=5)
@@ -571,6 +577,7 @@ class WhisperGUI:
         tip(self.clear_queue_btn, "tooltip_clear_queue")
         tip(self.play_sound_check, "tooltip_play_sound")
         tip(self.help_btn, "tooltip_help")
+        tip(self.version_btn, "tooltip_version")
         tip(self.lang_selector_frame, "tooltip_ui_language")
         tip(self.start_btn, "tooltip_start")
         tip(self.dev_f, "tooltip_device")
@@ -629,7 +636,7 @@ class WhisperGUI:
         except tk.TclError:
             pass
         self.queue_header_label.config(font=("Segoe UI", font_size, "bold"))
-        self.version_label.config(font=("Segoe UI", font_size))
+        # ttk.Button: шрифт уже через style.configure("TButton", ...)
         try:
             style = ttk.Style()
             style.configure("Treeview", font=("Consolas", max(6, int(10 * scale))))
@@ -866,6 +873,68 @@ class WhisperGUI:
 
     # --- СЕРВИСНЫЕ МЕТОДЫ ---
 
+    def _schedule_startup_app_update_check(self):
+        """Фонова перевірка GitHub; при новій версії — окремий діалог."""
+
+        def worker():
+            try:
+                info = check_app_update(log_func=None)
+            except Exception:
+                return
+            if not info.get("needs_update"):
+                return
+            remote = (info.get("remote") or "").strip()
+            if not remote:
+                return
+            skipped = (load_app_settings().get("skip_app_update_version") or "").strip()
+            if skipped and skipped == remote:
+                return
+            self.root.after(0, lambda i=info: self._show_startup_app_update_dialog(i))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_startup_app_update_dialog(self, info):
+        current = info.get("current") or ""
+        latest = info.get("remote") or ""
+        remote_date = info.get("remote_date") or ""
+
+        def on_result(choice):
+            if choice == "skip":
+                save_app_settings({"skip_app_update_version": latest})
+                self.log(t("startup_update_skipped_log", version=latest))
+                return
+            if choice == "later":
+                self.log(t("startup_update_later_log", version=latest))
+                return
+            if choice == "update":
+                # Скинути skip для цієї гілки — користувач явно оновлює
+                save_app_settings({"skip_app_update_version": ""})
+                self._apply_app_update_interactive()
+
+        ui_dialogs.show_startup_app_update_dialog(
+            self,
+            current=current,
+            latest=latest,
+            remote_date=remote_date,
+            on_result=on_result,
+        )
+
+    def _apply_app_update_interactive(self):
+        """Запуск оновлення програми з логуванням і пропозицією перезапуску."""
+
+        def worker():
+            app_result = apply_app_update(log_func=self.log)
+            if app_result.get("success") and app_result.get("needs_restart"):
+                def ask_restart():
+                    if messagebox.askyesno(
+                        t("app_update_restart_title"),
+                        t("app_update_restart_msg"),
+                    ):
+                        self._restart_after_app_update(app_result.get("restart_script"))
+                self.root.after(0, ask_restart)
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def run_updates_check(self):
         def worker():
             from whisperfast.setup.external_tools import log_external_tool_howto
@@ -917,6 +986,7 @@ class WhisperGUI:
                         apply_whisper_model_updates([m[0] for m in models], log_func=self.log)
                         WhisperModelSingleton.reset()
                     if app_info.get("needs_update"):
+                        save_app_settings({"skip_app_update_version": ""})
                         app_result = apply_app_update(log_func=self.log)
                         if app_result.get("success") and app_result.get("needs_restart"):
                             def ask_restart():
@@ -1015,6 +1085,9 @@ class WhisperGUI:
 
     def show_help(self):
         ui_dialogs.show_help(self)
+
+    def show_release_notes(self):
+        ui_dialogs.show_release_notes(self)
 
     def _show_mp3_settings_dialog(self):
         ui_dialogs.show_mp3_settings_dialog(self)
@@ -1517,6 +1590,7 @@ class WhisperGUI:
         lang_code = self.ui_language.get()
         set_language(lang_code)
         self.update_ui_language()
+        self._persist_settings()
     
     def update_ui_language(self):
         """Обновляет все тексты интерфейса при смене языка"""
@@ -1566,4 +1640,9 @@ class WhisperGUI:
         try:
             self.queue_menu.entryconfig(0, label=t("delete_from_queue"))
         except (tk.TclError, IndexError):
+            pass
+        # Відкриті діалоги (Help, реліз-ноти, промпти…)
+        try:
+            ui_dialogs.refresh_i18n_windows(self)
+        except Exception:
             pass

@@ -1,0 +1,193 @@
+{
+  "releases": [
+    {
+      "version": "1.2.7",
+      "date": "08.08.2026",
+      "notes": {
+        "EN": [
+          "Startup update check against GitHub; dialog Update / Later / Skip this version.",
+          "Release notes: resources/release_notes.json (EN/UK/RU); the version button opens “What’s new”.",
+          "Language change refreshes open windows (Help, release notes, prompt dialogs, and other registered dialogs)."
+        ],
+        "UK": [
+          "Оновлення при старті: перевірка версії на GitHub; діалог Оновити / Пізніше / Пропустити цю версію.",
+          "Реліз-ноти: resources/release_notes.json (EN/UK/RU); кнопка версії відкриває «Що нового».",
+          "Зміна мови оновлює відкриті вікна (Help, реліз-ноти, промпти AI та інші зареєстровані діалоги)."
+        ],
+        "RU": [
+          "Обновление при старте: проверка версии на GitHub; диалог Обновить / Позже / Пропустить эту версию.",
+          "Релиз-ноты: resources/release_notes.json (EN/UK/RU); кнопка версии открывает «Что нового».",
+          "Смена языка обновляет открытые окна (Help, релиз-ноты, промпты AI и другие зарегистрированные диалоги)."
+        ]
+      }
+    },
+    {
+      "version": "1.2.6",
+      "date": "07.08.2026",
+      "notes": {
+        "EN": [
+          "Log: collapse/expand file blocks by clicking the header (▼/▶).",
+          "Video: .wmv support.",
+          "Source next to outputs: after successful processing the source is moved into the output folder (queue and log update the path).",
+          "Name conflict: Yes / No / Skip — overwrite, _HHMM suffix, or skip writing.",
+          "Whisper and Prompts: the Whisper queue does not wait for prompt choice; multiple prompt windows at once are allowed."
+        ],
+        "UK": [
+          "Лог: згортання/розгортання блоків файлів кліком по заголовку (▼/▶).",
+          "Відео: підтримка .wmv.",
+          "Джерело поруч із результатами: після успішної обробки джерело переноситься в каталог вихідних файлів (черга і лог оновлюють шлях).",
+          "Конфлікт імен: діалог Так / Ні / Пропустити — перезапис, суфікс _HHMM або пропуск запису.",
+          "Whisper і «Промти»: черга Whisper не стоїть на виборі промптів; можна кілька вікон промптів одночасно."
+        ],
+        "RU": [
+          "Лог: сворачивание/разворачивание блоков файлов кликом по заголовку (▼/▶).",
+          "Видео: поддержка .wmv.",
+          "Исходник рядом с результатами: после успешной обработки источник переносится в каталог выходных файлов (очередь и лог обновляют путь).",
+          "Конфликт имён: диалог Да / Нет / Пропустить — перезапись, суффикс _HHMM или пропуск записи.",
+          "Whisper и «Промты»: очередь Whisper не ждёт выбора промптов; можно несколько окон промптов одновременно."
+        ]
+      }
+    },
+    {
+      "version": "1.2.5",
+      "date": "30.07.2026",
+      "notes": {
+        "EN": [
+          "Single instance: on a second launch — dialog “already running” with kill previous / do nothing / start another."
+        ],
+        "UK": [
+          "Один екземпляр: при повторному запуску — діалог «ПЗ вже запущено» з вибором: вбити попередній, нічого не робити або запустити ще один."
+        ],
+        "RU": [
+          "Один экземпляр: при повторном запуске — диалог «ПО уже запущено» с выбором: завершить предыдущий, ничего не делать или запустить ещё один."
+        ]
+      }
+    },
+    {
+      "version": "1.2.4",
+      "date": "30.07.2026",
+      "notes": {
+        "EN": [
+          "File-session log: everything for one input file (segments, TXT/SRT/MP3/MD, AI results, events) is one JSON object and one block in the log window.",
+          "Faster app_log.json: batch flush to disk; segments stored summarized (count + last previews).",
+          "Lazy UI: past days show headers only; body loads when expanded.",
+          "Explorer (Windows): Shift+click on a path more reliably opens Explorer via ShellExecuteW /select."
+        ],
+        "UK": [
+          "Лог file-сесії: усе по одному вхідному файлу (сегменти, TXT/SRT/MP3/MD, AI-результати, події) — один JSON-об’єкт і один блок у вікні логу.",
+          "Швидший app_log.json: batch flush на диск; сегменти зберігаються зведеними (лічильник + останні прев’ю).",
+          "Lazy UI: минулі дні — лише заголовки; тіло підвантажується при розгортанні.",
+          "Провідник (Windows): Shift+клік по шляху надійніше відкриває Explorer через ShellExecuteW /select."
+        ],
+        "RU": [
+          "Лог file-сессии: всё по одному входному файлу (сегменты, TXT/SRT/MP3/MD, AI-результаты, события) — один JSON-объект и один блок в окне лога.",
+          "Быстрее app_log.json: batch flush на диск; сегменты хранятся свёрнутыми (счётчик + последние превью).",
+          "Lazy UI: прошлые дни — только заголовки; тело подгружается при разворачивании.",
+          "Проводник (Windows): Shift+клик по пути надёжнее открывает Explorer через ShellExecuteW /select."
+        ]
+      }
+    },
+    {
+      "version": "1.2.3",
+      "date": "30.07.2026",
+      "notes": {
+        "EN": [
+          "To AI: checkbox and button instead of “To Cursor”; provider choice in the prompts window — Cursor, Gemini, Copilot (Azure OpenAI).",
+          "Prompts window: checkboxes, Run / Space, All; first prompt checked by default; close = skip AI with option to reopen from the log.",
+          "API + fallback: Cursor SDK / Chat; Gemini API / browser; Azure OpenAI / Copilot browser. Keys in one API keys dialog.",
+          "Log: saved to app_log.json, day sections with collapse; today always expanded.",
+          "i18n: error messages moved to lang.json (EN/UK/RU)."
+        ],
+        "UK": [
+          "В AI: чекбокс і кнопка замість «В Cursor»; вибір інтеграції у вікні промптів — Cursor, Gemini, Copilot (Azure OpenAI).",
+          "Вікно промптів: галочки, Виконати / Пробіл, Всі; перший промпт відмічений за замовчуванням; закриття = пропуск AI з можливістю відкрити знову з логу.",
+          "API + fallback: Cursor SDK / Chat; Gemini API / браузер; Azure OpenAI / браузер Copilot. Ключі в одному діалозі API keys.",
+          "Лог: збереження в app_log.json, секції по днях зі згортанням; сьогодні завжди розгорнуте.",
+          "i18n: повідомлення про помилки винесені в lang.json (EN/UK/RU)."
+        ],
+        "RU": [
+          "В AI: чекбокс и кнопка вместо «В Cursor»; выбор интеграции в окне промптов — Cursor, Gemini, Copilot (Azure OpenAI).",
+          "Окно промптов: галочки, Выполнить / Пробел, Все; первый промпт отмечен по умолчанию; закрытие = пропуск AI с возможностью открыть снова из лога.",
+          "API + fallback: Cursor SDK / Chat; Gemini API / браузер; Azure OpenAI / браузер Copilot. Ключи в одном диалоге API keys.",
+          "Лог: сохранение в app_log.json, секции по дням со сворачиванием; сегодня всегда развёрнуто.",
+          "i18n: сообщения об ошибках вынесены в lang.json (EN/UK/RU)."
+        ]
+      }
+    },
+    {
+      "version": "1.2.2",
+      "date": "30.07.2026",
+      "notes": {
+        "EN": [
+          "No console window for Cursor on Windows: Chat and cursor-sdk bridge run without .cmd wrappers.",
+          "More resilient Cursor SDK: separate bridge per prompt, stderr drain, retry on WinError 10061.",
+          "Output name conflict: overwrite dialog or save with _HHMM suffix.",
+          "FFmpeg / Pandoc: hints and update checks for external tools.",
+          "Shared helper to open a file / show it in the file manager from the log."
+        ],
+        "UK": [
+          "Без вікна консолі при Cursor: на Windows Chat і cursor-sdk bridge запускаються без .cmd-обгорток.",
+          "Стійкіший Cursor SDK: окремий bridge на кожен промпт, drain stderr і повтор при WinError 10061.",
+          "Конфлікт імен вихідних файлів: діалог перезапису або збереження з суфіксом _HHMM.",
+          "FFmpeg / Pandoc: підказки і перевірка оновлень зовнішніх утиліт.",
+          "Спільний helper для відкриття файлу / показу в провіднику з логу."
+        ],
+        "RU": [
+          "Без окна консоли при Cursor: на Windows Chat и cursor-sdk bridge запускаются без .cmd-обёрток.",
+          "Устойчивее Cursor SDK: отдельный bridge на каждый промпт, drain stderr и повтор при WinError 10061.",
+          "Конфликт имён выходных файлов: диалог перезаписи или сохранение с суффиксом _HHMM.",
+          "FFmpeg / Pandoc: подсказки и проверка обновлений внешних утилит.",
+          "Общий helper для открытия файла / показа в проводнике из лога."
+        ]
+      }
+    },
+    {
+      "version": "1.2.1",
+      "date": "30.07.2026",
+      "notes": {
+        "EN": [
+          "Documents in the queue: .md/.txt and other text formats; .pdf/.doc/.docx convert to Markdown (markitdown), without Whisper.",
+          "Cursor for documents: Markdown is sent to prompts; the log notes that the original Office/PDF was not sent.",
+          "MD → Word: optional Markdown export to .docx via Pandoc.",
+          "Dependencies “at max”: full pip set including markitdown extras, cursor-sdk, packaging.",
+          "FFmpeg and Pandoc checks in System / Dependencies with install hints."
+        ],
+        "UK": [
+          "Документи в черзі: .md, .txt та інші текстові формати; .pdf, .doc, .docx конвертуються в Markdown (markitdown), без Whisper.",
+          "Cursor для документів: у промпти передається Markdown; у логу зазначено, що вихідний PDF/DOC/DOCX не передавався.",
+          "MD → Word: опція експорту Markdown у .docx через Pandoc.",
+          "Залежності «по максимуму»: повний набір pip-пакетів, зокрема markitdown extras, cursor-sdk, packaging.",
+          "FFmpeg і Pandoc: перевірка в Система / Залежності з підказками встановлення."
+        ],
+        "RU": [
+          "Документы в очереди: .md, .txt и другие текстовые форматы; .pdf, .doc, .docx конвертируются в Markdown (markitdown), без Whisper.",
+          "Cursor для документов: в промпты передаётся Markdown; в логе отмечено, что исходный PDF/DOC/DOCX не передавался.",
+          "MD → Word: опция экспорта Markdown в .docx через Pandoc.",
+          "Зависимости «по максимуму»: полный набор pip-пакетов, включая markitdown extras, cursor-sdk, packaging.",
+          "FFmpeg и Pandoc: проверка в Система / Зависимости с подсказками установки."
+        ]
+      }
+    },
+    {
+      "version": "1.2.0",
+      "date": "30.07.2026",
+      "notes": {
+        "EN": [
+          "Package whisperfast/: code split into layers (core, ui, i18n, setup, updates, postprocess); main.py remains the entry point.",
+          "Resources: icon, sound and help moved to resources/; lang.json under whisperfast/i18n/.",
+          "Refactor: transcription, dialogs, tray and settings extracted from gui.py."
+        ],
+        "UK": [
+          "Пакет whisperfast/: код розкладено за шарами (core, ui, i18n, setup, updates, postprocess); main.py лишається точкою входу.",
+          "Ресурси: іконка, звук і довідка перенесені в resources/; lang.json — у whisperfast/i18n/.",
+          "Рефакторинг: транскрибація, діалоги, трей і налаштування винесені з gui.py."
+        ],
+        "RU": [
+          "Пакет whisperfast/: код разложен по слоям (core, ui, i18n, setup, updates, postprocess); main.py остаётся точкой входа.",
+          "Ресурсы: иконка, звук и справка перенесены в resources/; lang.json — в whisperfast/i18n/.",
+          "Рефакторинг: транскрибация, диалоги, трей и настройки вынесены из gui.py."
+        ]
+      }
+    }
+  ]
+}

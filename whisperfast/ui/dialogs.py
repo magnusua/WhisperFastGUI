@@ -18,6 +18,7 @@ from whisperfast.updates.model_updates import (
     model_needs_update,
     update_whisper_model,
 )
+from whisperfast.updates.release_notes import format_release_notes_text
 from whisperfast.utils import normalize_display_path
 
 
@@ -48,27 +49,83 @@ def center_toplevel(app, win, parent=None):
     win.geometry(f"+{x}+{y}")
 
 
+def track_i18n_window(app, window, refresh_cb):
+    """Реєструє Toplevel для оновлення мови при зміні UI language."""
+    registry = getattr(app, "_i18n_windows", None)
+    if registry is None:
+        app._i18n_windows = []
+        registry = app._i18n_windows
+    entry = {"win": window, "refresh": refresh_cb}
+    registry.append(entry)
+
+    def _on_destroy(event):
+        if event.widget is not window:
+            return
+        lst = getattr(app, "_i18n_windows", None)
+        if not lst:
+            return
+        app._i18n_windows = [e for e in lst if e.get("win") is not window]
+
+    window.bind("<Destroy>", _on_destroy, add="+")
+    return entry
+
+
+def refresh_i18n_windows(app):
+    """Оновити всі зареєстровані відкриті діалоги під поточну мову."""
+    lst = getattr(app, "_i18n_windows", None) or []
+    alive = []
+    for entry in lst:
+        win = entry.get("win")
+        refresh = entry.get("refresh")
+        try:
+            if win is None or not win.winfo_exists():
+                continue
+            if callable(refresh):
+                refresh()
+            alive.append(entry)
+        except tk.TclError:
+            continue
+    app._i18n_windows = alive
+
+
+def _lift_existing(app, attr_name):
+    """Якщо вікно вже відкрите — підняти і повернути його, інакше None."""
+    win = getattr(app, attr_name, None)
+    if win is None:
+        return None
+    try:
+        if win.winfo_exists():
+            win.lift()
+            win.focus_force()
+            return win
+    except tk.TclError:
+        pass
+    setattr(app, attr_name, None)
+    return None
+
+
 def show_help(app):
-    """Показывает окно справки с прокруткой и адаптивным размером"""
+    """Показывает окно справки с прокруткой; при смене языка текст обновляется."""
+    existing = _lift_existing(app, "_help_window")
+    if existing is not None:
+        return existing
+
     help_window = tk.Toplevel(app.root)
+    app._help_window = help_window
     help_window.title(t("help_title"))
     help_window.transient(app.root)
-    
-    # Обновляем главное окно для получения актуальных размеров
+
     app.root.update_idletasks()
-    
     main_width = app.root.winfo_width()
     main_height = app.root.winfo_height()
     help_width = max(700, int(main_width * 0.85))
     help_height = max(600, int(main_height * 0.85))
     help_window.geometry(f"{help_width}x{help_height}")
     center_toplevel(app, help_window)
-    
-    # Создаем фрейм с прокруткой
+
     main_frame = ttk.Frame(help_window, padding=10)
     main_frame.pack(fill="both", expand=True)
-    
-    # Создаем ScrolledText для прокрутки
+
     text_widget = scrolledtext.ScrolledText(
         main_frame,
         wrap="word",
@@ -77,33 +134,114 @@ def show_help(app):
         pady=15,
         state="normal",
         relief="flat",
-        borderwidth=1
+        borderwidth=1,
     )
     text_widget.pack(fill="both", expand=True)
-    
-    # Текст справки на языке интерфейса (Help_EN / Help_UK / Help_RU)
-    text_widget.insert("1.0", load_help_text(app.ui_language.get()))
-    text_widget.config(state="disabled")  # Делаем только для чтения
-    
-    # Прокрутка в начало
-    text_widget.see("1.0")
-    
-    # Кнопка закрытия
+
     btn_frame = ttk.Frame(main_frame)
     btn_frame.pack(fill="x", pady=(10, 0))
-    ttk.Button(btn_frame, text=t("close"), command=help_window.destroy, width=15).pack(side="right")
-    
-    # Обработка закрытия окна
-    help_window.protocol("WM_DELETE_WINDOW", help_window.destroy)
-    
-    # Фокус на текстовое поле для прокрутки колесиком
-    text_widget.focus_set()
-    
-    # Привязываем прокрутку колесиком мыши (на случай, если фокус потерян)
+    close_btn = ttk.Button(btn_frame, text=t("close"), width=15)
+    close_btn.pack(side="right")
+
+    def apply_language():
+        help_window.title(t("help_title"))
+        close_btn.config(text=t("close"))
+        text_widget.config(state="normal")
+        text_widget.delete("1.0", "end")
+        lang = app.ui_language.get() if getattr(app, "ui_language", None) else None
+        text_widget.insert("1.0", load_help_text(lang))
+        text_widget.config(state="disabled")
+        text_widget.see("1.0")
+
+    def close():
+        try:
+            help_window.destroy()
+        except tk.TclError:
+            pass
+        if getattr(app, "_help_window", None) is help_window:
+            app._help_window = None
+
+    close_btn.config(command=close)
+    help_window.protocol("WM_DELETE_WINDOW", close)
+    apply_language()
+    track_i18n_window(app, help_window, apply_language)
+
     def on_mousewheel(event):
         text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
-    
+
     text_widget.bind("<MouseWheel>", on_mousewheel)
+    text_widget.focus_set()
+    return help_window
+
+
+def show_release_notes(app):
+    """Вікно реліз-нотів (EN/UK/RU з resources/release_notes.json)."""
+    existing = _lift_existing(app, "_release_notes_window")
+    if existing is not None:
+        return existing
+
+    win = tk.Toplevel(app.root)
+    app._release_notes_window = win
+    win.title(t("release_notes_title"))
+    win.transient(app.root)
+
+    app.root.update_idletasks()
+    main_width = app.root.winfo_width()
+    main_height = app.root.winfo_height()
+    w = max(560, int(main_width * 0.7))
+    h = max(480, int(main_height * 0.75))
+    win.geometry(f"{w}x{h}")
+    center_toplevel(app, win)
+
+    main_frame = ttk.Frame(win, padding=10)
+    main_frame.pack(fill="both", expand=True)
+
+    text_widget = scrolledtext.ScrolledText(
+        main_frame,
+        wrap="word",
+        font=("Segoe UI", 10),
+        padx=15,
+        pady=15,
+        state="normal",
+        relief="flat",
+        borderwidth=1,
+    )
+    text_widget.pack(fill="both", expand=True)
+
+    btn_frame = ttk.Frame(main_frame)
+    btn_frame.pack(fill="x", pady=(10, 0))
+    close_btn = ttk.Button(btn_frame, text=t("close"), width=15)
+    close_btn.pack(side="right")
+
+    def apply_language():
+        win.title(t("release_notes_title"))
+        close_btn.config(text=t("close"))
+        text_widget.config(state="normal")
+        text_widget.delete("1.0", "end")
+        lang = app.ui_language.get() if getattr(app, "ui_language", None) else None
+        text_widget.insert("1.0", format_release_notes_text(lang))
+        text_widget.config(state="disabled")
+        text_widget.see("1.0")
+
+    def close():
+        try:
+            win.destroy()
+        except tk.TclError:
+            pass
+        if getattr(app, "_release_notes_window", None) is win:
+            app._release_notes_window = None
+
+    close_btn.config(command=close)
+    win.protocol("WM_DELETE_WINDOW", close)
+    apply_language()
+    track_i18n_window(app, win, apply_language)
+
+    def on_mousewheel(event):
+        text_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    text_widget.bind("<MouseWheel>", on_mousewheel)
+    text_widget.focus_set()
+    return win
 
 
 def show_mp3_settings_dialog(app):
@@ -528,28 +666,32 @@ def show_ai_prompts_dialog(
     frame = ttk.Frame(dialog, padding=15)
     frame.pack(fill="both", expand=True)
 
-    ttk.Label(
+    title_lbl = ttk.Label(
         frame,
         text=t("cursor_prompts_for_file", name=file_name),
         wraplength=460,
         font=("Segoe UI", 10, "bold"),
-    ).pack(anchor="w", pady=(0, 4))
-    ttk.Label(frame, text=t("cursor_prompts_hint"), wraplength=460).pack(
-        anchor="w", pady=(0, 8)
     )
+    title_lbl.pack(anchor="w", pady=(0, 4))
+    hint_lbl = ttk.Label(frame, text=t("cursor_prompts_hint"), wraplength=460)
+    hint_lbl.pack(anchor="w", pady=(0, 8))
 
-    ttk.Label(frame, text=t("ai_provider_label"), font=("Segoe UI", 9, "bold")).pack(
-        anchor="w", pady=(0, 4)
+    provider_lbl = ttk.Label(
+        frame, text=t("ai_provider_label"), font=("Segoe UI", 9, "bold")
     )
+    provider_lbl.pack(anchor="w", pady=(0, 4))
     prov_row = ttk.Frame(frame)
     prov_row.pack(fill="x", pady=(0, 10))
+    provider_radios = []
     for pid, label_key in provider_choices():
-        ttk.Radiobutton(
+        rb = ttk.Radiobutton(
             prov_row,
             text=t(label_key),
             variable=provider_var,
             value=pid,
-        ).pack(side="left", padx=(0, 12))
+        )
+        rb.pack(side="left", padx=(0, 12))
+        provider_radios.append((rb, label_key))
 
     list_wrap = ttk.Frame(frame)
     list_wrap.pack(fill="both", expand=True)
@@ -572,6 +714,7 @@ def show_ai_prompts_dialog(
     scrollbar.pack(side="right", fill="y")
 
     check_vars = []
+    prompt_name_labels = []
     for i, (num, name, _text) in enumerate(prompts):
         var = tk.BooleanVar(value=(i == 0))
         check_vars.append(var)
@@ -585,6 +728,7 @@ def show_ai_prompts_dialog(
             cursor="hand2",
         )
         name_lbl.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        prompt_name_labels.append((name_lbl, num, label))
 
         def _toggle(_event=None, v=var):
             v.set(not v.get())
@@ -641,12 +785,24 @@ def show_ai_prompts_dialog(
             v.set(True)
         on_run_selected()
 
-    ttk.Button(buttons, text=t("cursor_prompts_all"), command=on_all).grid(
-        row=0, column=0, sticky="ew", padx=(0, 6)
-    )
-    ttk.Button(buttons, text=t("cursor_prompts_run"), command=on_run_selected).grid(
-        row=0, column=1, sticky="ew"
-    )
+    all_btn = ttk.Button(buttons, text=t("cursor_prompts_all"), command=on_all)
+    all_btn.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    run_btn = ttk.Button(buttons, text=t("cursor_prompts_run"), command=on_run_selected)
+    run_btn.grid(row=0, column=1, sticky="ew")
+
+    def apply_language():
+        dialog.title(t("cursor_prompts_title"))
+        title_lbl.config(text=t("cursor_prompts_for_file", name=file_name))
+        hint_lbl.config(text=t("cursor_prompts_hint"))
+        provider_lbl.config(text=t("ai_provider_label"))
+        for rb, label_key in provider_radios:
+            rb.config(text=t(label_key))
+        for name_lbl, num, label in prompt_name_labels:
+            name_lbl.config(text=t("cursor_prompt_row", num=num, name=label))
+        all_btn.config(text=t("cursor_prompts_all"))
+        run_btn.config(text=t("cursor_prompts_run"))
+
+    track_i18n_window(app, dialog, apply_language)
 
     def _bind_space(widget):
         widget.bind("<KeyPress-space>", on_run_selected)
@@ -679,6 +835,83 @@ def show_ai_prompts_dialog(
             pass
     dialog.update_idletasks()
     _bind_space(dialog)
+    dialog.focus_set()
+    return dialog
+
+
+def show_startup_app_update_dialog(app, current, latest, remote_date=None, on_result=None):
+    """Окремий діалог при старті: Оновити / Пізніше / Пропустити цю версію.
+
+    on_result(choice): 'update' | 'later' | 'skip'
+    """
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("startup_update_title"))
+    dialog.transient(app.root)
+    dialog.resizable(False, False)
+    dialog.grab_set()
+
+    settled = {"done": False}
+
+    frame = ttk.Frame(dialog, padding=16)
+    frame.pack(fill="both", expand=True)
+
+    msg_lbl = ttk.Label(frame, justify="left", wraplength=440)
+    msg_lbl.pack(anchor="w")
+
+    bf = ttk.Frame(frame)
+    bf.pack(fill="x", pady=(16, 0))
+
+    def finish(choice):
+        if settled["done"]:
+            return
+        settled["done"] = True
+        try:
+            dialog.grab_release()
+        except tk.TclError:
+            pass
+        try:
+            dialog.destroy()
+        except tk.TclError:
+            pass
+        if on_result:
+            on_result(choice)
+
+    btn_now = ttk.Button(
+        bf, text=t("startup_update_now"), command=lambda: finish("update"), width=16
+    )
+    btn_now.pack(side="left", padx=(0, 6))
+    btn_later = ttk.Button(
+        bf, text=t("startup_update_later"), command=lambda: finish("later"), width=14
+    )
+    btn_later.pack(side="left", padx=(0, 6))
+    btn_skip = ttk.Button(
+        bf, text=t("startup_update_skip"), command=lambda: finish("skip"), width=20
+    )
+    btn_skip.pack(side="left")
+
+    def apply_language():
+        dialog.title(t("startup_update_title"))
+        date_part = ""
+        if remote_date:
+            date_part = t("startup_update_date_part", date=remote_date)
+        msg_lbl.config(
+            text=t(
+                "startup_update_msg",
+                current=current or "?",
+                latest=latest or "?",
+                date_part=date_part,
+            )
+        )
+        btn_now.config(text=t("startup_update_now"))
+        btn_later.config(text=t("startup_update_later"))
+        btn_skip.config(text=t("startup_update_skip"))
+
+    apply_language()
+    track_i18n_window(app, dialog, apply_language)
+
+    dialog.protocol("WM_DELETE_WINDOW", lambda: finish("later"))
+    dialog.bind("<Escape>", lambda e: finish("later"))
+    center_toplevel(app, dialog)
     dialog.focus_set()
     return dialog
 
