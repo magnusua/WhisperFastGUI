@@ -1045,6 +1045,9 @@ class WhisperGUI:
     def log_file_event(self, msg, tag=None, file_id=None, callback=None):
         self.log_panel.log_file_event(msg, tag=tag, file_id=file_id, callback=callback)
 
+    def set_file_prompt_callback(self, file_id, callback):
+        self.log_panel.set_file_prompt_callback(file_id, callback)
+
     def log_file_segment(self, t_str, text, count=None, file_id=None):
         self.log_panel.log_file_segment(t_str, text, count=count, file_id=file_id)
 
@@ -1635,6 +1638,7 @@ class WhisperGUI:
             pass
         try:
             self.log_panel.update_copy_menu_label()
+            self.log_panel.refresh_i18n()
         except (tk.TclError, IndexError):
             pass
         try:

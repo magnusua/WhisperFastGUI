@@ -119,12 +119,12 @@ class AiJobQueue:
         return job_id
 
     def log_select_prompt_action(self, msg, job_id):
-        """Клікабельний рядок лога → вікно вибору промптів для job."""
+        """Кнопка «Обрати промти» в секції Created files (або action-рядок без file-сесії)."""
         job = self._jobs.get(job_id) or {}
         file_id = job.get("log_file_id")
         cb = lambda jid=job_id: self.open_prompt_dialog(jid)
         if file_id:
-            self.app.log_file_event(msg, file_id=file_id, callback=cb)
+            self.app.set_file_prompt_callback(file_id, cb)
         else:
             self.app.log_action(msg, cb)
 

@@ -90,7 +90,6 @@ def _process_document_item(app, path, opts, file_id=None):
     except OSError:
         pass
 
-    result_name = os.path.splitext(src_name)[0]
     ai_job_id = None
     if send_to_cursor and hasattr(app, "_register_ai_job"):
         ai_job_id = app._register_ai_job(
@@ -98,15 +97,9 @@ def _process_document_item(app, path, opts, file_id=None):
             export_md_to_docx=export_md_to_docx,
             log_file_id=file_id,
         )
-        app.log_file_event(
-            t("doc_files_created_select_prompt", name=result_name),
-            file_id=file_id,
-            callback=lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
-        )
-    else:
-        app.log_file_event(
-            t("doc_files_created", name=result_name),
-            file_id=file_id,
+        app.set_file_prompt_callback(
+            file_id,
+            lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
         )
     if was_converted or needs_office_to_md(path):
         app.log_file_event(
@@ -405,7 +398,6 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
             f.write(f"{i}\n{timestamp}\n{(s.text or '').strip()}\n\n")
 
     file_id = log_file_id
-    result_name = os.path.splitext(os.path.basename(txt_p))[0]
     ai_job_id = None
     if send_txt_to_cursor and hasattr(app, "_register_ai_job"):
         ai_job_id = app._register_ai_job(
@@ -413,15 +405,9 @@ def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, 
             export_md_to_docx=bool(opts.get("export_md_to_docx")),
             log_file_id=file_id,
         )
-        app.log_file_event(
-            t("files_created_select_prompt", name=result_name),
-            file_id=file_id,
-            callback=lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
-        )
-    else:
-        app.log_file_event(
-            t("files_created", name=result_name),
-            file_id=file_id,
+        app.set_file_prompt_callback(
+            file_id,
+            lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
         )
     app.add_file_output("txt", txt_p, file_id=file_id)
     app.add_file_output("srt", srt_p, file_id=file_id)

@@ -187,6 +187,38 @@ class LogStore:
         with self._lock:
             return sorted((self._data.get("days") or {}).keys())
 
+    def count_file_entries(self, day_key: str) -> int:
+        """Кількість file-сесій у дні (для заголовка логу)."""
+        with self._lock:
+            day = (self._data.get("days") or {}).get(day_key) or {}
+            n = 0
+            for e in day.get("entries") or []:
+                if isinstance(e, dict) and e.get("kind") == KIND_FILE:
+                    n += 1
+            return n
+
+    def prune_days_without_files(self, *, keep_today: bool = True) -> int:
+        """Видалити дні без жодної file-сесії (сьогодні залишаємо). Повертає скільки днів прибрано."""
+        today = today_key()
+        removed = 0
+        with self._lock:
+            days = self._data.get("days") or {}
+            for key in list(days.keys()):
+                if keep_today and key == today:
+                    continue
+                entries = days[key].get("entries") or []
+                has_file = any(
+                    isinstance(e, dict) and e.get("kind") == KIND_FILE for e in entries
+                )
+                if not has_file:
+                    days.pop(key, None)
+                    removed += 1
+            if removed:
+                self._mark_dirty_unlocked()
+        if removed:
+            self.flush()
+        return removed
+
     def get_entries(self, day_key: str) -> List[Dict[str, Any]]:
         with self._lock:
             day = (self._data.get("days") or {}).get(day_key) or {}

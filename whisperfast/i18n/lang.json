@@ -735,14 +735,29 @@
     "RU": "Сохранение"
   },
   "log_day_header": {
-    "EN": "{mark} {date}",
-    "UK": "{mark} {date}",
-    "RU": "{mark} {date}"
+    "EN": "{mark} {date} ({count})",
+    "UK": "{mark} {date} ({count})",
+    "RU": "{mark} {date} ({count})"
   },
   "log_day_header_today": {
-    "EN": "{mark} {date} — today",
-    "UK": "{mark} {date} — сьогодні",
-    "RU": "{mark} {date} — сегодня"
+    "EN": "{mark} {date} — today ({count})",
+    "UK": "{mark} {date} — сьогодні ({count})",
+    "RU": "{mark} {date} — сегодня ({count})"
+  },
+  "log_file_tx_header": {
+    "EN": "{mark} Transcription ({count})",
+    "UK": "{mark} Транскрипція ({count})",
+    "RU": "{mark} Транскрипция ({count})"
+  },
+  "log_file_outputs_header": {
+    "EN": "{mark} Created files",
+    "UK": "{mark} Створені файли",
+    "RU": "{mark} Созданные файлы"
+  },
+  "log_file_select_prompt_btn": {
+    "EN": "▶ Choose prompts",
+    "UK": "▶ Обрати промти",
+    "RU": "▶ Выбрать промты"
   },
   "log_file_header": {
     "EN": "{mark} {name}  [{status}]",

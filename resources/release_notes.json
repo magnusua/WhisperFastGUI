@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "1.2.8",
+      "date": "12.08.2026",
+      "notes": {
+        "EN": [
+          "Log — 3 collapse levels: day → file → transcription / created files (▼/▶); today expanded, older days collapsed.",
+          "Day header shows processed file count (N); empty days (no file sessions) are pruned from app_log.json on startup.",
+          "Created files: separate “Choose prompts” button in the section (no mixed action line).",
+          "More reliable day collapse: day body is unloaded when collapsed (avoids nested elide glitches)."
+        ],
+        "UK": [
+          "Лог — 3 рівні згортання: день → файл → транскрипція / створені файли (▼/▶); сьогодні розгорнуто, минулі дні згорнуті.",
+          "Заголовок дня: після дати кількість оброблених файлів (N); порожні дні (без file-сесій) прибираються з app_log.json при старті.",
+          "Створені файли: окрема кнопка «Обрати промти» в секції (не змішаний action-рядок).",
+          "Стабільніше згортання днів: тіло дня вивантажується при згортанні (без зламаного вкладеного elide)."
+        ],
+        "RU": [
+          "Лог — 3 уровня сворачивания: день → файл → транскрипция / созданные файлы (▼/▶); сегодня развёрнут, прошлые дни свёрнуты.",
+          "Заголовок дня: после даты количество обработанных файлов (N); пустые дни (без file-сессий) удаляются из app_log.json при старте.",
+          "Созданные файлы: отдельная кнопка «Выбрать промты» в секции (не смешанная action-строка).",
+          "Стабильнее сворачивание дней: тело дня выгружается при сворачивании (без сбоев вложенного elide)."
+        ]
+      }
+    },
+    {
       "version": "1.2.7",
       "date": "08.08.2026",
       "notes": {
