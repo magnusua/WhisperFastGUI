@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "1.2.9",
+      "date": "12.08.2026",
+      "notes": {
+        "EN": [
+          "redactor1.md: prompts #1–#4 compacted into structured <system>/input blocks with placeholders ({{TRANSCRIPT_TEXT}}, {{INPUT_DATA}}, etc.).",
+          "Prompt #1 “redactor”: multi-phase RU/UK/EN pipeline replaced by one concise system prompt (source language, UK 2019, keep terms and full meaning).",
+          "TW_core / brutally honest / Post_mortem: shorter frameworks with self-correction directives instead of long instructions.",
+          "PMO1: cleaner Markdown section headings (### instead of ===); PMO2 logic unchanged."
+        ],
+        "UK": [
+          "redactor1.md: промпти №1–№4 стиснуті в структуровані <system>/input-блоки з плейсхолдерами ({{TRANSCRIPT_TEXT}}, {{INPUT_DATA}} тощо).",
+          "Промпт №1 «redactor»: замість трифазного RU/UK/EN пайплайна — один компактний system-промпт (мова джерела, UK 2019, збереження термінів і повного змісту).",
+          "TW_core / brutally honest / Post_mortem: короткі фреймворки з self-correction директивами замість довгих інструкцій.",
+          "PMO1: очищена Markdown-розмітка секцій (### замість ===); логіка PMO2 без змін."
+        ],
+        "RU": [
+          "redactor1.md: промпты №1–№4 сжаты в структурированные <system>/input-блоки с плейсхолдерами ({{TRANSCRIPT_TEXT}}, {{INPUT_DATA}} и т.д.).",
+          "Промпт №1 «redactor»: вместо трёхфазного RU/UK/EN пайплайна — один компактный system-промпт (язык источника, UK 2019, сохранение терминов и полного смысла).",
+          "TW_core / brutally honest / Post_mortem: короткие фреймворки с self-correction директивами вместо длинных инструкций.",
+          "PMO1: очищена Markdown-разметка секций (### вместо ===); логика PMO2 без изменений."
+        ]
+      }
+    },
+    {
       "version": "1.2.8",
       "date": "12.08.2026",
       "notes": {
