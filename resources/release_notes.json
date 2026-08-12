@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "1.2.10",
+      "date": "12.08.2026",
+      "notes": {
+        "EN": [
+          "Video: .webm support."
+        ],
+        "UK": [
+          "Відео: підтримка .webm."
+        ],
+        "RU": [
+          "Видео: поддержка .webm."
+        ]
+      }
+    },
+    {
       "version": "1.2.9",
       "date": "12.08.2026",
       "notes": {
