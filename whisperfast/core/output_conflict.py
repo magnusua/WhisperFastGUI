@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-import time
+import threading
 from datetime import datetime
 from typing import Callable, List, Optional, Sequence
 
@@ -85,6 +85,19 @@ def resolve_single_output_path(path: str, ask_overwrite: AskOverwriteFn) -> str:
     return resolve_output_paths([path], ask_overwrite)[0]
 
 
+def ai_prompts_dialog_is_open(app) -> bool:
+    """True if a «Промты» window is open (do not stack another modal over it)."""
+    ai_jobs = getattr(app, "ai_jobs", None)
+    if ai_jobs is None:
+        return False
+    if hasattr(ai_jobs, "has_open_prompt_dialog"):
+        try:
+            return bool(ai_jobs.has_open_prompt_dialog())
+        except Exception:
+            pass
+    return bool(getattr(ai_jobs, "_prompt_dialog_job_id", None))
+
+
 def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
     """
     Blocking ask from a worker thread using Tk main loop.
@@ -98,29 +111,19 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
 
     from whisperfast.i18n import t
 
-    ai_jobs = getattr(app, "ai_jobs", None)
-
-    def _prompts_open():
-        if ai_jobs is None:
-            return False
-        if hasattr(ai_jobs, "has_open_prompt_dialog"):
-            try:
-                return bool(ai_jobs.has_open_prompt_dialog())
-            except Exception:
-                pass
-        return bool(getattr(ai_jobs, "_prompt_dialog_job_id", None))
-
-    if _prompts_open():
+    if ai_prompts_dialog_is_open(app):
         return False
 
     pending = object()
     choice: List[object] = [pending]
+    done = threading.Event()
 
     def ask():
         try:
             # Якщо за час очікування відкрили «Промты» — без запитання
-            if _prompts_open():
+            if ai_prompts_dialog_is_open(app):
                 choice[0] = False
+                done.set()
                 return
 
             parent = getattr(app, "root", None)
@@ -153,7 +156,11 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
                     dlg.grab_release()
                 except Exception:
                     pass
-                dlg.destroy()
+                try:
+                    dlg.destroy()
+                except Exception:
+                    pass
+                done.set()
 
             # Right-aligned: Yes | No | Skip
             ttk.Button(bf, text=t("file_exists_skip"), command=lambda: finish(None)).pack(
@@ -180,18 +187,19 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
             yes_btn.focus_set()
         except Exception:
             choice[0] = False
+            done.set()
 
     try:
         app.root.after(0, ask)
     except Exception:
         return False
 
-    while choice[0] is pending:
+    while not done.is_set():
         if getattr(app, "cancel_requested", False):
             return False
-        if _prompts_open():
+        if ai_prompts_dialog_is_open(app):
             return False
-        time.sleep(0.05)
+        done.wait(timeout=0.05)
 
     result = choice[0]
     if result is True:

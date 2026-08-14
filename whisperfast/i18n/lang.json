@@ -1059,6 +1059,16 @@
     "UK": "✓ Всі компоненти актуальні.",
     "RU": "✓ Все компоненты актуальны."
   },
+  "updates_ready_to_use": {
+    "EN": "== Updates checked, required items installed. You can continue.",
+    "UK": "== Оновлення перевірено, необхідне встановлено. Можна користуватися далі.",
+    "RU": "== Обновления проверены, необходимое установлено. Можно пользоваться дальше."
+  },
+  "dependencies_ready_to_use": {
+    "EN": "== Dependencies checked, required items installed. You can continue.",
+    "UK": "== Залежності перевірено, необхідне встановлено. Можна користуватися далі.",
+    "RU": "== Зависимости проверены, необходимое установлено. Можно пользоваться дальше."
+  },
   "installation": {
     "EN": "Installation",
     "UK": "Встановлення",
@@ -1078,6 +1088,66 @@
     "EN": "Help - Whisper Fast GUI",
     "UK": "Довідка - Whisper Fast GUI",
     "RU": "Справка - Whisper Fast GUI"
+  },
+  "help_doc_label": {
+    "EN": "Document",
+    "UK": "Документ",
+    "RU": "Документ"
+  },
+  "help_doc_user": {
+    "EN": "User guide",
+    "UK": "Інструкція користувача",
+    "RU": "Инструкция пользователя"
+  },
+  "help_doc_readme": {
+    "EN": "README — project index",
+    "UK": "README — індекс проєкту",
+    "RU": "README — индекс проекта"
+  },
+  "help_doc_architecture": {
+    "EN": "Architecture",
+    "UK": "Архітектура",
+    "RU": "Архитектура"
+  },
+  "help_doc_internal": {
+    "EN": "Internal architecture (code map)",
+    "UK": "Внутрішня архітектура (карта коду)",
+    "RU": "Внутренняя архитектура (карта кода)"
+  },
+  "help_doc_configuration": {
+    "EN": "Configuration (settings.json)",
+    "UK": "Конфігурація (settings.json)",
+    "RU": "Конфигурация (settings.json)"
+  },
+  "help_doc_postprocess": {
+    "EN": "AI providers (Cursor / Gemini / Claude / Copilot)",
+    "UK": "AI-провайдери (Cursor / Gemini / Claude / Copilot)",
+    "RU": "AI-провайдеры (Cursor / Gemini / Claude / Copilot)"
+  },
+  "help_doc_model": {
+    "EN": "Model and device",
+    "UK": "Модель і пристрій",
+    "RU": "Модель и устройство"
+  },
+  "help_doc_setup": {
+    "EN": "Setup and dependencies",
+    "UK": "Встановлення та залежності",
+    "RU": "Установка и зависимости"
+  },
+  "help_doc_updates": {
+    "EN": "App and model updates",
+    "UK": "Оновлення програми та моделі",
+    "RU": "Обновление программы и модели"
+  },
+  "help_doc_changelog": {
+    "EN": "Changelog",
+    "UK": "Історія змін",
+    "RU": "История изменений"
+  },
+  "help_doc_code_review": {
+    "EN": "Code review notes",
+    "UK": "Нотатки код-рев’ю",
+    "RU": "Заметки код-ревью"
   },
   "release_notes_title": {
     "EN": "Release notes",
@@ -1424,6 +1494,46 @@
     "UK": "⚠ Не вдалося перевірити версію програми на GitHub (немає мережі або репозиторій недоступний)",
     "RU": "⚠ Не удалось проверить версию программы на GitHub (нет сети или репозиторий недоступен)"
   },
+  "app_update_no_release": {
+    "EN": "⚠ No GitHub Release found — ZIP update is not available until a tagged release with SHA256SUMS is published.",
+    "UK": "⚠ GitHub Release не знайдено — ZIP-оновлення недоступне, доки не опубліковано тегований реліз із SHA256SUMS.",
+    "RU": "⚠ GitHub Release не найден — ZIP-обновление недоступно, пока не опубликован тегированный релиз с SHA256SUMS."
+  },
+  "app_update_checksum_missing": {
+    "EN": "⚠ Latest GitHub Release has no SHA256SUMS asset — update will not be offered.",
+    "UK": "⚠ У останньому GitHub Release немає файлу SHA256SUMS — оновлення не пропонуватиметься.",
+    "RU": "⚠ В последнем GitHub Release нет файла SHA256SUMS — обновление предлагаться не будет."
+  },
+  "app_update_checksum_mismatch": {
+    "EN": "❌ Release ZIP checksum does not match SHA256SUMS — update aborted.",
+    "UK": "❌ Контрольна сума ZIP не збігається з SHA256SUMS — оновлення скасовано.",
+    "RU": "❌ Контрольная сумма ZIP не совпадает с SHA256SUMS — обновление отменено."
+  },
+  "app_update_checksum_ok": {
+    "EN": "✓ Release ZIP SHA-256 verified.",
+    "UK": "✓ SHA-256 ZIP-архіву релізу перевірено.",
+    "RU": "✓ SHA-256 ZIP-архива релиза проверен."
+  },
+  "app_update_signature_missing": {
+    "EN": "❌ Release signing key is bundled, but SHA256SUMS has no GPG signature — update aborted.",
+    "UK": "❌ У комплекті є ключ підпису релізів, але для SHA256SUMS немає GPG-підпису — оновлення скасовано.",
+    "RU": "❌ В комплекте есть ключ подписи релизов, но у SHA256SUMS нет GPG-подписи — обновление отменено."
+  },
+  "app_update_signature_failed": {
+    "EN": "❌ GPG signature of SHA256SUMS could not be verified: {error}",
+    "UK": "❌ Не вдалося перевірити GPG-підпис SHA256SUMS: {error}",
+    "RU": "❌ Не удалось проверить GPG-подпись SHA256SUMS: {error}"
+  },
+  "app_update_signature_ok": {
+    "EN": "✓ GPG signature of SHA256SUMS verified.",
+    "UK": "✓ GPG-підпис SHA256SUMS перевірено.",
+    "RU": "✓ GPG-подпись SHA256SUMS проверена."
+  },
+  "app_update_local_version_unknown": {
+    "EN": "⚠ Local app version could not be read from README.md — update will not be offered.",
+    "UK": "⚠ Локальну версію програми не вдалося прочитати з README.md — оновлення не пропонуватиметься.",
+    "RU": "⚠ Локальную версию программы не удалось прочитать из README.md — обновление предлагаться не будет."
+  },
   "app_updating": {
     "EN": "📥 Updating WhisperFastGUI...",
     "UK": "📥 Оновлення WhisperFastGUI...",
@@ -1435,9 +1545,9 @@
     "RU": "📥 git pull из GitHub..."
   },
   "app_updating_download": {
-    "EN": "📥 Downloading latest version from GitHub...",
-    "UK": "📥 Завантаження останньої версії з GitHub...",
-    "RU": "📥 Загрузка последней версии с GitHub..."
+    "EN": "📥 Downloading latest GitHub Release (checksum required)...",
+    "UK": "📥 Завантаження останнього GitHub Release (потрібна контрольна сума)...",
+    "RU": "📥 Загрузка последнего GitHub Release (требуется контрольная сумма)..."
   },
   "app_update_done": {
     "EN": "✅ WhisperFastGUI updated successfully",
@@ -1535,9 +1645,14 @@
     "RU": "Обновление {package}"
   },
   "full_install": {
-    "EN": "🚀 Full dependency installation (Force={force})...",
-    "UK": "🚀 Повна установка залежностей (Force={force})...",
-    "RU": "🚀 Полная установка зависимостей (Force={force})..."
+    "EN": "▶ Installing dependencies…",
+    "UK": "▶ Встановлення залежностей…",
+    "RU": "▶ Установка зависимостей…"
+  },
+  "full_install_force": {
+    "EN": "▶ Installing dependencies (force reinstall)…",
+    "UK": "▶ Встановлення залежностей (примусова переустановка)…",
+    "RU": "▶ Установка зависимостей (принудительная переустановка)…"
   },
   "python_detected_info": {
     "EN": "ℹ Python {major}.{minor} detected - pyaudioop will be installed",
@@ -1545,34 +1660,34 @@
     "RU": "ℹ Python {major}.{minor} обнаружен - будет установлен pyaudioop"
   },
   "installing_tools": {
-    "EN": "📦 Tools...",
-    "UK": "📦 Інструменти...",
-    "RU": "📦 Инструменты..."
+    "EN": "pip, setuptools, wheel",
+    "UK": "pip, setuptools, wheel",
+    "RU": "pip, setuptools, wheel"
   },
   "installing_torch": {
-    "EN": "📦 Torch (CUDA)...",
-    "UK": "📦 Torch (CUDA)...",
-    "RU": "📦 Torch (CUDA)..."
+    "EN": "Torch (CUDA)",
+    "UK": "Torch (CUDA)",
+    "RU": "Torch (CUDA)"
   },
   "installing_nvidia": {
-    "EN": "📦 NVIDIA Libs...",
-    "UK": "📦 NVIDIA Libs...",
-    "RU": "📦 NVIDIA Libs..."
+    "EN": "NVIDIA CUDA libs",
+    "UK": "NVIDIA CUDA libs",
+    "RU": "NVIDIA CUDA libs"
   },
   "installing_whisper": {
-    "EN": "📦 Whisper Engine...",
-    "UK": "📦 Whisper Engine...",
-    "RU": "📦 Whisper Engine..."
+    "EN": "faster-whisper",
+    "UK": "faster-whisper",
+    "RU": "faster-whisper"
   },
   "installing_multimedia": {
-    "EN": "📦 Multimedia...",
-    "UK": "📦 Мультимедіа...",
-    "RU": "📦 Мультимедиа..."
+    "EN": "multimedia (pydub, markitdown…)",
+    "UK": "мультимедіа (pydub, markitdown…)",
+    "RU": "мультимедиа (pydub, markitdown…)"
   },
   "install_complete": {
-    "EN": "✅ Installation/update process completed!",
-    "UK": "✅ Процес встановлення/оновлення завершено!",
-    "RU": "✅ Процесс установки/обновления завершен!"
+    "EN": "✅ Dependencies done",
+    "UK": "✅ Залежності готово",
+    "RU": "✅ Зависимости готовы"
   },
   "install_step_failed": {
     "EN": "❌ Step failed: {name}",
@@ -2040,9 +2155,9 @@
     "RU": "Воспроизвести звук после завершения очереди транскрибации. Если включено «В Cursor», звук ждёт также завершения постобработки всех файлов в Cursor."
   },
   "tooltip_help": {
-    "EN": "Open help in the current interface language (Help_EN.md / Help_UK.md / Help_RU.md).",
-    "UK": "Відкрити довідку мовою інтерфейсу (Help_EN.md / Help_UK.md / Help_RU.md).",
-    "RU": "Открыть справку на языке интерфейса (Help_EN.md / Help_UK.md / Help_RU.md)."
+    "EN": "Open help: user guide plus architecture/setup docs from the docs/ folder.",
+    "UK": "Відкрити довідку: інструкція користувача та документи з каталогу docs/.",
+    "RU": "Открыть справку: инструкция пользователя и документы из каталога docs/."
   },
   "tooltip_ui_language": {
     "EN": "Interface language: EN (English), UK (Ukrainian), RU (Russian). Saved in settings.json.",
@@ -2224,6 +2339,11 @@
     "UK": "Модель «{model}» відповідає останній версії на Hugging Face.\nВсе одно перезавантажити?",
     "RU": "Модель «{model}» соответствует последней версии на Hugging Face.\nВсё равно перезагрузить?"
   },
+  "model_change_while_busy": {
+    "EN": "Cannot change or update the model while a file is being processed.",
+    "UK": "Не можна змінювати або оновлювати модель, поки обробляється файл.",
+    "RU": "Нельзя менять или обновлять модель, пока обрабатывается файл."
+  },
   "ok": {
     "EN": "OK",
     "UK": "OK",
@@ -2375,9 +2495,24 @@
     "RU": "❌ Не удалось открыть файл промптов: {error}"
   },
   "install_step_progress": {
-    "EN": "📦 {name}...",
-    "UK": "📦 {name}...",
-    "RU": "📦 {name}..."
+    "EN": "▶ {name}",
+    "UK": "▶ {name}",
+    "RU": "▶ {name}"
+  },
+  "install_step_ok_unchanged": {
+    "EN": "   ✓ already up to date",
+    "UK": "   ✓ вже актуально",
+    "RU": "   ✓ уже актуально"
+  },
+  "install_step_ok_changed": {
+    "EN": "   ✓ installed: {names}",
+    "UK": "   ✓ встановлено: {names}",
+    "RU": "   ✓ установлено: {names}"
+  },
+  "install_cleaned_broken_dist": {
+    "EN": "   Cleaned leftover pip folders: {names}",
+    "UK": "   Прибрано пошкоджені папки pip: {names}",
+    "RU": "   Удалены повреждённые папки pip: {names}"
   },
   "dir_scan_error": {
     "EN": "Error scanning directory {directory}: {error}",

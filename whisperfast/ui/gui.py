@@ -70,14 +70,9 @@ from whisperfast.setup.installer import install_dependencies, check_system, chec
 from whisperfast.updates.app_updates import apply_app_update, check_app_update
 from whisperfast.updates.model_updates import apply_whisper_model_updates
 from whisperfast.setup.gpu_info import refresh_gpu_settings
-from whisperfast.core.input_files import (
-    add_multiple_files,
-    add_directory,
-    process_dropped_files,
-)
+from whisperfast.core.input_files import process_dropped_files
 from whisperfast.core.queue_manager import (
     QueueController,
-    open_watch_dirs_dialog,
     parse_watch_dirs,
     serialize_watch_dirs,
     valid_watch_dirs,
@@ -954,73 +949,78 @@ class WhisperGUI:
         def worker():
             from whisperfast.setup.external_tools import install_external_tools
 
-            result = check_updates(self.log)
-            packages = result.get("packages", []) if isinstance(result, dict) else result
-            models = result.get("models", []) if isinstance(result, dict) else []
-            app_info = result.get("app", {}) if isinstance(result, dict) else {}
-            external = result.get("external", []) if isinstance(result, dict) else []
-            lines = [
-                t(
-                    "package_check_line",
-                    package=p,
-                    current=c or t("not_installed_short"),
-                    latest=l,
-                )
-                for p, c, l in packages
-            ]
-            for name, cur, lat in models:
-                lines.append(t("model_update_line", model=name, current=cur, latest=lat))
-            if app_info.get("needs_update"):
-                lines.append(
-                    t("app_update_line", current=app_info.get("current", ""), latest=app_info.get("remote", ""))
-                )
-            for tool in external:
-                display = tool.get("display") or tool.get("name") or "?"
-                current = tool.get("current") or t("external_tool_not_installed")
-                latest = tool.get("latest") or "?"
-                lines.append(
+            try:
+                result = check_updates(self.log)
+                packages = result.get("packages", []) if isinstance(result, dict) else result
+                models = result.get("models", []) if isinstance(result, dict) else []
+                app_info = result.get("app", {}) if isinstance(result, dict) else {}
+                external = result.get("external", []) if isinstance(result, dict) else []
+                lines = [
                     t(
-                        "external_tool_update_line",
-                        tool=display,
-                        current=current,
-                        latest=latest,
+                        "package_check_line",
+                        package=p,
+                        current=c or t("not_installed_short"),
+                        latest=l,
                     )
-                )
-            if lines:
-                msg = t("updates_available", updates="\n".join(lines))
-                if external:
-                    msg += "\n\n" + t("external_tool_manual_hint")
-                if messagebox.askyesno(t("update"), msg):
-                    if packages:
-                        install_dependencies(
-                            log_func=self.log,
-                            packages_to_update=packages,
-                            include_nvidia=True,
+                    for p, c, l in packages
+                ]
+                for name, cur, lat in models:
+                    lines.append(t("model_update_line", model=name, current=cur, latest=lat))
+                if app_info.get("needs_update"):
+                    lines.append(
+                        t("app_update_line", current=app_info.get("current", ""), latest=app_info.get("remote", ""))
+                    )
+                for tool in external:
+                    display = tool.get("display") or tool.get("name") or "?"
+                    current = tool.get("current") or t("external_tool_not_installed")
+                    latest = tool.get("latest") or "?"
+                    lines.append(
+                        t(
+                            "external_tool_update_line",
+                            tool=display,
+                            current=current,
+                            latest=latest,
                         )
-                    if models:
-                        apply_whisper_model_updates([m[0] for m in models], log_func=self.log)
-                        WhisperModelSingleton.reset()
-                    if app_info.get("needs_update"):
-                        save_app_settings({"skip_app_update_version": ""})
-                        app_result = apply_app_update(log_func=self.log)
-                        if app_result.get("success") and app_result.get("needs_restart"):
-                            def ask_restart():
-                                if messagebox.askyesno(
-                                    t("app_update_restart_title"),
-                                    t("app_update_restart_msg"),
-                                ):
-                                    self._restart_after_app_update(app_result.get("restart_script"))
-                            self.root.after(0, ask_restart)
+                    )
+                if lines:
+                    msg = t("updates_available", updates="\n".join(lines))
                     if external:
-                        names = [tool.get("name") for tool in external if tool.get("name")]
-                        install_external_tools(
-                            self.log,
-                            names=names,
-                            missing_only=False,
-                            upgrade=True,
-                        )
-            else:
-                self.log(t("all_components_up_to_date"))
+                        msg += "\n\n" + t("external_tool_manual_hint")
+                    if messagebox.askyesno(t("update"), msg):
+                        if packages:
+                            install_dependencies(
+                                log_func=self.log,
+                                packages_to_update=packages,
+                                include_nvidia=True,
+                            )
+                        if models:
+                            if self._process_queue_lock.locked():
+                                self.log(t("model_change_while_busy"))
+                            else:
+                                apply_whisper_model_updates([m[0] for m in models], log_func=self.log)
+                                WhisperModelSingleton.reset()
+                        if app_info.get("needs_update"):
+                            save_app_settings({"skip_app_update_version": ""})
+                            app_result = apply_app_update(log_func=self.log)
+                            if app_result.get("success") and app_result.get("needs_restart"):
+                                def ask_restart():
+                                    if messagebox.askyesno(
+                                        t("app_update_restart_title"),
+                                        t("app_update_restart_msg"),
+                                    ):
+                                        self._restart_after_app_update(app_result.get("restart_script"))
+                                self.root.after(0, ask_restart)
+                        if external:
+                            names = [tool.get("name") for tool in external if tool.get("name")]
+                            install_external_tools(
+                                self.log,
+                                names=names,
+                                missing_only=False,
+                                upgrade=True,
+                            )
+            finally:
+                self.log(t("updates_ready_to_use"))
+
         threading.Thread(target=worker, daemon=True).start()
 
     def _restart_after_app_update(self, restart_script=None):
@@ -1045,12 +1045,16 @@ class WhisperGUI:
 
     def run_install(self):
         choice = messagebox.askyesnocancel(t("installation"), t("force_reinstall"))
-        if choice is None: return
-        threading.Thread(
-            target=install_dependencies,
-            kwargs={"force": choice, "log_func": self.log, "include_nvidia": True},
-            daemon=True
-        ).start()
+        if choice is None:
+            return
+
+        def worker():
+            try:
+                install_dependencies(force=choice, log_func=self.log, include_nvidia=True)
+            finally:
+                self.log(t("dependencies_ready_to_use"))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def log(self, msg, tag=None):
         self.log_panel.log(msg, tag)
@@ -1092,8 +1096,53 @@ class WhisperGUI:
         """Установка значения прогресс-бара (вызывать из главного потока)."""
         try:
             self.progress["value"] = value
-        except (tk.TclError, Exception):
+        except Exception:
             pass
+
+    def ask_save_mp3_confirm(self, filename):
+        """
+        Питає підтвердження «зберегти MP3?» з фонового потоку обробки черги
+        (core/transcription.py) через модальний Tk-діалог. Раніше цей виклик
+        (import tkinter + messagebox.askyesno) жив прямо в core/transcription.py —
+        перенесено сюди, щоб core лишався незалежним від Tkinter (див.
+        docs/INTERNAL-ARCHITECTURE.uk.md і docs/CODE-REVIEW.md, розділ 1).
+        Очікування відповіді — threading.Event з коротким timeout, щоб
+        не блокувати перевірку cancel_requested і відкритого вікна «Промты»
+        (той самий контракт, що ask_overwrite_via_tk).
+        """
+        from whisperfast.core.output_conflict import ai_prompts_dialog_is_open
+
+        if ai_prompts_dialog_is_open(self):
+            return False
+
+        choice = [None]
+        done = threading.Event()
+
+        def ask():
+            try:
+                if ai_prompts_dialog_is_open(self):
+                    choice[0] = False
+                    return
+                choice[0] = messagebox.askyesno(
+                    t("save_audio_mp3"),
+                    t("save_mp3_confirm", filename=filename),
+                )
+            except Exception:
+                choice[0] = False
+            finally:
+                done.set()
+
+        try:
+            self.root.after(0, ask)
+        except Exception:
+            return False
+        while not done.is_set():
+            if self.cancel_requested:
+                return False
+            if ai_prompts_dialog_is_open(self):
+                return False
+            done.wait(timeout=0.05)
+        return bool(choice[0])
 
     def reset_ui(self):
         self.start_btn.config(state="normal")
@@ -1250,7 +1299,7 @@ class WhisperGUI:
                     self.watch_enabled.set(False)
                     messagebox.showerror(t("error"), t("watch_folder_empty_error"))
 
-        open_watch_dirs_dialog(
+        ui_dialogs.open_watch_dirs_dialog(
             self.root,
             current,
             on_save=on_save,
@@ -1262,7 +1311,7 @@ class WhisperGUI:
         if self.watch_enabled.get():
             dirs = valid_watch_dirs(self.watch_dir.get())
             if not dirs:
-                open_watch_dirs_dialog(
+                ui_dialogs.open_watch_dirs_dialog(
                     self.root,
                     parse_watch_dirs(self.watch_dir.get()),
                     on_save=lambda chosen: self.watch_dir.set(serialize_watch_dirs(chosen)),
@@ -1552,13 +1601,13 @@ class WhisperGUI:
 
     def add_files_action(self):
         """Обработчик кнопки 'Добавить файлы'"""
-        files = add_multiple_files()
+        files = ui_dialogs.add_multiple_files()
         if files:
             self.add_files_to_queue(files)
 
     def add_directory_action(self):
         """Обработчик кнопки 'Добавить каталог'"""
-        files = add_directory(recursive=True)
+        files = ui_dialogs.add_directory(recursive=True)
         if files:
             self.add_files_to_queue(files)
 

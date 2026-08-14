@@ -1,12 +1,25 @@
-"""Transcription pipeline (queue processing and file export)."""
+"""Transcription pipeline (queue processing and file export).
+
+Цей модуль не імпортує tkinter напряму: підтвердження «зберегти MP3?»
+запитується через app.ask_save_mp3_confirm(filename) — метод, який реалізує
+GUI (whisperfast/ui/gui.py: WhisperGUI.ask_save_mp3_confirm), той самий
+duck-typed підхід, що вже застосований для app.resolve_output_path(s)/
+ask_overwrite у core/output_conflict.py.
+
+Контракт `app` зафіксовано в `whisperfast.core.host.TranscriptionHost`
+(структурний Protocol; WhisperGUI не наслідує його явно). Тести черги
+використовують легкий фейк замість Tkinter.
+"""
+from __future__ import annotations
+
 import os
 import tempfile
 import time
 import traceback
 
 from pydub import AudioSegment
-from tkinter import messagebox
 
+from whisperfast.core.host import TranscriptionHost
 from whisperfast.config import (
     AUDIO_EXTENSIONS,
     DEFAULT_MODEL,
@@ -45,7 +58,7 @@ def segment_file_suffix(start_sec, end_sec):
     return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
 
-def _process_document_item(app, path, opts, file_id=None):
+def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
     """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально Cursor / DOCX."""
     out_dir = app._resolve_output_dir(path, opts)
     send_to_cursor = bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor")))
@@ -151,7 +164,7 @@ def _process_document_item(app, path, opts, file_id=None):
     app.end_file_log("done", file_id=file_id)
 
 
-def run_queue(app, mode, target_idx, options=None):
+def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
     opts = options or {}
     try:
         model = None
@@ -214,16 +227,7 @@ def run_queue(app, mode, target_idx, options=None):
                     ext = os.path.splitext(path)[1].lower()
                     is_audio_source = ext in AUDIO_EXTENSIONS
                     if is_audio_source:
-                        choice = [None]
-                        def ask_save_mp3():
-                            choice[0] = messagebox.askyesno(
-                                t("save_audio_mp3"),
-                                t("save_mp3_confirm", filename=os.path.basename(path))
-                            )
-                        app.root.after(0, ask_save_mp3)
-                        while choice[0] is None and not app.cancel_requested:
-                            time.sleep(0.05)
-                        if choice[0]:
+                        if app.ask_save_mp3_confirm(os.path.basename(path)):
                             full = AudioSegment.from_file(path)
                             audio = full[int(start_sec * 1000):int(end_sec * 1000)]
                     else:
@@ -350,7 +354,7 @@ def run_queue(app, mode, target_idx, options=None):
         app.root.after(0, app.reset_ui)
 
 
-def save_files(app, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_opts=None, send_txt_to_cursor=False, cursor_api_key="", log_file_id=None):
+def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_opts=None, send_txt_to_cursor=False, cursor_api_key="", log_file_id=None):
     """Save txt/srt/mp3, relocate source beside outputs. Returns final source path, or None if skipped."""
     opts = output_opts or {}
     out = app._resolve_output_dir(path, opts)

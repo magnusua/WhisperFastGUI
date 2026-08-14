@@ -1,4 +1,5 @@
 import gc
+import threading
 import torch
 from faster_whisper import WhisperModel
 from whisperfast.config import DEFAULT_MODEL, WHISPER_MODELS
@@ -13,6 +14,12 @@ class WhisperModelSingleton:
     _model = None
     _mode = None
     _model_name = None
+    # Защищает _model/_mode/_model_name от гонки между потоком обработки очереди
+    # и потоком диалога «Обновить модель» (ui/dialogs.py), который может вызвать
+    # reset()/get() параллельно активной транскрибации. Не защищает сам вызов
+    # model.transcribe() — он выполняется вне этого класса, на уже полученном
+    # объекте модели.
+    _lock = threading.RLock()
 
     @classmethod
     def get(cls, log_func, mode, model_name=None):
@@ -43,53 +50,56 @@ class WhisperModelSingleton:
             except Exception:
                 log_func("⚠ CUDA is not available — running on CPU (including AMD Radeon GPUs).")
 
-        need_load = (
-            cls._model is None
-            or cls._mode != mode
-            or cls._model_name != name
-        )
-        if need_load:
-            if cls._model is not None:
-                cls._model = None
-                cls._mode = None
-                cls._model_name = None
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            log_func(t("initializing_model", model=name))
-            log_func(t("device_info", device=device.upper(), precision=compute))
-            try:
-                cls._model = WhisperModel(name, device=device, compute_type=compute)
-                cls._mode = mode
-                cls._model_name = name
-                log_func(t("model_ready"))
-            except Exception as e:
-                log_func(t("model_load_error", error=str(e)))
-                raise e
-        return cls._model
+        with cls._lock:
+            need_load = (
+                cls._model is None
+                or cls._mode != mode
+                or cls._model_name != name
+            )
+            if need_load:
+                if cls._model is not None:
+                    cls._model = None
+                    cls._mode = None
+                    cls._model_name = None
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                log_func(t("initializing_model", model=name))
+                log_func(t("device_info", device=device.upper(), precision=compute))
+                try:
+                    cls._model = WhisperModel(name, device=device, compute_type=compute)
+                    cls._mode = mode
+                    cls._model_name = name
+                    log_func(t("model_ready"))
+                except Exception as e:
+                    log_func(t("model_load_error", error=str(e)))
+                    raise e
+            return cls._model
 
     @classmethod
     def unload(cls):
         """
         Полностью освобождает ресурсы: удаляет модель и чистит кэш CUDA.
         """
-        if cls._model is not None:
-            cls._model = None
-            cls._mode = None
-            cls._model_name = None
-            
-            # Принудительный запуск сборщика мусора Python
-            gc.collect()
-            
-            # Очистка зарезервированной видеопамяти
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            
-            print(t("model_unloaded"))
+        with cls._lock:
+            if cls._model is not None:
+                cls._model = None
+                cls._mode = None
+                cls._model_name = None
+
+                # Принудительный запуск сборщика мусора Python
+                gc.collect()
+
+                # Очистка зарезервированной видеопамяти
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+                print(t("model_unloaded"))
 
     @classmethod
     def reset(cls):
         """Сброс состояния: при следующем get() модель будет загружена заново."""
-        cls._model = None
-        cls._mode = None
-        cls._model_name = None
+        with cls._lock:
+            cls._model = None
+            cls._mode = None
+            cls._model_name = None

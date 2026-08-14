@@ -21,12 +21,7 @@ PROVIDERS: Dict[str, AIProvider] = {
     PROVIDER_COPILOT: CopilotProvider(),
 }
 
-PROVIDER_ORDER: List[str] = [
-    PROVIDER_CURSOR,
-    PROVIDER_GEMINI,
-    PROVIDER_CLAUDE,
-    PROVIDER_COPILOT,
-]
+PROVIDER_ORDER: List[str] = list(PROVIDERS)
 
 
 def get_provider(provider_id: str) -> AIProvider:
@@ -37,13 +32,8 @@ def get_provider(provider_id: str) -> AIProvider:
 
 
 def provider_choices() -> List[Tuple[str, str]]:
-    """[(id, i18n_label_key), ...]"""
-    return [
-        (PROVIDER_CURSOR, "ai_provider_cursor"),
-        (PROVIDER_GEMINI, "ai_provider_gemini"),
-        (PROVIDER_CLAUDE, "ai_provider_claude"),
-        (PROVIDER_COPILOT, "ai_provider_copilot"),
-    ]
+    """[(id, i18n_label_key), ...] — порядок як у PROVIDERS."""
+    return [(pid, PROVIDERS[pid].label_key) for pid in PROVIDER_ORDER]
 
 
 def normalize_provider_id(provider_id: str) -> str:

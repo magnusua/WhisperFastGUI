@@ -5,6 +5,7 @@
 import json
 import os
 
+from whisperfast.config import SUPPORTED_LANGUAGES
 from whisperfast.settings import load_settings, save_settings
 
 # Текущий язык по умолчанию
@@ -12,6 +13,9 @@ _current_language = "EN"
 
 # Словарь переводов
 _translations = {}
+
+# Ключи, для которых уже выведено предупреждение (lang, key) — без спама в лог
+_missing_key_warned = set()
 
 _LANG_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lang.json")
 
@@ -33,7 +37,7 @@ def load_translations():
 def set_language(lang_code):
     """Устанавливает текущий язык интерфейса и сохраняет его"""
     global _current_language
-    if lang_code in ("EN", "UK", "RU"):
+    if lang_code in SUPPORTED_LANGUAGES:
         _current_language = lang_code
         save_settings(lang_code)
     else:
@@ -55,12 +59,14 @@ def t(key, **kwargs):
 
     Returns:
         Переведенная строка или ключ, если перевод не найден
+        (при первом промахе печатается Warning, повторно тот же ключ не логируется)
+
     """
     if not _translations:
         load_translations()
 
     lang = _current_language
-    if lang not in ("EN", "UK", "RU"):
+    if lang not in SUPPORTED_LANGUAGES:
         lang = "EN"
 
     if key in _translations and lang in _translations[key]:
@@ -71,6 +77,12 @@ def t(key, **kwargs):
             except KeyError:
                 return text
         return text
+
+    if _translations:
+        marker = (lang, key)
+        if marker not in _missing_key_warned:
+            _missing_key_warned.add(marker)
+            print(f"Warning: Missing translation key {key!r} (language={lang})")
 
     return key
 

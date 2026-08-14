@@ -1,6 +1,14 @@
 """
 Черга файлів і слідкування за каталогами.
 Persist request_queue.json, додавання/видалення, DirectoryWatcher з pending/стабільністю.
+
+DirectoryWatcher і QueueController у цьому модулі — чиста логіка без прямої
+залежності від Tkinter (treeview передається ззовні як duck-typed об'єкт з
+.insert()/.delete()/.get_children(), той самий підхід, що й у
+add_files_to_queue_controller). Діалог вибору каталогів слідкування
+(open_watch_dirs_dialog) — це UI-дія, тому він винесений у
+whisperfast/ui/dialogs.py. Див. docs/INTERNAL-ARCHITECTURE.uk.md і
+docs/CODE-REVIEW.md, розділ 1.
 """
 from __future__ import annotations
 
@@ -8,8 +16,6 @@ import os
 import json
 import threading
 import time
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 
 from whisperfast.config import BASE_DIR, VALID_EXTS, DEFAULT_START_TIMESTAMP
 from whisperfast.i18n import t
@@ -101,15 +107,6 @@ def _file_openable(path):
         return True
     except OSError:
         return False
-
-
-def _next_entry_batch_size(current_count):
-    """Скільки порожніх рядків додає кнопка +: 1 → 5 → 10."""
-    if current_count < 5:
-        return 1
-    if current_count < 10:
-        return 5
-    return 10
 
 
 def _path_match_keys(path):
@@ -569,116 +566,3 @@ class QueueController:
         if self._start_processing:
             self._start_processing(mode="only_new", from_watch=False)
         return True
-
-
-def open_watch_dirs_dialog(parent, initial_dirs, on_save, center_fn=None):
-    """
-    Модальне вікно списку каталогів слідкування.
-    Зберегти — викликає on_save(list); закриття вікна = скасування.
-    """
-    initial = list(initial_dirs or [])
-    if not initial:
-        initial = [""]
-
-    dialog = tk.Toplevel(parent)
-    dialog.title(t("watch_dirs_dialog_title"))
-    dialog.transient(parent)
-    dialog.grab_set()
-    dialog.resizable(True, True)
-
-    outer = ttk.Frame(dialog, padding=12)
-    outer.pack(fill="both", expand=True)
-
-    ttk.Label(outer, text=t("watch_dirs_dialog_hint")).pack(anchor="w", pady=(0, 8))
-
-    entries_host = ttk.Frame(outer)
-    entries_host.pack(fill="both", expand=True)
-
-    entry_vars = []
-
-    def _rebuild_layout():
-        for child in entries_host.winfo_children():
-            child.destroy()
-        n = len(entry_vars)
-        cols = 2 if n > 10 else 1
-        rows_per_col = (n + cols - 1) // cols if cols else n
-        for i, var in enumerate(entry_vars):
-            col = i // rows_per_col if cols > 1 else 0
-            row = i % rows_per_col if cols > 1 else i
-            cell = ttk.Frame(entries_host)
-            cell.grid(row=row, column=col, sticky="ew", padx=4, pady=2)
-            ent = ttk.Entry(cell, textvariable=var, width=42)
-            ent.pack(side="left", fill="x", expand=True)
-
-            def browse(v=var):
-                d = filedialog.askdirectory(parent=dialog)
-                if d:
-                    v.set(normalize_display_path(d))
-
-            ttk.Button(cell, text="…", width=3, command=browse).pack(side="left", padx=(4, 0))
-        for c in range(cols):
-            entries_host.columnconfigure(c, weight=1)
-        _resize_dialog()
-
-    def _resize_dialog():
-        dialog.update_idletasks()
-        n = len(entry_vars)
-        cols = 2 if n > 10 else 1
-        rows = (n + cols - 1) // cols
-        row_h = 32
-        base_h = 120
-        base_w = 520 if cols == 1 else 980
-        h = min(base_h + rows * row_h, 700)
-        w = base_w
-        dialog.geometry(f"{w}x{h}")
-        if center_fn:
-            center_fn(dialog)
-
-    def add_rows():
-        batch = _next_entry_batch_size(len(entry_vars))
-        for _ in range(batch):
-            entry_vars.append(tk.StringVar(value=""))
-        _rebuild_layout()
-
-    for path in initial:
-        entry_vars.append(tk.StringVar(value=normalize_display_path(path) if path else ""))
-    _rebuild_layout()
-
-    btns = ttk.Frame(outer)
-    btns.pack(fill="x", pady=(10, 0))
-
-    def close_cancel():
-        dialog.destroy()
-
-    def save_and_close():
-        dirs = []
-        for var in entry_vars:
-            raw = (var.get() or "").strip()
-            if not raw:
-                continue
-            path = normalize_display_path(raw.strip('"').strip("'"))
-            if not path:
-                continue
-            if not os.path.isdir(path):
-                messagebox.showerror(
-                    t("error"),
-                    t("watch_dir_invalid", path=path),
-                    parent=dialog,
-                )
-                return
-            dirs.append(path)
-        on_save(dirs)
-        dialog.destroy()
-
-    ttk.Button(btns, text="+", width=4, command=add_rows).pack(side="left")
-    ttk.Button(btns, text=t("save"), command=save_and_close).pack(side="right", padx=(5, 0))
-    ttk.Button(btns, text=t("cancel_btn"), command=close_cancel).pack(side="right")
-
-    dialog.protocol("WM_DELETE_WINDOW", close_cancel)
-    dialog.bind("<Escape>", lambda e: close_cancel())
-    if center_fn:
-        center_fn(dialog)
-    else:
-        dialog.update_idletasks()
-        dialog.geometry("+%d+%d" % (parent.winfo_rootx() + 40, parent.winfo_rooty() + 40))
-    dialog.wait_window()

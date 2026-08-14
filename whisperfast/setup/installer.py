@@ -1,5 +1,7 @@
 # installer.py
+import os
 import re
+import shutil
 import sys
 import subprocess
 import importlib.metadata
@@ -159,32 +161,125 @@ def check_updates(log_func):
 # Spec for MarkItDown: all office formats used by the queue (no Azure extras).
 MARKITDOWN_PIP_SPEC = "markitdown[pdf,docx,pptx,xlsx,xls]"
 
-_PIP_LOG_MARKERS = (
-    "collecting ",
-    "installing collected",
-    "successfully installed",
-    "successfully uninstalled",
-    "requirement already",
-    "error",
-    "warning",
-    "no matching distribution",
-    "could not",
-    "failed",
+# faster-whisper 1.2.1 сама вимагає ctranslate2>=4.0,<5 (Requires-Dist у її METADATA).
+# Той самий діапазон зафіксовано тут (і в requirements.txt), щоб `pip install --upgrade`
+# без обмежень не поставив колись несумісну пару torch/ctranslate2/faster-whisper —
+# див. CODE-REVIEW.md, розділ 7.
+FASTER_WHISPER_PIP_SPEC = "faster-whisper>=1.0.0,<2.0.0"
+CTRANSLATE2_PIP_SPEC = "ctranslate2>=4.0,<5.0"
+
+_PIP_NOISE = (
+    "requirement already satisfied",
+    "ignoring invalid distribution",
+    "looking in indexes",
+    "using cached",
+    "downloading ",
 )
 
 
-def _pip_log_line(line: str) -> bool:
-    low = line.lower()
-    return any(m in low for m in _PIP_LOG_MARKERS)
+def _pip_should_stream(line: str) -> bool:
+    low = line.lower().strip()
+    if not low or any(n in low for n in _PIP_NOISE):
+        return False
+    if low.startswith("warning:"):
+        return False
+    if low.startswith(("collecting ", "installing collected", "error")):
+        return True
+    if "no matching distribution" in low or "could not find a version" in low:
+        return True
+    return False
 
 
-def _run_install_cmd(cmd, log_func, timeout=600):
-    """Run pip (or similar) and stream useful lines to the log."""
+def _pip_is_error(line: str) -> bool:
+    low = line.lower().strip()
+    if "ignoring invalid" in low:
+        return False
+    return (
+        low.startswith("error")
+        or "error:" in low
+        or "no matching distribution" in low
+        or "could not find a version" in low
+    )
+
+
+def _pip_installed_names(lines) -> str:
+    for line in reversed(lines):
+        low = line.lower()
+        if low.startswith("successfully installed"):
+            return line.split(":", 1)[-1].strip()
+        if "successfully installed" in low:
+            return line.split("successfully installed", 1)[-1].strip(" :")
+    return ""
+
+
+def _cleanup_broken_pip_dists(log_func) -> None:
+    """Remove leftover '~ip' / '~umpy' dirs from interrupted pip upgrades."""
+    dirs = []
+    try:
+        import site
+
+        dirs.extend(site.getsitepackages() or [])
+        user = site.getusersitepackages()
+        if user:
+            dirs.append(user)
+    except Exception:
+        pass
+    for p in sys.path:
+        if p and os.path.basename(p).lower() == "site-packages":
+            dirs.append(p)
+    seen = set()
+    cleaned = []
+    for base in dirs:
+        n = os.path.normcase(os.path.abspath(base)) if base else ""
+        if not n or n in seen or not os.path.isdir(base):
+            continue
+        seen.add(n)
+        try:
+            names = os.listdir(base)
+        except OSError:
+            continue
+        for name in names:
+            if not name.startswith("~"):
+                continue
+            path = os.path.join(base, name)
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+                cleaned.append(name)
+            except OSError:
+                pass
+    if cleaned:
+        log_func(t("install_cleaned_broken_dist", names=", ".join(sorted(set(cleaned)))))
+
+
+def _run_install_cmd(cmd, log_func, timeout=600, summarize=True):
+    """Run pip and log a short per-step result instead of the full pip dump."""
     pip_cmd = list(cmd)
     if len(pip_cmd) >= 3 and pip_cmd[1:3] == ["-m", "pip"] and "--progress-bar" not in pip_cmd:
         pip_cmd.extend(["--progress-bar", "off"])
-    log_func(t("install_running_cmd", cmd=" ".join(pip_cmd)))
-    return run_logged_command(pip_cmd, log_func=log_func, timeout=timeout, line_filter=_pip_log_line)
+    collected = []
+
+    def _on_line(line):
+        collected.append(line)
+        if summarize and _pip_should_stream(line):
+            log_func("   " + line)
+
+    code = run_logged_command(pip_cmd, log_func=_on_line, timeout=timeout)
+    if not summarize:
+        return code
+    if code != 0:
+        errors = [ln for ln in collected if _pip_is_error(ln) and "ignoring invalid" not in ln.lower()]
+        for ln in (errors or collected)[-8:]:
+            log_func("   " + ln)
+        return code
+    installed = _pip_installed_names(collected)
+    if installed:
+        log_func(t("install_step_ok_changed", names=installed))
+    else:
+        log_func(t("install_step_ok_unchanged"))
+    return code
 
 
 def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
@@ -209,7 +304,7 @@ def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     commands = [
         [t("installing_tools"), [sys.executable, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"]],
         [t("installing_torch"), _torch_install_cmd(use_cuda_torch)],
-        [t("installing_whisper"), [sys.executable, "-m", "pip", "install", "--upgrade", "faster-whisper", "ctranslate2"]],
+        [t("installing_whisper"), [sys.executable, "-m", "pip", "install", "--upgrade", FASTER_WHISPER_PIP_SPEC, CTRANSLATE2_PIP_SPEC]],
         [t("installing_multimedia"), [sys.executable, "-m", "pip", "install", "--upgrade"] + multimedia_packages],
     ]
     if include_nvidia:
@@ -228,6 +323,7 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
     if gpu_name:
         log_func(t("gpu_info", name=gpu_name))
     use_cuda_torch = has_nvidia
+    _cleanup_broken_pip_dists(log_func)
     if packages_to_update:
         packages_list = [p[0] for p in packages_to_update]
         log_func(t("updating_packages", packages=str(packages_list)))
@@ -237,13 +333,21 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
                 cmd = _torch_install_cmd(use_cuda_torch)
             elif pkg == "markitdown":
                 cmd = [sys.executable, "-m", "pip", "install", "--upgrade", MARKITDOWN_PIP_SPEC]
+            elif pkg == "faster-whisper":
+                # Точечное обновление тоже должно уважать пиннинг совместимости с
+                # ctranslate2 (см. FASTER_WHISPER_PIP_SPEC/CTRANSLATE2_PIP_SPEC выше и
+                # CODE-REVIEW.md, разд. 7) — иначе кнопка «Обновления» в GUI могла
+                # молча поставить faster-whisper без диапазона версий.
+                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", FASTER_WHISPER_PIP_SPEC]
+            elif pkg == "ctranslate2":
+                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", CTRANSLATE2_PIP_SPEC]
             else:
                 cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
             commands.append([t("updating_package", package=pkg), cmd])
         if include_nvidia and has_nvidia:
             commands.append([t("installing_nvidia"), [sys.executable, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
     else:
-        log_func(t("full_install", force=force))
+        log_func(t("full_install_force") if force else t("full_install"))
         if needs_pyaudioop():
             log_func(t("python_detected_info", major=sys.version_info.major, minor=sys.version_info.minor))
         commands = _get_full_install_commands(include_nvidia=include_nvidia, use_cuda_torch=use_cuda_torch)
@@ -255,15 +359,12 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         code = _run_install_cmd(cmd, log_func)
         if code != 0:
             log_func(t("install_step_failed", name=name))
-    log_func(t("install_complete"))
     if install_external is None:
         install_external = not packages_to_update
-    from whisperfast.setup.external_tools import install_external_tools, log_external_tools_status
-
     if install_external:
+        from whisperfast.setup.external_tools import install_external_tools
+
         install_external_tools(log_func, missing_only=True)
-        log_func(t("install_external_tools_check"))
-        log_external_tools_status(log_func)
 
 
 def check_system(log_func):
@@ -375,7 +476,7 @@ def run_full_installation():
         print(t(step_msg))
         if i == 3 and needs_pyaudioop():
             print(t("install_multimedia_pyaudioop"))
-        code = _run_install_cmd(cmd, print)
+        code = _run_install_cmd(cmd, print, summarize=False)
         print(t(ok_msg) if code == 0 else t(err_msg))
         print()
     print(t("install_step_verify"))
@@ -399,11 +500,9 @@ def run_full_installation():
     if needs_pyaudioop():
         _check_package_verbose("pyaudioop")
     print()
-    from whisperfast.setup.external_tools import install_external_tools, log_external_tools_status
+    from whisperfast.setup.external_tools import install_external_tools
 
     install_external_tools(print, missing_only=True)
-    print(t("install_step_ffmpeg"))
-    log_external_tools_status(print)
     print()
     print(t("install_step_cuda"))
     try:

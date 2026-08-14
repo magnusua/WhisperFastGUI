@@ -4,15 +4,8 @@ from __future__ import annotations
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from whisperfast.postprocess.common import (
-    build_clipboard_fallback_text,
-    build_transform_user_message,
-    http_json_request,
-    open_browser_fallback,
-    read_text_file,
-    write_text_file,
-)
-from whisperfast.postprocess.cursor_postprocess import edited_output_path
+from whisperfast.postprocess.common import http_json_request
+from whisperfast.postprocess.providers.base import run_browser_fallback, run_provider_chain
 
 GEMINI_BROWSER_URL = "https://gemini.google.com/app"
 DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
@@ -85,92 +78,15 @@ class GeminiProvider:
         if not prompts:
             return []
 
-        if not api_key:
-            if log_func:
-                try:
-                    from whisperfast.i18n import t
-                    log_func(t("gemini_no_api_key_fallback"))
-                except ImportError:
-                    pass
-            open_browser_fallback(
-                GEMINI_BROWSER_URL,
-                build_clipboard_fallback_text(prompts[0][2], txt_path),
-                log_func,
-                opened_key="gemini_browser_opened",
-                copied_key="gemini_browser_prompt_copied",
-                manual_key="gemini_browser_manual_hint",
-                name=os.path.basename(txt_path),
-            )
-            return []
+        if not self.has_api_credentials(credentials):
+            return run_browser_fallback(self.id, GEMINI_BROWSER_URL, txt_path, prompts, log_func)
 
-        created: List[str] = []
-        current_input = txt_path
-        for num, name, text in prompts:
-            out_path = edited_output_path(txt_path, num, name)
-            if resolve_output_path:
-                out_path = resolve_output_path(out_path)
-                if not out_path:
-                    if log_func:
-                        try:
-                            from whisperfast.i18n import t
-                            log_func(
-                                t(
-                                    "file_exists_skipped",
-                                    name=os.path.basename(
-                                        edited_output_path(txt_path, num, name)
-                                    ),
-                                )
-                            )
-                        except ImportError:
-                            pass
-                    break
-            label = name or f"#{num}"
-            if log_func:
-                try:
-                    from whisperfast.i18n import t
-                    log_func(t("gemini_processing_prompt", num=num, name=label))
-                except ImportError:
-                    pass
-            try:
-                content = read_text_file(current_input)
-                user_msg = build_transform_user_message(text, content)
-                result = call_gemini_generate(api_key, model, user_msg)
-                write_text_file(out_path, result)
-            except Exception as e:
-                if log_func:
-                    try:
-                        from whisperfast.i18n import t
-                        log_func(t("gemini_prompt_error", num=num, error=str(e)))
-                    except ImportError:
-                        pass
-                break
-            if not os.path.isfile(out_path):
-                if log_func:
-                    try:
-                        from whisperfast.i18n import t
-                        log_func(t("cursor_output_missing", path=out_path))
-                    except ImportError:
-                        pass
-                break
-            created.append(out_path)
-            if on_file_created:
-                on_file_created(out_path)
-            if log_func:
-                try:
-                    from whisperfast.i18n import t
-                    log_func(t("gemini_file_created", num=num, name=os.path.basename(out_path)))
-                except ImportError:
-                    pass
-            current_input = out_path
-
-        if log_func:
-            try:
-                from whisperfast.i18n import t
-                base = os.path.basename(txt_path)
-                if created:
-                    log_func(t("gemini_chain_done", count=len(created), name=base))
-                else:
-                    log_func(t("gemini_chain_no_output", name=base))
-            except ImportError:
-                pass
-        return created
+        return run_provider_chain(
+            self.id,
+            lambda user_msg: call_gemini_generate(api_key, model, user_msg),
+            txt_path,
+            prompts,
+            log_func,
+            on_file_created,
+            resolve_output_path,
+        )

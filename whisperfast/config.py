@@ -5,6 +5,7 @@ import re
 _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(_PACKAGE_DIR)
 RESOURCES_DIR = os.path.join(BASE_DIR, "resources")
+DOCS_DIR = os.path.join(BASE_DIR, "docs")
 # Pandoc: optional Word styles template (used when file exists)
 TEMPLATES_DIR = os.path.join(RESOURCES_DIR, "templates")
 PANDOC_REFERENCE_DOCX = os.path.join(TEMPLATES_DIR, "reference.docx")
@@ -26,9 +27,13 @@ def load_app_metadata():
     """Загружает метаданные приложения из единственного источника — README.md."""
     try:
         with open(README_PATH, "r", encoding="utf-8") as readme:
-            return parse_app_metadata(readme.read())
-    except OSError:
+            version, publication_date = parse_app_metadata(readme.read())
+    except OSError as e:
+        print(f"Warning: Could not read app version from README.md: {e}")
         return "unknown", "unknown"
+    if version == "unknown":
+        print("Warning: Could not parse **Версія:** from README.md; updates will not be offered")
+    return version, publication_date
 
 
 APP_VERSION, APP_DATE = load_app_metadata()
@@ -79,6 +84,49 @@ _HELP_FILENAMES = {
     "UK": "Help_UK.md",
     "RU": "Help_RU.md",
 }
+
+# Документи у вікні [Довідка]: id, i18n-ключ назви, шлях (None = Help_{lang}.md)
+HELP_DOCUMENTS = (
+    ("user", "help_doc_user", None),
+    ("readme", "help_doc_readme", README_PATH),
+    ("architecture", "help_doc_architecture", os.path.join(DOCS_DIR, "ARCHITECTURE.uk.md")),
+    ("internal", "help_doc_internal", os.path.join(DOCS_DIR, "INTERNAL-ARCHITECTURE.uk.md")),
+    ("configuration", "help_doc_configuration", os.path.join(DOCS_DIR, "CONFIGURATION.uk.md")),
+    ("postprocess", "help_doc_postprocess", os.path.join(DOCS_DIR, "POSTPROCESSING-PROVIDERS.uk.md")),
+    ("model", "help_doc_model", os.path.join(DOCS_DIR, "MODEL-AND-DEVICE-MANAGEMENT.uk.md")),
+    ("setup", "help_doc_setup", os.path.join(DOCS_DIR, "SETUP-AND-DEPENDENCIES.uk.md")),
+    ("updates", "help_doc_updates", os.path.join(DOCS_DIR, "UPDATES.uk.md")),
+    ("changelog", "help_doc_changelog", os.path.join(DOCS_DIR, "CHANGELOG.md")),
+    ("code_review", "help_doc_code_review", os.path.join(DOCS_DIR, "CODE-REVIEW.md")),
+)
+
+
+def list_help_documents():
+    """Документи, які можна показати в вікні довідки (існуючі файли)."""
+    found = []
+    for doc_id, title_key, path in HELP_DOCUMENTS:
+        if path is None or os.path.isfile(path):
+            found.append((doc_id, title_key, path))
+    return found
+
+
+def load_help_document(doc_id, lang_code=None):
+    """Текст обраного документа довідки; «user» — Help_{lang}.md."""
+    if not doc_id or doc_id == "user":
+        return load_help_text(lang_code)
+    for item_id, _title_key, path in HELP_DOCUMENTS:
+        if item_id != doc_id or not path:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                return handle.read()
+        except OSError:
+            break
+    try:
+        from whisperfast.i18n import t
+        return t("help_file_not_found")
+    except ImportError:
+        return "Help file not found."
 
 
 def load_help_text(lang_code=None):

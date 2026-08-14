@@ -6,10 +6,18 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 
 from whisperfast.config import (
     DEFAULT_MODEL,
+    VALID_EXTS,
     WHISPER_MODELS,
     find_whisper_model_cache_path,
     get_whisper_cache_dir,
-    load_help_text,
+    list_help_documents,
+    load_help_document,
+)
+from whisperfast.core.input_files import (
+    get_file_dialog_filetypes,
+    get_valid_files_from_directory,
+    is_valid_file,
+    validate_and_filter_files,
 )
 from whisperfast.core.model_manager import WhisperModelSingleton
 from whisperfast.i18n import t
@@ -20,6 +28,218 @@ from whisperfast.updates.model_updates import (
 )
 from whisperfast.updates.release_notes import format_release_notes_text
 from whisperfast.utils import normalize_display_path
+
+
+def _next_entry_batch_size(current_count):
+    """Скільки порожніх рядків додає кнопка +: 1 → 5 → 10 (для open_watch_dirs_dialog)."""
+    if current_count < 5:
+        return 1
+    if current_count < 10:
+        return 5
+    return 10
+
+
+def open_watch_dirs_dialog(parent, initial_dirs, on_save, center_fn=None):
+    """
+    Модальне вікно списку каталогів слідкування.
+    Зберегти — викликає on_save(list); закриття вікна = скасування.
+
+    Перенесено з core/queue_manager.py (core має лишатись без Tkinter,
+    а показ модального вікна вибору каталогів — це UI-дія) — див.
+    docs/INTERNAL-ARCHITECTURE.uk.md і docs/CODE-REVIEW.md, розділ 1.
+    """
+    initial = list(initial_dirs or [])
+    if not initial:
+        initial = [""]
+
+    dialog = tk.Toplevel(parent)
+    dialog.title(t("watch_dirs_dialog_title"))
+    dialog.transient(parent)
+    dialog.grab_set()
+    dialog.resizable(True, True)
+
+    outer = ttk.Frame(dialog, padding=12)
+    outer.pack(fill="both", expand=True)
+
+    ttk.Label(outer, text=t("watch_dirs_dialog_hint")).pack(anchor="w", pady=(0, 8))
+
+    entries_host = ttk.Frame(outer)
+    entries_host.pack(fill="both", expand=True)
+
+    entry_vars = []
+
+    def _rebuild_layout():
+        for child in entries_host.winfo_children():
+            child.destroy()
+        n = len(entry_vars)
+        cols = 2 if n > 10 else 1
+        rows_per_col = (n + cols - 1) // cols if cols else n
+        for i, var in enumerate(entry_vars):
+            col = i // rows_per_col if cols > 1 else 0
+            row = i % rows_per_col if cols > 1 else i
+            cell = ttk.Frame(entries_host)
+            cell.grid(row=row, column=col, sticky="ew", padx=4, pady=2)
+            ent = ttk.Entry(cell, textvariable=var, width=42)
+            ent.pack(side="left", fill="x", expand=True)
+
+            def browse(v=var):
+                d = filedialog.askdirectory(parent=dialog)
+                if d:
+                    v.set(normalize_display_path(d))
+
+            ttk.Button(cell, text="…", width=3, command=browse).pack(side="left", padx=(4, 0))
+        for c in range(cols):
+            entries_host.columnconfigure(c, weight=1)
+        _resize_dialog()
+
+    def _resize_dialog():
+        dialog.update_idletasks()
+        n = len(entry_vars)
+        cols = 2 if n > 10 else 1
+        rows = (n + cols - 1) // cols
+        row_h = 32
+        base_h = 120
+        base_w = 520 if cols == 1 else 980
+        h = min(base_h + rows * row_h, 700)
+        w = base_w
+        dialog.geometry(f"{w}x{h}")
+        if center_fn:
+            center_fn(dialog)
+
+    def add_rows():
+        batch = _next_entry_batch_size(len(entry_vars))
+        for _ in range(batch):
+            entry_vars.append(tk.StringVar(value=""))
+        _rebuild_layout()
+
+    for path in initial:
+        entry_vars.append(tk.StringVar(value=normalize_display_path(path) if path else ""))
+    _rebuild_layout()
+
+    btns = ttk.Frame(outer)
+    btns.pack(fill="x", pady=(10, 0))
+
+    def close_cancel():
+        dialog.destroy()
+
+    def save_and_close():
+        dirs = []
+        for var in entry_vars:
+            raw = (var.get() or "").strip()
+            if not raw:
+                continue
+            path = normalize_display_path(raw.strip('"').strip("'"))
+            if not path:
+                continue
+            if not os.path.isdir(path):
+                messagebox.showerror(
+                    t("error"),
+                    t("watch_dir_invalid", path=path),
+                    parent=dialog,
+                )
+                return
+            dirs.append(path)
+        on_save(dirs)
+        dialog.destroy()
+
+    ttk.Button(btns, text="+", width=4, command=add_rows).pack(side="left")
+    ttk.Button(btns, text=t("save"), command=save_and_close).pack(side="right", padx=(5, 0))
+    ttk.Button(btns, text=t("cancel_btn"), command=close_cancel).pack(side="right")
+
+    dialog.protocol("WM_DELETE_WINDOW", close_cancel)
+    dialog.bind("<Escape>", lambda e: close_cancel())
+    if center_fn:
+        center_fn(dialog)
+    else:
+        dialog.update_idletasks()
+        dialog.geometry("+%d+%d" % (parent.winfo_rootx() + 40, parent.winfo_rooty() + 40))
+    dialog.wait_window()
+
+
+# --- Диалоги выбора файла/каталога (перенесены из core/input_files.py: core должен
+# оставаться независимым от Tkinter, а показ файлового диалога — это UI-действие,
+# см. docs/INTERNAL-ARCHITECTURE.uk.md и docs/CODE-REVIEW.md, раздел 1) ---
+
+def add_single_file():
+    """
+    Диалог выбора одного файла.
+
+    Returns:
+        Путь к выбранному файлу или None
+    """
+    file_path = filedialog.askopenfilename(title=t("select_file"), filetypes=get_file_dialog_filetypes())
+
+    if file_path and is_valid_file(file_path):
+        return file_path
+    elif file_path:
+        messagebox.showwarning(
+            t("unsupported_format"),
+            t("unsupported_format_msg", filename=os.path.basename(file_path), formats=', '.join(VALID_EXTS))
+        )
+
+    return None
+
+
+def add_multiple_files():
+    """
+    Диалог выбора нескольких файлов.
+
+    Returns:
+        Список путей к выбранным файлам
+    """
+    file_paths = filedialog.askopenfilenames(title=t("select_files"), filetypes=get_file_dialog_filetypes())
+
+    if not file_paths:
+        return []
+
+    valid_files, invalid_files, _ = validate_and_filter_files(file_paths)
+
+    if invalid_files:
+        invalid_names = [os.path.basename(f) for f in invalid_files[:5]]
+        files_str = ', '.join(invalid_names) + ("..." if len(invalid_files) > 5 else "")
+        messagebox.showwarning(
+            t("unsupported_formats"),
+            t("unsupported_formats_msg", files=files_str)
+        )
+
+    return valid_files
+
+
+def add_directory(recursive=True):
+    """
+    Диалог выбора каталога с добавлением всех валидных файлов из него.
+
+    Args:
+        recursive: Если True, обрабатывает вложенные каталоги рекурсивно
+
+    Returns:
+        Список путей к валидным файлам из каталога
+    """
+    directory = filedialog.askdirectory(
+        title=t("select_directory")
+    )
+
+    if not directory:
+        return []
+
+    if not os.path.isdir(directory):
+        messagebox.showerror(t("error_not_directory"), t("error_not_directory_msg"))
+        return []
+
+    valid_files = get_valid_files_from_directory(directory, recursive=recursive)
+
+    if not valid_files:
+        messagebox.showinfo(
+            t("files_not_found"),
+            t("files_not_found_msg", dirname=os.path.basename(directory), formats=', '.join(VALID_EXTS))
+        )
+    else:
+        messagebox.showinfo(
+            t("files_added"),
+            t("files_added_msg", count=len(valid_files))
+        )
+
+    return valid_files
 
 
 def center_toplevel(app, win, parent=None):
@@ -105,7 +325,7 @@ def _lift_existing(app, attr_name):
 
 
 def show_help(app):
-    """Показывает окно справки с прокруткой; при смене языка текст обновляется."""
+    """Показывает окно справки с прокруткой; список документов из docs/; при смене языка текст обновляется."""
     existing = _lift_existing(app, "_help_window")
     if existing is not None:
         return existing
@@ -126,6 +346,16 @@ def show_help(app):
     main_frame = ttk.Frame(help_window, padding=10)
     main_frame.pack(fill="both", expand=True)
 
+    docs = list_help_documents() or [("user", "help_doc_user", None)]
+    selected = ["user"]
+
+    nav = ttk.Frame(main_frame)
+    nav.pack(fill="x", pady=(0, 8))
+    doc_label = ttk.Label(nav, text=t("help_doc_label"))
+    doc_label.pack(side="left")
+    doc_combo = ttk.Combobox(nav, state="readonly")
+    doc_combo.pack(side="left", fill="x", expand=True, padx=(8, 0))
+
     text_widget = scrolledtext.ScrolledText(
         main_frame,
         wrap="word",
@@ -143,15 +373,40 @@ def show_help(app):
     close_btn = ttk.Button(btn_frame, text=t("close"), width=15)
     close_btn.pack(side="right")
 
+    def _ids():
+        return [item[0] for item in docs]
+
+    def _fill_combo():
+        labels = [t(item[1]) for item in docs]
+        doc_combo["values"] = labels
+        ids = _ids()
+        try:
+            doc_combo.current(ids.index(selected[0]))
+        except ValueError:
+            selected[0] = ids[0]
+            doc_combo.current(0)
+
+    def _show_current():
+        lang = app.ui_language.get() if getattr(app, "ui_language", None) else None
+        text_widget.config(state="normal")
+        text_widget.delete("1.0", "end")
+        text_widget.insert("1.0", load_help_document(selected[0], lang))
+        text_widget.config(state="disabled")
+        text_widget.see("1.0")
+
+    def on_doc_selected(_event=None):
+        idx = doc_combo.current()
+        ids = _ids()
+        if 0 <= idx < len(ids):
+            selected[0] = ids[idx]
+        _show_current()
+
     def apply_language():
         help_window.title(t("help_title"))
         close_btn.config(text=t("close"))
-        text_widget.config(state="normal")
-        text_widget.delete("1.0", "end")
-        lang = app.ui_language.get() if getattr(app, "ui_language", None) else None
-        text_widget.insert("1.0", load_help_text(lang))
-        text_widget.config(state="disabled")
-        text_widget.see("1.0")
+        doc_label.config(text=t("help_doc_label"))
+        _fill_combo()
+        _show_current()
 
     def close():
         try:
@@ -163,6 +418,7 @@ def show_help(app):
 
     close_btn.config(command=close)
     help_window.protocol("WM_DELETE_WINDOW", close)
+    doc_combo.bind("<<ComboboxSelected>>", on_doc_selected)
     apply_language()
     track_i18n_window(app, help_window, apply_language)
 
@@ -416,6 +672,12 @@ def model_dialog_refresh_listbox(app, lb, cache_root):
         lb.insert("end", line)
 
 
+def _queue_is_busy(app):
+    """True while the transcription/document queue worker holds its lock."""
+    lock = getattr(app, "_process_queue_lock", None)
+    return bool(lock is not None and lock.locked())
+
+
 def show_model_dialog(app):
     """Открывает окно выбора модели Whisper: список моделей, отметка загруженных и размер."""
     cache_root = get_whisper_cache_dir()
@@ -459,6 +721,9 @@ def show_model_dialog(app):
         if not sel:
             messagebox.showwarning(t("model_update_btn"), t("model_update_select"), parent=win)
             return
+        if _queue_is_busy(app):
+            messagebox.showwarning(t("model_update_btn"), t("model_change_while_busy"), parent=win)
+            return
         chosen = WHISPER_MODELS[sel[0]]
         if not is_model_downloaded(chosen, cache_root):
             messagebox.showinfo(t("model_update_btn"), t("model_update_not_downloaded", model=chosen), parent=win)
@@ -495,6 +760,9 @@ def show_model_dialog(app):
     def on_load():
         sel = lb.curselection()
         if not sel:
+            return
+        if _queue_is_busy(app):
+            messagebox.showwarning(t("model_dialog_title"), t("model_change_while_busy"), parent=win)
             return
         chosen = WHISPER_MODELS[sel[0]]
         app.whisper_model.set(chosen)

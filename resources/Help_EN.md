@@ -126,7 +126,7 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 - **Autostart** — add delayed startup on Windows.
 - **To AI** — enable AI post-processing; the label opens `redactor1.md`.
 - **API keys** — Cursor / Gemini / Claude / Azure OpenAI keys.
-- **Help** — open this file in the interface language.
+- **Help** — open this file in the interface language. Use the document list at the top to also read architecture, setup, and other docs from `docs/`.
 
 ## Display modes
 

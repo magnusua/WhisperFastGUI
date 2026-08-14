@@ -1,0 +1,53 @@
+name: Release checksums
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  checksums:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build source ZIP and SHA256SUMS
+        run: |
+          python scripts/make_release_checksums.py --zip-repo --version "${{ github.event.release.tag_name }}" --out dist
+
+      - name: Optional GPG sign SHA256SUMS
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          if [ -z "$GPG_PRIVATE_KEY" ]; then
+            echo "No GPG_PRIVATE_KEY secret; publishing checksum-only release assets."
+            exit 0
+          fi
+          umask 077
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          if [ -n "$GPG_PASSPHRASE" ]; then
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" \
+              --detach-sign --armor --output dist/SHA256SUMS.asc dist/SHA256SUMS
+          else
+            gpg --batch --yes --detach-sign --armor --output dist/SHA256SUMS.asc dist/SHA256SUMS
+          fi
+          rm -rf "$GNUPGHOME"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber

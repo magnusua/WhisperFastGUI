@@ -14,6 +14,7 @@ import urllib.request
 import zipfile
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, TypedDict
 
+from whisperfast.archive_extract import UnsafeArchiveMember, safe_extract_tar, safe_extract_zip
 from whisperfast.config import BASE_DIR
 from whisperfast.i18n import t
 from whisperfast.platform_util import run_logged_command, win_no_window_kwargs
@@ -544,13 +545,17 @@ def _extract_tool_archive(archive_path: str, dest_dir: str, exe_name: str) -> Op
     try:
         lower = archive_path.lower()
         if lower.endswith(".zip"):
-            with zipfile.ZipFile(archive_path) as zf:
-                zf.extractall(tmp)
+            try:
+                safe_extract_zip(archive_path, tmp)
+            except (zipfile.BadZipFile, OSError, UnsafeArchiveMember):
+                return None
         elif tarfile is not None and (
             lower.endswith(".tar.gz") or lower.endswith(".tgz") or lower.endswith(".tar.xz")
         ):
-            with tarfile.open(archive_path) as tf:
-                tf.extractall(tmp)
+            try:
+                safe_extract_tar(archive_path, tmp)
+            except (OSError, UnsafeArchiveMember):
+                return None
         else:
             return None
         wanted = _tool_exe_name(exe_name)

@@ -2,9 +2,15 @@
 Модуль для добавления файлов в очередь обработки.
 Поддерживает добавление одного файла, группы файлов и каталогов (рекурсивно).
 Централизованная логика валидации и обработки всех способов добавления файлов.
+
+Функции в этом модуле — чистая логика без зависимости от Tkinter (валидация,
+фильтрация, разбор Drag & Drop, запись в очередь), поэтому его можно тестировать
+без запущенного GUI. Диалоги выбора файла/каталога (которые ПОКАЗЫВАЮТ Tk-окно
+пользователю) вынесены в whisperfast/ui/dialogs.py — add_single_file(),
+add_multiple_files(), add_directory() — см. docs/INTERNAL-ARCHITECTURE.uk.md и
+docs/CODE-REVIEW.md, раздел 1.
 """
 import os
-from tkinter import filedialog, messagebox
 from whisperfast.config import (
     VALID_EXTS,
     AUDIO_EXTENSIONS,
@@ -176,88 +182,6 @@ def get_valid_files_from_directory(directory, recursive=True):
                 print(t("dir_scan_error", directory=directory, error=str(e)))
             except ImportError:
                 print(f"{directory}: {e}")
-    return valid_files
-
-
-def add_single_file():
-    """
-    Диалог выбора одного файла.
-    
-    Returns:
-        Путь к выбранному файлу или None
-    """
-    file_path = filedialog.askopenfilename(title=t("select_file"), filetypes=get_file_dialog_filetypes())
-    
-    if file_path and is_valid_file(file_path):
-        return file_path
-    elif file_path:
-        messagebox.showwarning(
-            t("unsupported_format"),
-            t("unsupported_format_msg", filename=os.path.basename(file_path), formats=', '.join(VALID_EXTS))
-        )
-    
-    return None
-
-
-def add_multiple_files():
-    """
-    Диалог выбора нескольких файлов.
-    
-    Returns:
-        Список путей к выбранным файлам
-    """
-    file_paths = filedialog.askopenfilenames(title=t("select_files"), filetypes=get_file_dialog_filetypes())
-    
-    if not file_paths:
-        return []
-    
-    valid_files, invalid_files, _ = validate_and_filter_files(file_paths)
-    
-    if invalid_files:
-        invalid_names = [os.path.basename(f) for f in invalid_files[:5]]
-        files_str = ', '.join(invalid_names) + ("..." if len(invalid_files) > 5 else "")
-        messagebox.showwarning(
-            t("unsupported_formats"),
-            t("unsupported_formats_msg", files=files_str)
-        )
-    
-    return valid_files
-
-
-def add_directory(recursive=True):
-    """
-    Диалог выбора каталога с добавлением всех валидных файлов из него.
-    
-    Args:
-        recursive: Если True, обрабатывает вложенные каталоги рекурсивно
-    
-    Returns:
-        Список путей к валидным файлам из каталога
-    """
-    directory = filedialog.askdirectory(
-        title=t("select_directory")
-    )
-    
-    if not directory:
-        return []
-    
-    if not os.path.isdir(directory):
-        messagebox.showerror(t("error_not_directory"), t("error_not_directory_msg"))
-        return []
-    
-    valid_files = get_valid_files_from_directory(directory, recursive=recursive)
-    
-    if not valid_files:
-        messagebox.showinfo(
-            t("files_not_found"),
-            t("files_not_found_msg", dirname=os.path.basename(directory), formats=', '.join(VALID_EXTS))
-        )
-    else:
-        messagebox.showinfo(
-            t("files_added"),
-            t("files_added_msg", count=len(valid_files))
-        )
-    
     return valid_files
 
 

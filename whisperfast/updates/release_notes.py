@@ -5,11 +5,11 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from whisperfast.config import RESOURCES_DIR
+from whisperfast.config import RESOURCES_DIR, SUPPORTED_LANGUAGES
 from whisperfast.i18n import t
 
 RELEASE_NOTES_FILENAME = "release_notes.json"
-_SUPPORTED = ("EN", "UK", "RU")
+_SUPPORTED = SUPPORTED_LANGUAGES
 
 
 def release_notes_path() -> str:
@@ -39,7 +39,7 @@ def _notes_for_lang(notes_obj: Any, lang: str) -> List[str]:
         return []
     lines = notes_obj.get(lang)
     if not isinstance(lines, list) or not lines:
-        for fallback in ("EN", "UK", "RU"):
+        for fallback in SUPPORTED_LANGUAGES:
             lines = notes_obj.get(fallback)
             if isinstance(lines, list) and lines:
                 break

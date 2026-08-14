@@ -1,0 +1,37 @@
+# Зафіксовані діапазони версій залежностей Whisper Fast GUI.
+#
+# Це довідковий/страховий манифест (див. CODE-REVIEW.md, розділ 7 і
+# SETUP-AND-DEPENDENCIES.uk.md): фактичну установку в звичайному режимі
+# виконує whisperfast/setup/installer.py (там же обирається CUDA-індекс
+# cu121 для torch за наявності NVIDIA — цього requirements.txt не робить).
+# Використовуйте цей файл для відтворюваної установки без installer.py,
+# наприклад: pip install -r requirements.txt
+#
+# torch без CUDA-прискорення (для GPU-збірки дивіться SETUP-AND-DEPENDENCIES.uk.md
+# або просто запустіть installer.py — він сам підбере правильний індекс).
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# faster-whisper сама вимагає ctranslate2>=4.0,<5 (перевірено для 1.2.1);
+# той самий діапазон зафіксовано і тут, щоб `pip install --upgrade` без
+# обмежень не поставив несумісну пару колись у майбутньому.
+faster-whisper>=1.0.0,<2.0.0
+ctranslate2>=4.0,<5.0
+
+pydub>=0.25.1
+pygame>=2.5.0
+tkinterdnd2-universal>=1.7.0
+pystray>=0.19.0
+Pillow>=10.0.0
+cursor-sdk>=1.0.0
+markitdown[pdf,docx,pptx,xlsx,xls]>=0.0.1
+packaging>=23.0
+
+# Лише для Python 3.13+: заміна прибраного стандартного модуля audioop
+# (потрібен pydub). На 3.9-3.12 модуль стандартний, цей пакет там зайвий.
+pyaudioop; python_version >= "3.13"
+
+# nvidia-cublas-cu12 / nvidia-cudnn-cu12 навмисно НЕ включені сюди: вони
+# ставляться лише за потреби через GUI ([Оновлення] / [Залежності]), не
+# при первинному встановленні (див. SETUP-AND-DEPENDENCIES.uk.md).

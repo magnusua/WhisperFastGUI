@@ -118,7 +118,7 @@ def get_audio_duration_seconds(path):
     try:
         from pydub import AudioSegment
         return len(AudioSegment.from_file(path)) / 1000.0
-    except (ImportError, OSError, Exception):
+    except Exception:
         return 0.0
 
 
@@ -143,5 +143,5 @@ def play_finish_sound():
             else:
                 return
         pygame.mixer.music.play()
-    except (ImportError, OSError, Exception):
+    except Exception:
         pass

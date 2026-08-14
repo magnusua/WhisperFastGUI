@@ -21,6 +21,9 @@ _update_staging/
 _apply_update.bat
 _apply_update.sh
 
+# Локально зібрані релізні асети
+dist/
+
 # Локально встановлені FFmpeg / Pandoc
 tools/
 

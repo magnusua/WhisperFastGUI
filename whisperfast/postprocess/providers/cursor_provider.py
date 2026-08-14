@@ -31,7 +31,7 @@ class CursorProvider:
         if not prompts:
             return []
 
-        if not api_key:
+        if not self.has_api_credentials(credentials):
             if log_func:
                 try:
                     from whisperfast.i18n import t

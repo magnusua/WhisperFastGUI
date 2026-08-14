@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.2.12",
+      "date": "15.08.2026",
+      "notes": {
+        "EN": [
+          "App updates: ZIP is taken from a GitHub Release, not from the main branch. SHA-256 (SHA256SUMS) is required before install; without a checksum the update is not offered. Optional GPG if a public key is bundled.",
+          "Safer updates: zip-slip protection on extract, Windows apply script no longer interpolates archive names, settings.json type checks."
+        ],
+        "UK": [
+          "Оновлення програми: ZIP береться з GitHub Release, не з гілки main. Перед встановленням обов’язковий SHA-256 (SHA256SUMS); без контрольної суми оновлення не пропонується. Опційно GPG, якщо в комплекті є публічний ключ.",
+          "Надійніше оновлення: захист від zip-slip, на Windows скрипт застосування більше не підставляє імена з архіву, перевірка типів у settings.json."
+        ],
+        "RU": [
+          "Обновление программы: ZIP берётся с GitHub Release, не с ветки main. Перед установкой обязателен SHA-256 (SHA256SUMS); без контрольной суммы обновление не предлагается. Опционально GPG, если в комплекте есть публичный ключ.",
+          "Надёжнее обновление: защита от zip-slip, на Windows скрипт применения больше не подставляет имена из архива, проверка типов в settings.json."
+        ]
+      }
+    },
+    {
       "version": "1.2.11",
       "date": "14.08.2026",
       "notes": {
