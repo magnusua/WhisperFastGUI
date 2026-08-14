@@ -15,11 +15,13 @@ Whisper Fast GUI сам себе оновлює з GitHub, а окремо — �
 `updates/app_updates.py: apply_app_update()` обирає один із двох шляхів:
 
 - **Якщо в каталозі є `.git`** (`is_git_repo()`) — `git fetch` + `git pull --ff-only` з гілки `main`. Шлях розробника: історія комітів tamper-evident (без перевірки підписів git). Оновлення застосовується одразу, без ZIP.
-- **Інакше (інсталяція з ZIP)** — завантажується асет `WhisperFastGUI-*.zip` **останнього GitHub Release** (іммутабельний тег), разом із `SHA256SUMS`. Перед розпакуванням обов’язково звіряється SHA-256 файлу з рядком у `SHA256SUMS` (GNU або BSD формат). Невідповідність або відсутність суми — оновлення зупиняється, архів не розпаковується. Якщо в `resources/release_signing_key.asc` є непустий публічний ключ, додатково вимагається від’єднаний підпис `SHA256SUMS.asc` / `.sig` і перевірка через `gpg --verify` в ізольованому `GNUPGHOME`. Приватний ключ у репозиторій не кладеться.
+- **Інакше (інсталяція з ZIP)** — завантажується асет `WhisperFastGUI-*.zip` **останнього GitHub Release** (іммутабельний тег), разом із `SHA256SUMS`. Перед розпакуванням обов’язково звіряється SHA-256 файлу з рядком у `SHA256SUMS` (GNU або BSD формат). Невідповідність або відсутність суми — оновлення зупиняється, архів не розпаковується.
+
+**GPG не потрібен для нормальної роботи.** Код уміє перевірити від’єднаний підпис `SHA256SUMS.asc`, але лише якщо в `resources/release_signing_key.asc` лежить непустий публічний ключ. Зараз цього файлу немає — достатньо SHA-256. Приватний ключ у репозиторій не кладеться.
 
 Файли копіюються поверх поточної інсталяції (`_copy_update_files`), крім захищених (`_PRESERVE_FILES = {"settings.json", "request_queue.json", "redactor1.md"}`). На Windows копіювання відкладається до перезапуску через `_apply_update.py` (запускається з `_apply_update.bat`); на macOS/Linux застосовується одразу. Розпакування ZIP — через `archive_extract.safe_extract_zip` (відсікання zip-slip).
 
-**Публікація релізу:** workflow `.github/workflows/release-checksums.yml` на подію `release: published` збирає `WhisperFastGUI-{version}-src.zip` і `SHA256SUMS` (`scripts/make_release_checksums.py`) і завантажує їх як асети. Якщо в secrets є `GPG_PRIVATE_KEY` (опційно `GPG_PASSPHRASE`), CI додає `SHA256SUMS.asc`. Публічний ключ для клієнтів — файл `resources/release_signing_key.asc` (додається окремо, коли ключ заведено).
+**Публікація релізу:** workflow `.github/workflows/release-checksums.yml` на подію `release: published` збирає `WhisperFastGUI-{version}-src.zip` і `SHA256SUMS` (`scripts/make_release_checksums.py`) і завантажує їх як асети. Підпис `SHA256SUMS.asc` з’явиться лише якщо в GitHub Secrets задано `GPG_PRIVATE_KEY` — це свідомо не налаштовано.
 
 FFmpeg/Pandoc з GitHub Releases усе ще ставляться без перевірки контрольної суми — див. [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md).
 

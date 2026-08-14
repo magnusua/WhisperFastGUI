@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "1.2.13",
+      "date": "15.08.2026",
+      "notes": {
+        "EN": [
+          "App updates: a GitHub Release plus SHA-256 (SHA256SUMS) is enough. GPG is not used and is not required."
+        ],
+        "UK": [
+          "Оновлення програми: достатньо GitHub Release і SHA-256 (SHA256SUMS). GPG не використовується і не потрібен."
+        ],
+        "RU": [
+          "Обновление программы: достаточно GitHub Release и SHA-256 (SHA256SUMS). GPG не используется и не нужен."
+        ]
+      }
+    },
+    {
       "version": "1.2.12",
       "date": "15.08.2026",
       "notes": {

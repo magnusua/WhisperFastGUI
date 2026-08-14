@@ -94,7 +94,7 @@ WhisperFastGUI/
 
 ### updates/ — самооновлення
 
-`app_updates.py` (застосунок з **GitHub Release** + обов’язковий SHA-256, опційний GPG), `model_updates.py` (ваги Whisper з Hugging Face Hub), `release_notes.py` (текст «що нового» з `resources/release_notes.json`), `checksums.py` (парсинг `SHA256SUMS`). Детальніше — [UPDATES.uk.md](UPDATES.uk.md).
+`app_updates.py` (застосунок з **GitHub Release** + обов’язковий SHA-256; GPG не вмикається без ключа в `resources/`), `model_updates.py` (ваги Whisper з Hugging Face Hub), `release_notes.py` (текст «що нового» з `resources/release_notes.json`), `checksums.py` (парсинг `SHA256SUMS`). Детальніше — [UPDATES.uk.md](UPDATES.uk.md).
 
 ### i18n/
 
