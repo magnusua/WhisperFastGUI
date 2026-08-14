@@ -1,7 +1,7 @@
 # Whisper Fast GUI
 
-**Версія:** 1.2.10
-**Дата публікації:** 12.08.2026
+**Версія:** 1.2.11
+**Дата публікації:** 14.08.2026
 
 Графічний інтерфейс для транскрибації аудіо та відео на основі Faster-Whisper (OpenAI Whisper). Також обробляє текстові/офісні документи (конвертація в Markdown, опційно AI-постпроцесинг і Word).
 
@@ -36,7 +36,7 @@
 - **Відкриття файлів з логу:** `open` (звичайний клік) та `open -R` (Shift+клік — показати у Finder).
 - **Звук завершення:** як на Linux (системні звуки за відсутності .mp3 у resources/).
 
-На всіх ОС потрібні: **Python 3.9–3.13** (на практиці найстабільніше **3.11 або 3.12**), **FFmpeg** у PATH, залежності (faster-whisper, torch, pydub, markitdown тощо — через [Залежності]). Для **MD → Word** додатково **Pandoc** у PATH. **Python 3.14+** часто не підходить: для нього ще немає коліс **ctranslate2** / **torch** на PyPI — встановлення падає; використовуйте 3.12. Рекомендовано відеокарту NVIDIA з CUDA для прискорення на Windows та Linux.
+На всіх ОС потрібні: **Python 3.9–3.13** (на практиці найстабільніше **3.11 або 3.12**), **FFmpeg**, залежності (faster-whisper, torch, pydub, markitdown тощо — через [Залежності]). Для **MD → Word** додатково **Pandoc**. FFmpeg і Pandoc можна поставити тими ж кнопками [Залежності] / [Оновлення] (не через pip). **Python 3.14+** часто не підходить: для нього ще немає коліс **ctranslate2** / **torch** на PyPI — встановлення падає; використовуйте 3.12. Рекомендовано відеокарту NVIDIA з CUDA для прискорення на Windows та Linux.
 
 ---
 
@@ -81,17 +81,17 @@ WhisperFastGUI/
 │   │   └── lang.json       — тексти інтерфейсу
 │   ├── setup/
 │   │   ├── installer.py        — pip-залежності, перевірка системи
-│   │   ├── external_tools.py   — підказки встановлення FFmpeg / Pandoc (не pip)
+│   │   ├── external_tools.py   — FFmpeg / Pandoc: перевірка, PATH, встановлення (winget / GitHub)
 │   │   ├── python_selector.py  — вибір Python → settings.json
 │   │   └── gpu_info.py         — NVIDIA GPU → settings.json
 │   ├── updates/
 │   │   ├── app_updates.py      — оновлення програми з GitHub
 │   │   └── model_updates.py    — оновлення ваг Whisper (HF Hub)
 │   └── postprocess/
-│       ├── ai_postprocess.py       — оркестратор AI (Cursor / Gemini / Copilot)
+│       ├── ai_postprocess.py       — оркестратор AI (Cursor / Gemini / Claude / Copilot)
 │       ├── common.py               — clipboard, browser, HTTP
 │       ├── cursor_postprocess.py   — Cursor SDK / Chat
-│       └── providers/              — cursor, gemini, copilot (Azure OpenAI)
+│       └── providers/              — cursor, gemini, claude, copilot (Azure OpenAI)
 ├── resources/
 │   ├── favicon.ico         — іконка вікна / панелі задач / трею
 │   ├── m.mp3               — звук завершення (опційно; шукається в resources/)
@@ -180,7 +180,7 @@ WhisperFastGUI/
 | Текст      | .md, .markdown, .txt, .text, .rst, .csv, .html, .htm |
 | Документи  | .pdf, .doc, .docx (конвертуються в Markdown) |
 
-Для аудіо/відео потрібен **FFmpeg** у PATH. Для PDF/DOC/DOCX — **`markitdown[pdf,docx,pptx,xlsx,xls]`** (ставиться через [Залежності] / [Оновлення]). Для **MD → Word** — **Pandoc** у PATH (не pip; інструкції показує [Система] / [Залежності], якщо Pandoc відсутній).
+Для аудіо/відео потрібен **FFmpeg** у PATH. Для PDF/DOC/DOCX — **`markitdown[pdf,docx,pptx,xlsx,xls]`** (ставиться через [Залежності] / [Оновлення]). Для **MD → Word** — **Pandoc**. Якщо Pandoc/FFmpeg немає, [Залежності] і [Оновлення] спробують встановити їх автоматично (Windows: winget / Chocolatey, інакше завантаження в папку `tools/`); [Система] покаже статус і запасні команди.
 
 ---
 
@@ -231,8 +231,8 @@ WhisperFastGUI/
 
 1. **.pdf / .doc / .docx** — конвертація в **.md** (через `markitdown`); у лог пишеться, що **вихідний** файл в AI не передавався.
 2. **.md** та інші текстові формати — готується Markdown у каталозі збереження (копія/запис `.md`).
-3. Якщо увімкнено **«В AI»** — відкривається вікно вибору промптів і інтеграції (Cursor / Gemini / Copilot); у AI передається **Markdown**.
-4. Якщо увімкнено **«MD → Word»** — після готовності MD (або після кожного результату AI) створюється **.docx** через **Pandoc** (має бути в PATH). Якщо Pandoc не знайдено — у логу та діалозі з’являються команди встановлення для Windows / macOS / Linux. Опційні стилі Word: `resources/templates/reference.docx`.
+3. Якщо увімкнено **«В AI»** — відкривається вікно вибору промптів і інтеграції (Cursor / Gemini / Claude / Copilot); у AI передається **Markdown**.
+4. Якщо увімкнено **«MD → Word»** — після готовності MD (або після кожного результату AI) створюється **.docx** через **Pandoc**. Якщо Pandoc не знайдено, програма запропонує встановити його (або покаже команди для Windows / macOS / Linux). Опційні стилі Word: `resources/templates/reference.docx`.
 
 ---
 
@@ -256,19 +256,19 @@ WhisperFastGUI/
 **Додаткові опції:**
 - Відтворити звук по завершенні черги.
 - Зберегти витягнуте аудіо (MP3) — для повного файлу один `<ім'я>_audio.mp3`; для відрізка — окремий файл з суфіксом часу (наприклад `<ім'я>_00-20-00_01-00-00_audio.mp3`).
-- **В AI** — після створення `.txt` (транскрибація) або `.md` (документи): вікно промптів і вибір інтеграції (Cursor / Gemini / Copilot).
+- **В AI** — після створення `.txt` (транскрибація) або `.md` (документи): вікно промптів і вибір інтеграції (Cursor / Gemini / Claude / Copilot).
 - **MD → Word** — експорт Markdown у `.docx` через Pandoc (після MD або після кожного результату AI).
 
 ---
 
-## Постпроцесинг TXT/MD у AI (Cursor / Gemini / Copilot)
+## Постпроцесинг TXT/MD у AI (Cursor / Gemini / Claude / Copilot)
 
 1. Увімкніть прапорець **«В AI»**.
 2. За потреби змініть промпти: кнопка **«В AI»** відкриває `redactor1.md` (секції `## Промпт №1 "name"`, …).
-3. Ключі API: кнопка **[API keys]** — одне вікно для Cursor, Gemini і Azure OpenAI (Copilot). Закриття через X не зберігає зміни. Env має пріоритет: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `AZURE_OPENAI_*`.
+3. Ключі API: кнопка **[API keys]** — одне вікно для Cursor, Gemini, Claude і Azure OpenAI (Copilot). Закриття через X не зберігає зміни. Env має пріоритет: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`.
 
 Після Whisper/документа в логу з’являється клікабельне **«Передаю в AI»** і вікно **«Промти»**:
-- вибір інтеграції: **Cursor** | **Gemini** | **Copilot**;
+- вибір інтеграції: **Cursor** | **Gemini** | **Claude** | **Copilot**;
 - галочки / клік по назві — вибір промптів (за замовчуванням відмічений перший);
 - **Виконати** (або **Пробіл**) — лише відмічені; **Всі** — усі промпти одразу;
 - закриття вікна — без AI; у логу буде посилання відкрити вибір знову.
@@ -277,6 +277,7 @@ WhisperFastGUI/
 |------------|----------------|----------------------|
 | **Cursor** | Cursor SDK, ланцюжок промптів | Cursor Chat + промпт у буфері |
 | **Gemini** | Google Generative Language API | Браузер gemini.google.com + буфер |
+| **Claude** | Anthropic Messages API | Браузер claude.ai + буфер |
 | **Copilot** | Azure OpenAI (endpoint + key + deployment) | Браузер copilot.microsoft.com + буфер |
 
 Імена вихідних файлів — з лапок у заголовку промпта (`## Промпт №2 "TW_core"` → `*_TW_core.md`). Порожні секції пропускаються.
@@ -311,8 +312,8 @@ WhisperFastGUI/
 | [Додати каталог]     | Додавання всіх підтримуваних файлів з каталогу рекурсивно |
 | [Очистити чергу]     | Видалення всіх файлів зі списку |
 | [Система]            | Перевірка Python, ключових pip-пакетів, GPU/CUDA, FFmpeg і Pandoc; якщо FFmpeg/Pandoc відсутні — у лог виводяться інструкції встановлення |
-| [Залежності]         | Повна установка/перевстановлення pip-пакетів (torch, whisper, multimedia, cursor-sdk, markitdown з office-extras, packaging…); після pip — перевірка FFmpeg/Pandoc з підказками; опція Force Reinstall |
-| [Оновлення]          | Перевірка оновлень: спочатку версія програми на GitHub, далі pip-пакети (для NVIDIA — torch з індексу CUDA 12.1 / cu121), моделі Whisper; після підтвердження встановлює вибране (markitdown — з extras) |
+| [Залежності]         | Повна установка pip-пакетів (torch, whisper, multimedia, cursor-sdk, markitdown з office-extras, packaging…) **і** системних програм (FFmpeg, Pandoc через winget/Chocolatey/Homebrew або завантаження в `tools/`); у логу видно команди pip; опція Force Reinstall |
+| [Оновлення]          | Перевірка оновлень: спочатку версія програми на GitHub, далі pip-пакети (для NVIDIA — torch з індексу CUDA 12.1 / cu121), моделі Whisper, FFmpeg/Pandoc; після підтвердження встановлює вибране (pip і системні утиліти) |
 | Кнопка моделі        | Діалог вибору моделі Whisper: список (завантажені / не завантажені), «Завантажити модель», «Оновити модель», «OK», «Скасувати» |
 | [Очистити лог]       | Очищення вікна логу та `app_log.json` |
 | [Автозапуск]         | Запуск `autorun_delayed.bat`: додає програму в автозавантаження Windows з затримкою 25 с (тільки Windows) |
@@ -320,7 +321,7 @@ WhisperFastGUI/
 | [mp3]                | Чекбокс увімкнення MP3; кнопка — місце збереження MP3 (як у Сохранение / поруч із відео / окремий каталог) |
 | [Довідка]            | Ця довідка |
 | [В AI]               | Чекбокс AI-постпроцесингу; кнопка відкриває `redactor1.md` |
-| [API keys]           | Ключі Cursor / Gemini / Azure OpenAI (Copilot) |
+| [API keys]           | Ключі Cursor / Gemini / Claude / Azure OpenAI (Copilot) |
 | [MD → Word]          | Чекбокс експорту Markdown у Word (.docx) через Pandoc |
 
 **Прапорці:** «Відтворити звук по завершенні черги»; **mp3**, **Слідкування**, **В AI**, **MD → Word** — чекбокс окремо (для AI підпис-кнопка відкриває промпти).
@@ -358,6 +359,12 @@ WhisperFastGUI/
 - **Оновлення torch на NVIDIA:** якщо виявлено відеокарту NVIDIA, для torch використовується індекс **CUDA 12.1 (cu121)**, а не звичайний PyPI (щоб не пропонувати CPU-збірку).
 
 ---
+
+## Що нового в 1.2.11
+
+- **Залежності / Оновлення:** pip-команди видно в логу; FFmpeg і Pandoc ставляться автоматично (winget / Chocolatey / Homebrew або завантаження в `tools/`), без ручного копіювання інструкцій.
+- **MD → Word:** якщо Pandoc немає, програма пропонує встановити його одразу.
+- **Claude:** провайдер Anthropic у вікні промптів і в **API keys** (ключ + модель; без ключа — браузер claude.ai).
 
 ## Що нового в 1.2.10
 
@@ -404,9 +411,9 @@ WhisperFastGUI/
 
 ## Що нового в 1.2.3
 
-- **В AI:** чекбокс і кнопка замість «В Cursor»; вибір інтеграції у вікні промптів — **Cursor**, **Gemini**, **Copilot** (Azure OpenAI).
+- **В AI:** чекбокс і кнопка замість «В Cursor»; вибір інтеграції у вікні промптів — **Cursor**, **Gemini**, **Claude**, **Copilot** (Azure OpenAI).
 - **Вікно промптів:** галочки, **Виконати** / **Пробіл**, **Всі**, перший промпт відмічений за замовчуванням; закриття = пропуск AI з можливістю відкрити знову з логу.
-- **API + fallback:** Cursor SDK / Chat; Gemini API / браузер; Azure OpenAI / браузер Copilot. Ключі в одному діалозі **API keys**.
+- **API + fallback:** Cursor SDK / Chat; Gemini API / браузер; Claude (Anthropic) API / браузер; Azure OpenAI / браузер Copilot. Ключі в одному діалозі **API keys**.
 - **Лог:** збереження в `app_log.json`, секції по днях зі згортанням; сьогодні завжди розгорнуте.
 - **i18n:** повідомлення про помилки винесені в `lang.json` (EN/UK/RU).
 - **Провідник:** Shift+клік по шляху в логу знову відкриває видиме вікно Explorer (без прихованого запуску).
@@ -503,12 +510,12 @@ WhisperFastGUI/
    - macOS: `brew install ffmpeg`  
    - Linux: `sudo apt install ffmpeg`  
 
-3. **(Опційно) Pandoc** — лише для **MD → Word**:  
+3. **(Опційно) Pandoc** — лише для **MD → Word**. Можна поставити кнопкою **[Залежності]** / **[Оновлення]** або вручну:  
    - Сайт: https://pandoc.org/installing.html  
    - Windows: `winget install --id JohnMacFarlane.Pandoc -e` або `choco install pandoc`  
    - macOS: `brew install pandoc`  
    - Linux: `sudo apt install pandoc`  
-   Після встановлення перезапустіть термінал / програму, щоб оновився PATH. Якщо Pandoc відсутній, [Система] і [Залежності] покажуть ці підказки в логу.
+   Після ручного встановлення перезапустіть термінал / програму, щоб оновився PATH. Якщо автоматичне встановлення не вдалося, [Система] покаже ці підказки в логу.
 
 4. **Запустіть `install.bat`** (або [Залежності] у GUI). Скрипт:
    - перевіряє Python та вже встановлені пакети;
@@ -516,7 +523,8 @@ WhisperFastGUI/
    - встановлює PyTorch (CUDA 12.1 за наявності NVIDIA), faster-whisper, ctranslate2;
    - пропускає nvidia-cublas-cu12 / nvidia-cudnn-cu12 при першому встановленні (їх можна поставити з GUI: [Оновлення] або [Залежності]);
    - встановлює pygame, pydub, tkinterdnd2-universal, pystray, Pillow, cursor-sdk, **markitdown[pdf,docx,pptx,xlsx,xls]**;
-   - перевіряє пакети, FFmpeg, Pandoc і CUDA; для відсутніх системних утиліт друкує інструкції.
+   - за потреби встановлює **FFmpeg** і **Pandoc** (winget / Chocolatey / завантаження в `tools/`);
+   - перевіряє пакети, FFmpeg, Pandoc і CUDA; якщо автоустановка не вдалася — друкує інструкції.
 
 5. **Запустіть Whisper Fast GUI.** Якщо знайдено кілька версій Python, виберіть потрібну в діалозі першого запуску. Вибір зберігається у `settings.json`. Щоб повторити вибір, видаліть ключі `python_path` і `python_version` з цього файла.
 
@@ -560,15 +568,15 @@ WhisperFastGUI/
 | **markitdown** | Конвертація PDF/DOC/DOCX (та ін.) у Markdown; ставиться як `markitdown[pdf,docx,pptx,xlsx,xls]`. |
 | **packaging** | Порівняння версій пакетів при перевірці оновлень. |
 | **pyaudioop** | Заміна видаленого модуля `audioop` у Python 3.13+ (потрібен для pydub). |
-| **ffmpeg** | Системна програма (не pip): декодування аудіо/відео. Інструкції — у розділі встановлення та в логу [Система]/[Залежності]. |
-| **pandoc** | Системна програма (не pip, опційно): MD → Word. Інструкції — у розділі встановлення та в логу, якщо Pandoc відсутній. |
+| **ffmpeg** | Системна програма (не pip): декодування аудіо/відео. Ставиться через [Залежності] / [Оновлення] (winget / `tools/`) або вручну. |
+| **pandoc** | Системна програма (не pip, опційно): MD → Word. Ставиться через [Залежності] / [Оновлення] / галочку MD → Word, або вручну. |
 
 **Примітки:**
 - **nvidia-cublas-cu12** та **nvidia-cudnn-cu12** при першому запуску (install.bat або автоустановка) не ставляться; їх встановлюють кнопки [Оновлення] або [Залежності] в програмі.
 - **pyaudioop** потрібен лише для Python 3.13+; за потреби встановлюється автоматично.
 - **tkinter** — частина стандартної поставки Python; використовується для графічного інтерфейсу.
 - **pandoc** потрібен лише для опції **MD → Word**; без нього транскрибація й AI-постпроцесинг працюють як раніше.
-- Після встановлення FFmpeg/Pandoc перезапустіть програму (оновлення PATH).
+- Після ручного встановлення FFmpeg/Pandoc перезапустіть програму (оновлення PATH). Автоустановка через GUI оновлює PATH поточного процесу без перезапуску.
 
 ---
 

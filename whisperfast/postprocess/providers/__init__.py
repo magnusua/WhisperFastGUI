@@ -4,21 +4,29 @@ from __future__ import annotations
 from typing import Dict, List, Tuple
 
 from whisperfast.postprocess.providers.base import AIProvider
+from whisperfast.postprocess.providers.claude import ClaudeProvider
 from whisperfast.postprocess.providers.copilot import CopilotProvider
 from whisperfast.postprocess.providers.cursor_provider import CursorProvider
 from whisperfast.postprocess.providers.gemini import GeminiProvider
 
 PROVIDER_CURSOR = "cursor"
 PROVIDER_GEMINI = "gemini"
+PROVIDER_CLAUDE = "claude"
 PROVIDER_COPILOT = "copilot"
 
 PROVIDERS: Dict[str, AIProvider] = {
     PROVIDER_CURSOR: CursorProvider(),
     PROVIDER_GEMINI: GeminiProvider(),
+    PROVIDER_CLAUDE: ClaudeProvider(),
     PROVIDER_COPILOT: CopilotProvider(),
 }
 
-PROVIDER_ORDER: List[str] = [PROVIDER_CURSOR, PROVIDER_GEMINI, PROVIDER_COPILOT]
+PROVIDER_ORDER: List[str] = [
+    PROVIDER_CURSOR,
+    PROVIDER_GEMINI,
+    PROVIDER_CLAUDE,
+    PROVIDER_COPILOT,
+]
 
 
 def get_provider(provider_id: str) -> AIProvider:
@@ -33,6 +41,7 @@ def provider_choices() -> List[Tuple[str, str]]:
     return [
         (PROVIDER_CURSOR, "ai_provider_cursor"),
         (PROVIDER_GEMINI, "ai_provider_gemini"),
+        (PROVIDER_CLAUDE, "ai_provider_claude"),
         (PROVIDER_COPILOT, "ai_provider_copilot"),
     ]
 

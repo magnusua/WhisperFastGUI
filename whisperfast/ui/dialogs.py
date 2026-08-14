@@ -537,7 +537,7 @@ def show_cursor_api_key_dialog(app):
 
 
 def show_ai_api_keys_dialog(app):
-    """Модальне вікно ключів Cursor / Gemini / Azure OpenAI (Copilot)."""
+    """Модальне вікно ключів Cursor / Gemini / Claude / Azure OpenAI (Copilot)."""
     dialog = tk.Toplevel(app.root)
     dialog.title(t("ai_api_keys_title"))
     dialog.transient(app.root)
@@ -550,6 +550,8 @@ def show_ai_api_keys_dialog(app):
     cursor_key = tk.StringVar(value=app.cursor_api_key.get())
     gemini_key = tk.StringVar(value=app.gemini_api_key.get())
     gemini_model = tk.StringVar(value=app.gemini_model.get() or "gemini-2.0-flash")
+    anthropic_key = tk.StringVar(value=app.anthropic_api_key.get())
+    claude_model = tk.StringVar(value=app.claude_model.get() or "claude-sonnet-4-5")
     azure_endpoint = tk.StringVar(value=app.azure_openai_endpoint.get())
     azure_key = tk.StringVar(value=app.azure_openai_api_key.get())
     azure_deployment = tk.StringVar(value=app.azure_openai_deployment.get())
@@ -573,6 +575,16 @@ def show_ai_api_keys_dialog(app):
     model_row.pack(fill="x")
     ttk.Label(model_row, text=t("gemini_model_label")).pack(side="left")
     ttk.Entry(model_row, textvariable=gemini_model, width=28).pack(
+        side="left", fill="x", expand=True, padx=(8, 0)
+    )
+
+    section("ai_api_keys_claude")
+    ttk.Label(frame, text=t("claude_api_key_prompt")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=anthropic_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    claude_model_row = ttk.Frame(frame)
+    claude_model_row.pack(fill="x")
+    ttk.Label(claude_model_row, text=t("claude_model_label")).pack(side="left")
+    ttk.Entry(claude_model_row, textvariable=claude_model, width=28).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
 
@@ -605,6 +617,8 @@ def show_ai_api_keys_dialog(app):
         app.cursor_api_key.set((cursor_key.get() or "").strip())
         app.gemini_api_key.set((gemini_key.get() or "").strip())
         app.gemini_model.set((gemini_model.get() or "").strip() or "gemini-2.0-flash")
+        app.anthropic_api_key.set((anthropic_key.get() or "").strip())
+        app.claude_model.set((claude_model.get() or "").strip() or "claude-sonnet-4-5")
         app.azure_openai_endpoint.set((azure_endpoint.get() or "").strip().rstrip("/"))
         app.azure_openai_api_key.set((azure_key.get() or "").strip())
         app.azure_openai_deployment.set((azure_deployment.get() or "").strip())

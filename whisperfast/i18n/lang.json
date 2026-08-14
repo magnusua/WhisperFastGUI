@@ -349,6 +349,11 @@
     "UK": "Google Gemini",
     "RU": "Google Gemini"
   },
+  "ai_api_keys_claude": {
+    "EN": "Anthropic Claude",
+    "UK": "Anthropic Claude",
+    "RU": "Anthropic Claude"
+  },
   "ai_api_keys_copilot": {
     "EN": "Microsoft Copilot (Azure OpenAI)",
     "UK": "Microsoft Copilot (Azure OpenAI)",
@@ -360,6 +365,16 @@
     "RU": "Gemini API ключ (Google AI Studio). Пусто = открыть gemini.google.com с промптом в буфере."
   },
   "gemini_model_label": {
+    "EN": "Model:",
+    "UK": "Модель:",
+    "RU": "Модель:"
+  },
+  "claude_api_key_prompt": {
+    "EN": "Anthropic API key (console.anthropic.com). Empty = open claude.ai with prompt in clipboard.",
+    "UK": "Anthropic API ключ (console.anthropic.com). Порожнє = відкрити claude.ai з промптом у буфері.",
+    "RU": "Anthropic API ключ (console.anthropic.com). Пусто = открыть claude.ai с промптом в буфере."
+  },
+  "claude_model_label": {
     "EN": "Model:",
     "UK": "Модель:",
     "RU": "Модель:"
@@ -403,6 +418,11 @@
     "EN": "Gemini",
     "UK": "Gemini",
     "RU": "Gemini"
+  },
+  "ai_provider_claude": {
+    "EN": "Claude",
+    "UK": "Claude",
+    "RU": "Claude"
   },
   "ai_provider_copilot": {
     "EN": "Copilot",
@@ -583,6 +603,51 @@
     "EN": "⚠ Gemini finished with no output files for: {name}",
     "UK": "⚠ Gemini завершив без вихідних файлів для: {name}",
     "RU": "⚠ Gemini завершил без выходных файлов для: {name}"
+  },
+  "claude_no_api_key_fallback": {
+    "EN": "⚠ No Anthropic API key — opening Claude in the browser (paste prompt from clipboard).",
+    "UK": "⚠ Немає Anthropic API ключа — відкриваю Claude у браузері (вставте промпт з буфера).",
+    "RU": "⚠ Нет Anthropic API ключа — открываю Claude в браузере (вставьте промпт из буфера)."
+  },
+  "claude_browser_opened": {
+    "EN": "💬 Claude opened in browser for: {name}",
+    "UK": "💬 Claude відкрито в браузері для: {name}",
+    "RU": "💬 Claude открыт в браузере для: {name}"
+  },
+  "claude_browser_prompt_copied": {
+    "EN": "📋 Prompt copied to clipboard — paste it into Claude and confirm.",
+    "UK": "📋 Промпт скопійовано в буфер — вставте в Claude і підтвердіть.",
+    "RU": "📋 Промпт скопирован в буфер — вставьте в Claude и подтвердите."
+  },
+  "claude_browser_manual_hint": {
+    "EN": "💡 Open Claude and paste the prompt from redactor1.md, then confirm.",
+    "UK": "💡 Відкрийте Claude, вставте промпт з redactor1.md і підтвердіть.",
+    "RU": "💡 Откройте Claude, вставьте промпт из redactor1.md и подтвердите."
+  },
+  "claude_processing_prompt": {
+    "EN": "▶ Claude: processing prompt #{num} ({name})…",
+    "UK": "▶ Claude: обробка промпту №{num} ({name})…",
+    "RU": "▶ Claude: обработка промпта №{num} ({name})…"
+  },
+  "claude_file_created": {
+    "EN": "✅ Claude processed prompt #{num} and created: {name}",
+    "UK": "✅ Claude обробив промпт №{num} і створив: {name}",
+    "RU": "✅ Claude обработал промпт №{num} и создал: {name}"
+  },
+  "claude_prompt_error": {
+    "EN": "❌ Claude prompt #{num} failed: {error}",
+    "UK": "❌ Помилка Claude (промпт №{num}): {error}",
+    "RU": "❌ Ошибка Claude (промпт №{num}): {error}"
+  },
+  "claude_chain_done": {
+    "EN": "✅ Claude finished ({count} file(s)) for: {name}",
+    "UK": "✅ Claude завершив ({count} файл(ів)) для: {name}",
+    "RU": "✅ Claude завершил ({count} файл(ов)) для: {name}"
+  },
+  "claude_chain_no_output": {
+    "EN": "⚠ Claude finished with no output files for: {name}",
+    "UK": "⚠ Claude завершив без вихідних файлів для: {name}",
+    "RU": "⚠ Claude завершил без выходных файлов для: {name}"
   },
   "copilot_no_api_key_fallback": {
     "EN": "⚠ No Azure OpenAI credentials — opening Microsoft Copilot in the browser.",
@@ -1230,14 +1295,14 @@
     "RU": "⚠ {tool}: {current} -> {latest}"
   },
   "external_tool_missing": {
-    "EN": "⚠ {tool}: not installed -> {latest} (manual install)",
-    "UK": "⚠ {tool}: не встановлено -> {latest} (вручну)",
-    "RU": "⚠ {tool}: не установлен -> {latest} (вручную)"
+    "EN": "⚠ {tool}: not installed -> {latest} (will install)",
+    "UK": "⚠ {tool}: не встановлено -> {latest} (буде встановлено)",
+    "RU": "⚠ {tool}: не установлен -> {latest} (будет установлен)"
   },
   "external_tool_missing_no_latest": {
-    "EN": "⚠ {tool}: not installed (manual install)",
-    "UK": "⚠ {tool}: не встановлено (вручну)",
-    "RU": "⚠ {tool}: не установлен (вручную)"
+    "EN": "⚠ {tool}: not installed (will install)",
+    "UK": "⚠ {tool}: не встановлено (буде встановлено)",
+    "RU": "⚠ {tool}: не установлен (будет установлен)"
   },
   "external_tool_check_failed": {
     "EN": "⚠ {tool}: could not check latest version (installed: {version})",
@@ -1245,9 +1310,9 @@
     "RU": "⚠ {tool}: не удалось проверить последнюю версию (установлено: {version})"
   },
   "external_tool_update_line": {
-    "EN": "{tool}: {current} -> {latest} (manual)",
-    "UK": "{tool}: {current} -> {latest} (вручну)",
-    "RU": "{tool}: {current} -> {latest} (вручную)"
+    "EN": "{tool}: {current} -> {latest}",
+    "UK": "{tool}: {current} -> {latest}",
+    "RU": "{tool}: {current} -> {latest}"
   },
   "external_tool_not_installed": {
     "EN": "not installed",
@@ -1255,14 +1320,84 @@
     "RU": "не установлен"
   },
   "external_tool_manual_hint": {
-    "EN": "Pandoc/FFmpeg cannot be installed via pip — instructions will be shown in the log.",
-    "UK": "Pandoc/FFmpeg не встановлюються через pip — інструкції з’являться в журналі.",
-    "RU": "Pandoc/FFmpeg не устанавливаются через pip — инструкции появятся в журнале."
+    "EN": "Pandoc/FFmpeg are not pip packages — they will be installed via winget / Homebrew / Chocolatey, or downloaded into the program tools folder.",
+    "UK": "Pandoc/FFmpeg не є pip-пакетами — їх буде встановлено через winget / Homebrew / Chocolatey або завантажено в папку tools програми.",
+    "RU": "Pandoc/FFmpeg не являются pip-пакетами — они будут установлены через winget / Homebrew / Chocolatey или загружены в папку tools программы."
   },
   "external_tool_manual_howto_header": {
-    "EN": "▶ Manual install/update for external tools:",
-    "UK": "▶ Встановлення/оновлення зовнішніх інструментів вручну:",
-    "RU": "▶ Установка/обновление внешних инструментов вручную:"
+    "EN": "▶ Installing/updating external tools:",
+    "UK": "▶ Встановлення/оновлення зовнішніх інструментів:",
+    "RU": "▶ Установка/обновление внешних инструментов:"
+  },
+  "install_running_cmd": {
+    "EN": "   $ {cmd}",
+    "UK": "   $ {cmd}",
+    "RU": "   $ {cmd}"
+  },
+  "install_external_tools_start": {
+    "EN": "▶ Installing system tools (FFmpeg, Pandoc)…",
+    "UK": "▶ Встановлення системних утиліт (FFmpeg, Pandoc)…",
+    "RU": "▶ Установка системных утилит (FFmpeg, Pandoc)…"
+  },
+  "external_tool_installing": {
+    "EN": "📦 Installing {tool}…",
+    "UK": "📦 Встановлення {tool}…",
+    "RU": "📦 Установка {tool}…"
+  },
+  "external_tool_install_ok": {
+    "EN": "✅ {tool}: installed ({version})",
+    "UK": "✅ {tool}: встановлено ({version})",
+    "RU": "✅ {tool}: установлен ({version})"
+  },
+  "external_tool_install_failed": {
+    "EN": "❌ {tool}: automatic install failed. Manual steps:",
+    "UK": "❌ {tool}: автоматичне встановлення не вдалося. Кроки вручну:",
+    "RU": "❌ {tool}: автоматическая установка не удалась. Шаги вручную:"
+  },
+  "external_tool_already": {
+    "EN": "✓ {tool}: already installed ({version})",
+    "UK": "✓ {tool}: уже встановлено ({version})",
+    "RU": "✓ {tool}: уже установлен ({version})"
+  },
+  "external_tool_trying_github": {
+    "EN": "   Package manager unavailable — downloading {tool} from GitHub…",
+    "UK": "   Менеджер пакетів недоступний — завантаження {tool} з GitHub…",
+    "RU": "   Менеджер пакетов недоступен — загрузка {tool} с GitHub…"
+  },
+  "external_tool_downloading": {
+    "EN": "   Downloading: {url}",
+    "UK": "   Завантаження: {url}",
+    "RU": "   Загрузка: {url}"
+  },
+  "external_tool_download_failed": {
+    "EN": "   Download failed: {error}",
+    "UK": "   Помилка завантаження: {error}",
+    "RU": "   Ошибка загрузки: {error}"
+  },
+  "external_tool_no_asset": {
+    "EN": "   No suitable {tool} archive for this OS.",
+    "UK": "   Немає відповідного архіву {tool} для цієї ОС.",
+    "RU": "   Нет подходящего архива {tool} для этой ОС."
+  },
+  "external_tool_extract_failed": {
+    "EN": "   Could not extract {tool} from the archive.",
+    "UK": "   Не вдалося розпакувати {tool} з архіву.",
+    "RU": "   Не удалось распаковать {tool} из архива."
+  },
+  "external_tool_local_ok": {
+    "EN": "   {tool} saved to {path}",
+    "UK": "   {tool} збережено в {path}",
+    "RU": "   {tool} сохранён в {path}"
+  },
+  "external_tool_keep_current": {
+    "EN": "⚠ {tool}: update via package manager failed; keeping the installed version.",
+    "UK": "⚠ {tool}: оновлення через менеджер пакетів не вдалося; залишаємо встановлену версію.",
+    "RU": "⚠ {tool}: обновление через менеджер пакетов не удалось; оставляем установленную версию."
+  },
+  "pandoc_install_now_prompt": {
+    "EN": "Pandoc was not found.\nIt is required for MD → Word.\n\nInstall Pandoc now?",
+    "UK": "Pandoc не знайдено.\nВін потрібен для MD → Word.\n\nВстановити Pandoc зараз?",
+    "RU": "Pandoc не найден.\nОн нужен для MD → Word.\n\nУстановить Pandoc сейчас?"
   },
   "checking_app_update": {
     "EN": "▶ Checking app version on {url}...",
@@ -1950,9 +2085,9 @@
     "RU": "Проверить GPU (CUDA), FFmpeg, Pandoc и ключевые Python-пакеты."
   },
   "tooltip_updates": {
-    "EN": "Check updates: PyPI packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, Pandoc/FFmpeg, and WhisperFastGUI app on GitHub.",
-    "UK": "Перевірити оновлення: пакети PyPI, Torch (CUDA 12.1 при NVIDIA), моделі Whisper, Pandoc/FFmpeg та саму програму на GitHub.",
-    "RU": "Проверить обновления: пакеты PyPI, Torch (CUDA 12.1 при NVIDIA), модели Whisper, Pandoc/FFmpeg и саму программу на GitHub."
+    "EN": "Check updates: pip packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, Pandoc/FFmpeg (winget/GitHub), and WhisperFastGUI on GitHub.",
+    "UK": "Перевірити оновлення: pip-пакети, Torch (CUDA 12.1 при NVIDIA), моделі Whisper, Pandoc/FFmpeg (winget/GitHub) та саму програму на GitHub.",
+    "RU": "Проверить обновления: pip-пакеты, Torch (CUDA 12.1 при NVIDIA), модели Whisper, Pandoc/FFmpeg (winget/GitHub) и саму программу на GitHub."
   },
   "tray_mode_panel": {
     "EN": "Panel",
@@ -2115,9 +2250,9 @@
     "RU": "Не удалось запустить скрипт автозапуска"
   },
   "tooltip_dependencies": {
-    "EN": "Install or reinstall dependencies (PyTorch, faster-whisper, etc.). Option: Force Reinstall.",
-    "UK": "Встановити або перевстановити залежності (PyTorch, faster-whisper тощо). Опція: примусова перевстановка.",
-    "RU": "Установить или переустановить зависимости (PyTorch, faster-whisper и др.). Опция: принудительная переустановка."
+    "EN": "Install or reinstall pip packages (PyTorch, faster-whisper, markitdown…) and system tools (FFmpeg, Pandoc). Option: Force Reinstall.",
+    "UK": "Встановити або перевстановити pip-пакети (PyTorch, faster-whisper, markitdown…) і системні утиліти (FFmpeg, Pandoc). Опція: примусова перевстановка.",
+    "RU": "Установить или переустановить pip-пакеты (PyTorch, faster-whisper, markitdown…) и системные утилиты (FFmpeg, Pandoc). Опция: принудительная переустановка."
   },
   "watch_folder_label": {
     "EN": "Watch",
@@ -2275,9 +2410,9 @@
     "RU": "Конвертация дала пустой Markdown."
   },
   "pandoc_missing_runtime": {
-    "EN": "Pandoc is not installed or not in PATH. Install from https://pandoc.org/installing.html",
-    "UK": "Pandoc не встановлено або не в PATH. Встановіть з https://pandoc.org/installing.html",
-    "RU": "Pandoc не установлен или не в PATH. Установите с https://pandoc.org/installing.html"
+    "EN": "Pandoc is not installed. Use [Dependencies] or [Updates], or install from https://pandoc.org/installing.html",
+    "UK": "Pandoc не встановлено. Використайте [Залежності] чи [Оновлення], або встановіть з https://pandoc.org/installing.html",
+    "RU": "Pandoc не установлен. Используйте [Зависимости] или [Обновление], либо установите с https://pandoc.org/installing.html"
   },
   "pandoc_timeout": {
     "EN": "Pandoc timed out while converting Markdown.",
@@ -2308,6 +2443,16 @@
     "EN": "Gemini returned empty text.",
     "UK": "Gemini повернув порожній текст.",
     "RU": "Gemini вернул пустой текст."
+  },
+  "claude_no_content": {
+    "EN": "Claude returned no content: {detail}",
+    "UK": "Claude не повернув content: {detail}",
+    "RU": "Claude не вернул content: {detail}"
+  },
+  "claude_empty_text": {
+    "EN": "Claude returned empty text.",
+    "UK": "Claude повернув порожній текст.",
+    "RU": "Claude вернул пустой текст."
   },
   "azure_no_choices": {
     "EN": "Azure OpenAI returned no choices: {detail}",

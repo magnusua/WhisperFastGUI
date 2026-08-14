@@ -21,6 +21,9 @@ _update_staging/
 _apply_update.bat
 _apply_update.sh
 
+# Локально встановлені FFmpeg / Pandoc
+tools/
+
 # IDE / OS
 .idea/
 .vscode/

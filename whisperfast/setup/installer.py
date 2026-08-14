@@ -11,7 +11,7 @@ from whisperfast.setup.gpu_info import refresh_gpu_settings
 from whisperfast.updates.app_updates import check_app_update
 from whisperfast.updates.model_updates import check_downloaded_whisper_model_updates
 from whisperfast.i18n import t
-from whisperfast.platform_util import win_no_window_kwargs
+from whisperfast.platform_util import run_logged_command, win_no_window_kwargs
 
 try:
     from packaging.version import Version
@@ -159,6 +159,33 @@ def check_updates(log_func):
 # Spec for MarkItDown: all office formats used by the queue (no Azure extras).
 MARKITDOWN_PIP_SPEC = "markitdown[pdf,docx,pptx,xlsx,xls]"
 
+_PIP_LOG_MARKERS = (
+    "collecting ",
+    "installing collected",
+    "successfully installed",
+    "successfully uninstalled",
+    "requirement already",
+    "error",
+    "warning",
+    "no matching distribution",
+    "could not",
+    "failed",
+)
+
+
+def _pip_log_line(line: str) -> bool:
+    low = line.lower()
+    return any(m in low for m in _PIP_LOG_MARKERS)
+
+
+def _run_install_cmd(cmd, log_func, timeout=600):
+    """Run pip (or similar) and stream useful lines to the log."""
+    pip_cmd = list(cmd)
+    if len(pip_cmd) >= 3 and pip_cmd[1:3] == ["-m", "pip"] and "--progress-bar" not in pip_cmd:
+        pip_cmd.extend(["--progress-bar", "off"])
+    log_func(t("install_running_cmd", cmd=" ".join(pip_cmd)))
+    return run_logged_command(pip_cmd, log_func=log_func, timeout=timeout, line_filter=_pip_log_line)
+
 
 def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     """
@@ -190,11 +217,12 @@ def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     return commands
 
 
-def install_dependencies(force=False, log_func=print, packages_to_update=None, include_nvidia=False):
+def install_dependencies(force=False, log_func=print, packages_to_update=None, include_nvidia=False, install_external=None):
     """
     Универсальная функция: устанавливает зависимости с нуля или обновляет выбранные пакеты.
     include_nvidia: ставить nvidia-* только при вызове из GUI (кнопки «Обновления» / «Зависимости»).
     При первом запуске (install.bat или автоустановка из main) nvidia не ставится.
+    install_external: ставить FFmpeg/Pandoc. По умолчанию — да при полной установке, нет при точечном pip.
     """
     has_nvidia, gpu_name = refresh_gpu_settings()
     if gpu_name:
@@ -224,19 +252,18 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         if force and not packages_to_update:
             cmd.extend(["--force-reinstall", "--no-cache-dir"])
         log_func(t("install_step_progress", name=name))
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, **win_no_window_kwargs())
-        if result.returncode != 0 and result.stderr:
+        code = _run_install_cmd(cmd, log_func)
+        if code != 0:
             log_func(t("install_step_failed", name=name))
-            err = result.stderr.strip()
-            if len(err) > 800:
-                err = err[:800] + "\n..."
-            for line in err.splitlines():
-                log_func(line)
     log_func(t("install_complete"))
-    log_func(t("install_external_tools_check"))
-    from whisperfast.setup.external_tools import log_external_tools_status
+    if install_external is None:
+        install_external = not packages_to_update
+    from whisperfast.setup.external_tools import install_external_tools, log_external_tools_status
 
-    log_external_tools_status(log_func)
+    if install_external:
+        install_external_tools(log_func, missing_only=True)
+        log_func(t("install_external_tools_check"))
+        log_external_tools_status(log_func)
 
 
 def check_system(log_func):
@@ -348,8 +375,8 @@ def run_full_installation():
         print(t(step_msg))
         if i == 3 and needs_pyaudioop():
             print(t("install_multimedia_pyaudioop"))
-        result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **win_no_window_kwargs())
-        print(t(ok_msg) if result.returncode == 0 else t(err_msg))
+        code = _run_install_cmd(cmd, print)
+        print(t(ok_msg) if code == 0 else t(err_msg))
         print()
     print(t("install_step_verify"))
     print()
@@ -372,21 +399,11 @@ def run_full_installation():
     if needs_pyaudioop():
         _check_package_verbose("pyaudioop")
     print()
+    from whisperfast.setup.external_tools import install_external_tools, log_external_tools_status
+
+    install_external_tools(print, missing_only=True)
     print(t("install_step_ffmpeg"))
-    try:
-        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, **win_no_window_kwargs())
-        print(t("install_ffmpeg_ok"))
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        print(t("install_ffmpeg_missing"))
-        from whisperfast.setup.external_tools import log_ffmpeg_install_howto
-        log_ffmpeg_install_howto(print)
-    from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
-    if is_pandoc_available():
-        print(t("install_pandoc_ok", version=pandoc_version() or "pandoc"))
-    else:
-        print(t("install_pandoc_missing"))
-        from whisperfast.setup.external_tools import log_pandoc_install_howto
-        log_pandoc_install_howto(print)
+    log_external_tools_status(print)
     print()
     print(t("install_step_cuda"))
     try:

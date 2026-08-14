@@ -128,6 +128,13 @@ class WhisperGUI:
         self.root.geometry("1050x950")
         self.root.minsize(400, 400)
 
+        try:
+            from whisperfast.setup.external_tools import bind_runtime_tool_paths
+
+            bind_runtime_tool_paths()
+        except Exception:
+            pass
+
         # Кастомная иконка окна и панели задач (favicon.ico); пути через config.BASE_DIR
         self._icon_path = os.path.join(RESOURCES_DIR, "favicon.ico")
         if os.path.exists(self._icon_path):
@@ -171,6 +178,8 @@ class WhisperGUI:
         self.cursor_api_key = tk.StringVar(value="")
         self.gemini_api_key = tk.StringVar(value="")
         self.gemini_model = tk.StringVar(value="gemini-2.0-flash")
+        self.anthropic_api_key = tk.StringVar(value="")
+        self.claude_model = tk.StringVar(value="claude-sonnet-4-5")
         self.azure_openai_endpoint = tk.StringVar(value="")
         self.azure_openai_api_key = tk.StringVar(value="")
         self.azure_openai_deployment = tk.StringVar(value="")
@@ -198,6 +207,10 @@ class WhisperGUI:
         self.gemini_api_key.set((saved.get("gemini_api_key") or "").strip())
         self.gemini_model.set(
             (saved.get("gemini_model") or "").strip() or "gemini-2.0-flash"
+        )
+        self.anthropic_api_key.set((saved.get("anthropic_api_key") or "").strip())
+        self.claude_model.set(
+            (saved.get("claude_model") or "").strip() or "claude-sonnet-4-5"
         )
         self.azure_openai_endpoint.set((saved.get("azure_openai_endpoint") or "").strip())
         self.azure_openai_api_key.set((saved.get("azure_openai_api_key") or "").strip())
@@ -795,6 +808,8 @@ class WhisperGUI:
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
             "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
             "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "anthropic_api_key": (self.anthropic_api_key.get() or "").strip(),
+            "claude_model": (self.claude_model.get() or "").strip() or "claude-sonnet-4-5",
             "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
             "azure_openai_api_key": (self.azure_openai_api_key.get() or "").strip(),
             "azure_openai_deployment": (self.azure_openai_deployment.get() or "").strip(),
@@ -937,7 +952,7 @@ class WhisperGUI:
 
     def run_updates_check(self):
         def worker():
-            from whisperfast.setup.external_tools import log_external_tool_howto
+            from whisperfast.setup.external_tools import install_external_tools
 
             result = check_updates(self.log)
             packages = result.get("packages", []) if isinstance(result, dict) else result
@@ -997,9 +1012,13 @@ class WhisperGUI:
                                     self._restart_after_app_update(app_result.get("restart_script"))
                             self.root.after(0, ask_restart)
                     if external:
-                        self.log(t("external_tool_manual_howto_header"))
-                        for tool in external:
-                            log_external_tool_howto(tool.get("howto") or tool.get("name") or "", self.log)
+                        names = [tool.get("name") for tool in external if tool.get("name")]
+                        install_external_tools(
+                            self.log,
+                            names=names,
+                            missing_only=False,
+                            upgrade=True,
+                        )
             else:
                 self.log(t("all_components_up_to_date"))
         threading.Thread(target=worker, daemon=True).start()
@@ -1341,6 +1360,8 @@ class WhisperGUI:
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
             "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
             "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "anthropic_api_key": (self.anthropic_api_key.get() or "").strip(),
+            "claude_model": (self.claude_model.get() or "").strip() or "claude-sonnet-4-5",
             "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
             "azure_openai_api_key": (self.azure_openai_api_key.get() or "").strip(),
             "azure_openai_deployment": (self.azure_openai_deployment.get() or "").strip(),
@@ -1364,11 +1385,30 @@ class WhisperGUI:
         self._persist_settings()
         if not self.export_md_to_docx.get():
             return
-        from whisperfast.core.pandoc_export import is_pandoc_available
-        from whisperfast.setup.external_tools import log_pandoc_install_howto, pandoc_missing_dialog_text
+        from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
+        from whisperfast.setup.external_tools import (
+            install_external_tools,
+            log_pandoc_install_howto,
+            pandoc_missing_dialog_text,
+        )
 
-        if not is_pandoc_available():
-            self.log(t("pandoc_not_found"))
+        if is_pandoc_available():
+            return
+        self.log(t("pandoc_not_found"))
+        if messagebox.askyesno(t("export_md_to_docx"), t("pandoc_install_now_prompt")):
+            def worker():
+                install_external_tools(self.log, names=["pandoc"], missing_only=True)
+                if is_pandoc_available():
+                    self.log(t("pandoc_found", version=pandoc_version() or "pandoc"))
+                    return
+                log_pandoc_install_howto(self.log)
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning(t("export_md_to_docx"), pandoc_missing_dialog_text()),
+                )
+
+            threading.Thread(target=worker, daemon=True).start()
+        else:
             log_pandoc_install_howto(self.log)
             messagebox.showwarning(t("export_md_to_docx"), pandoc_missing_dialog_text())
 

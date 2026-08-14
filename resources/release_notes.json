@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "1.2.11",
+      "date": "14.08.2026",
+      "notes": {
+        "EN": [
+          "Dependencies / Updates: pip commands are shown in the log; FFmpeg and Pandoc are installed automatically (winget / Chocolatey / Homebrew, or download into tools/).",
+          "MD → Word: if Pandoc is missing, the app offers to install it immediately.",
+          "Claude: Anthropic provider in the prompt window and API keys (key + model; without a key — claude.ai in the browser)."
+        ],
+        "UK": [
+          "Залежності / Оновлення: pip-команди видно в логу; FFmpeg і Pandoc ставляться автоматично (winget / Chocolatey / Homebrew або завантаження в tools/).",
+          "MD → Word: якщо Pandoc немає, програма пропонує встановити його одразу.",
+          "Claude: провайдер Anthropic у вікні промптів і в API keys (ключ + модель; без ключа — браузер claude.ai)."
+        ],
+        "RU": [
+          "Зависимости / Обновления: команды pip видны в логе; FFmpeg и Pandoc устанавливаются автоматически (winget / Chocolatey / Homebrew или загрузка в tools/).",
+          "MD → Word: если Pandoc нет, программа предлагает установить его сразу.",
+          "Claude: провайдер Anthropic в окне промптов и в API keys (ключ + модель; без ключа — браузер claude.ai)."
+        ]
+      }
+    },
+    {
       "version": "1.2.10",
       "date": "12.08.2026",
       "notes": {

@@ -47,8 +47,8 @@ Supported documents: `.pdf`, `.doc`, `.docx` (converted to Markdown; Whisper is 
 
 1. PDF/DOC/DOCX are converted to `.md` (package `markitdown`).
 2. Other text formats are prepared as Markdown in the save folder.
-3. If **To AI** is on, a prompt dialog opens (Cursor / Gemini / Copilot); **Markdown** is sent to AI. The log notes that the original PDF/DOC/DOCX was **not** passed to AI.
-4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each AI result). Install Pandoc and keep it on PATH: https://pandoc.org/installing.html
+3. If **To AI** is on, a prompt dialog opens (Cursor / Gemini / Claude / Copilot); **Markdown** is sent to AI. The log notes that the original PDF/DOC/DOCX was **not** passed to AI.
+4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each AI result). If Pandoc is missing, the app can install it via **Dependencies** / **Updates**, or from https://pandoc.org/installing.html
 
 The log shows conversion steps, output paths, AI progress, and final results.
 
@@ -82,16 +82,16 @@ Enable **Watch** and use **Folder** to set one or more directories (saved in `se
 
 If another task is running, new files wait in the queue and start automatically afterward.
 
-## AI post-processing (Cursor / Gemini / Copilot)
+## AI post-processing (Cursor / Gemini / Claude / Copilot)
 
 Enable **To AI** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from `redactor1.md`.
 
 - The **To AI** label opens the prompt file.
-- **API keys** opens one dialog for Cursor, Gemini, and Azure OpenAI (Copilot). Closing with X discards changes. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `AZURE_OPENAI_*`.
+- **API keys** opens one dialog for Cursor, Gemini, Claude, and Azure OpenAI (Copilot). Closing with X discards changes. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`.
 
 After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens:
 
-- Choose integration: **Cursor** | **Gemini** | **Copilot**.
+- Choose integration: **Cursor** | **Gemini** | **Claude** | **Copilot**.
 - Checkboxes / click a name to select prompts (the first is checked by default).
 - **Run** (or **Space**) — only checked prompts; **All** — select all and run.
 - Closing the dialog skips AI; you can reopen the picker from the log link.
@@ -100,6 +100,7 @@ After Whisper or document conversion, the log shows a clickable **Send to AI** l
 |-------------|--------------|------------------------|
 | **Cursor** | Cursor SDK, prompt chain | Cursor Chat + prompt on clipboard |
 | **Gemini** | Google Generative Language API | Browser gemini.google.com + clipboard |
+| **Claude** | Anthropic Messages API | Browser claude.ai + clipboard |
 | **Copilot** | Azure OpenAI (endpoint + key + deployment) | Browser copilot.microsoft.com + clipboard |
 
 Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`). Empty sections are skipped.
@@ -118,13 +119,13 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 - **Add files / Add directory** — add media or documents.
 - **Clear queue** — remove all queue items.
 - **System** — check Python, FFmpeg, Pandoc, GPU, CUDA, and installed components.
-- **Dependencies** — install or reinstall required packages (including `markitdown`).
-- **Updates** — check program (first), package, and model updates.
+- **Dependencies** — install or reinstall pip packages (including `markitdown`) and system tools (FFmpeg, Pandoc).
+- **Updates** — check app, pip, Whisper model, and FFmpeg/Pandoc updates, then install the selected items.
 - **Model name** — select and manage the Whisper model.
 - **Clear log** — clear the log window and `app_log.json`.
 - **Autostart** — add delayed startup on Windows.
 - **To AI** — enable AI post-processing; the label opens `redactor1.md`.
-- **API keys** — Cursor / Gemini / Azure OpenAI keys.
+- **API keys** — Cursor / Gemini / Claude / Azure OpenAI keys.
 - **Help** — open this file in the interface language.
 
 ## Display modes
@@ -150,7 +151,7 @@ Use **EN / UK / RU** at the top of the window. The interface language does not c
 ## If processing does not start
 
 1. Open **System** and check Python, FFmpeg, CUDA, Pandoc (for Word export), and dependencies.
-2. Use **Dependencies** to install missing packages.
+2. Use **Dependencies** to install missing pip packages and system tools (FFmpeg, Pandoc).
 3. Try **AUTO** or **CPU** if GPU processing fails.
 4. Check that the source media file contains an audio track.
 5. Read the log for the exact error.

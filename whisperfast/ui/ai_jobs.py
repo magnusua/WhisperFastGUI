@@ -248,6 +248,8 @@ class AiJobQueue:
             "cursor_api_key": (app.cursor_api_key.get() or "").strip(),
             "gemini_api_key": (app.gemini_api_key.get() or "").strip(),
             "gemini_model": (app.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "anthropic_api_key": (app.anthropic_api_key.get() or "").strip(),
+            "claude_model": (app.claude_model.get() or "").strip() or "claude-sonnet-4-5",
             "azure_openai_endpoint": (app.azure_openai_endpoint.get() or "").strip(),
             "azure_openai_api_key": (app.azure_openai_api_key.get() or "").strip(),
             "azure_openai_deployment": (app.azure_openai_deployment.get() or "").strip(),

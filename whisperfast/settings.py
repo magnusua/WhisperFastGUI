@@ -29,6 +29,8 @@ _DEFAULTS = {
     "cursor_api_key": "",
     "gemini_api_key": "",
     "gemini_model": "gemini-2.0-flash",
+    "anthropic_api_key": "",
+    "claude_model": "claude-sonnet-4-5",
     "azure_openai_endpoint": "",
     "azure_openai_api_key": "",
     "azure_openai_deployment": "",

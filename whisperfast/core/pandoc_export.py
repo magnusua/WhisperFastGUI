@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from typing import Callable, List, Optional, Sequence
 
@@ -17,8 +16,10 @@ LogFunc = Callable[..., None]
 
 
 def find_pandoc() -> Optional[str]:
-    """Absolute path to pandoc executable, or None if not on PATH."""
-    return shutil.which("pandoc")
+    """Absolute path to pandoc executable, or None if not found."""
+    from whisperfast.setup.external_tools import find_tool_exe
+
+    return find_tool_exe("pandoc")
 
 
 def is_pandoc_available() -> bool:
