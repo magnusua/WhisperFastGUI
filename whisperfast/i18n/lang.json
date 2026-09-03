@@ -1077,7 +1077,7 @@
   "force_reinstall": {
     "EN": "Force Reinstall?",
     "UK": "Примусова переустановка?",
-    "RU": "Force Reinstall?"
+    "RU": "Принудительная переустановка?"
   },
   "waiting_segment": {
     "EN": "⛔ Waiting for current segment to finish...",

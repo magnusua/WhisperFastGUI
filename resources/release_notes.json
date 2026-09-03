@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.2.14",
+      "date": "03.09.2026",
+      "notes": {
+        "EN": [
+          "Dependencies: the Force reinstall? prompt follows the selected UI language (Russian was still English).",
+          "Named output folder: reprocessing a file already in that folder no longer nests talk/talk/talk.mp4."
+        ],
+        "UK": [
+          "Залежності: діалог «Примусова переустановка?» показується мовою інтерфейсу (для RU раніше лишався англійський текст).",
+          "Іменована папка виходу: повторна обробка файлу, який уже лежить у такій папці, більше не створює вкладення talk/talk/talk.mp4."
+        ],
+        "RU": [
+          "Зависимости: диалог «Принудительная переустановка?» показывается на языке интерфейса (для RU раньше оставался английский текст).",
+          "Именованная папка выхода: повторная обработка файла, который уже лежит в такой папке, больше не создаёт вложение talk/talk/talk.mp4."
+        ]
+      }
+    },
+    {
       "version": "1.2.13",
       "date": "15.08.2026",
       "notes": {

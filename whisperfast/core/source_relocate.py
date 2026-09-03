@@ -21,6 +21,26 @@ def unique_dest_path(dest_dir: str, basename: str) -> str:
         n += 1
 
 
+def named_folder_output_dir(source_path: str, template: str, sanitize) -> str:
+    """
+    Output directory for named_folder save mode.
+
+    After the first processing the source is moved into this folder. A later
+    run must reuse that folder instead of creating a nested child with the
+    same name (e.g. talk/talk.mp4 must not become talk/talk/talk.mp4).
+    """
+    source_path = os.path.abspath(source_path)
+    source_dir = os.path.dirname(source_path)
+    stem = os.path.splitext(os.path.basename(source_path))[0]
+    raw = (template or "").strip() or "{basename}"
+    folder = raw.replace("{basename}", stem).replace("{name}", stem)
+    safe_name = sanitize(folder) if sanitize else folder
+    parent_name = os.path.basename(source_dir)
+    if parent_name and os.path.normcase(parent_name) == os.path.normcase(safe_name):
+        return source_dir
+    return os.path.join(source_dir, safe_name)
+
+
 def move_source_to_output_dir(source_path: str, output_dir: str) -> Tuple[str, bool, Optional[str]]:
     """
     Move source into output_dir if it is not already there.

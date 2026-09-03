@@ -24,6 +24,11 @@ _apply_update.sh
 # Локально зібрані релізні асети
 dist/
 
+# Локально скачані відео (scripts/download_facebook_videos.py)
+downloads/
+scripts/facebook_urls.txt
+scripts/facebook_urls_failed.txt
+
 # Локально встановлені FFmpeg / Pandoc
 tools/
 

@@ -71,6 +71,7 @@ from whisperfast.updates.app_updates import apply_app_update, check_app_update
 from whisperfast.updates.model_updates import apply_whisper_model_updates
 from whisperfast.setup.gpu_info import refresh_gpu_settings
 from whisperfast.core.input_files import process_dropped_files
+from whisperfast.core.source_relocate import named_folder_output_dir
 from whisperfast.core.queue_manager import (
     QueueController,
     parse_watch_dirs,
@@ -1255,10 +1256,10 @@ class WhisperGUI:
                 if opts.get("output_named_folder") is not None
                 else (self.output_named_folder.get() or "")
             ).strip() or "{basename}"
-            basename = os.path.splitext(os.path.basename(path))[0]
-            folder = template.replace("{basename}", basename).replace("{name}", basename)
-            safe_name = self._sanitize_folder_name(folder)
-            return self._ensure_dir(os.path.join(source_dir, safe_name), source_dir)
+            out = named_folder_output_dir(path, template, self._sanitize_folder_name)
+            if os.path.normcase(os.path.abspath(out)) == os.path.normcase(source_dir):
+                return source_dir
+            return self._ensure_dir(out, source_dir)
         return source_dir
 
     def _resolve_mp3_output_dir(self, path, opts=None):
