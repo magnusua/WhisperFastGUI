@@ -233,6 +233,14 @@ def discover_pythons():
                 break
             except (OSError, subprocess.SubprocessError):
                 continue
+
+        local_root = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Python")
+        if os.path.isdir(local_root):
+            try:
+                for name in os.listdir(local_root):
+                    _add_unique(by_dir, os.path.join(local_root, name, "python.exe"))
+            except OSError:
+                pass
     else:
         for name in ("python3", "python", "python3.12", "python3.11", "python3.13", "python3.10", "python3.9"):
             try:
@@ -312,16 +320,11 @@ def _show_select_dialog(candidates: list) -> Optional[dict]:
     for i, c in enumerate(candidates):
         suffix = "" if c["recommended"] else f"  ({t('python_select_not_recommended')})"
         lb.insert("end", c["label"] + suffix)
-        if _same_install(c["path"], sys.executable):
-            default_idx = i
 
-    # Кращий рекомендований — якщо поточний не в «зеленій» зоні
-    cur = next((c for c in candidates if _same_install(c["path"], sys.executable)), None)
-    if cur is None or not cur["recommended"]:
-        for i, c in enumerate(candidates):
-            if c["recommended"]:
-                default_idx = i
-                break
+    for i, c in enumerate(candidates):
+        if c["recommended"]:
+            default_idx = i
+            break
 
     lb.selection_set(default_idx)
     lb.see(default_idx)
@@ -377,11 +380,36 @@ def _show_select_dialog(candidates: list) -> Optional[dict]:
     return selected["value"]
 
 
+def _discovered_ids(candidates: list) -> list:
+    return sorted(_dir_key(c["path"]) for c in candidates)
+
+
+def _should_prompt_python_choice(candidates: list, saved_path: str, settings: dict) -> bool:
+    """Ask when several Pythons exist and the user has not confirmed, or the set changed."""
+    if len(candidates) < 2:
+        return False
+    current = _discovered_ids(candidates)
+    previous = settings.get("python_discovered") or []
+    if not isinstance(previous, list):
+        previous = []
+    previous = [str(x) for x in previous]
+    if current != previous:
+        return True
+    saved_ok = bool(saved_path) and (
+        os.path.isfile(saved_path)
+        or any(_same_install(saved_path, c["path"]) for c in candidates)
+    )
+    if not saved_ok:
+        return True
+    return not bool(settings.get("python_path_chosen"))
+
+
 def ensure_preferred_python() -> None:
     """
     При першому запуску (немає валідного python_path) — знайти інтерпретатори,
     якщо кілька — запитати користувача, зберегти вибір і за потреби перезапуститись.
-    Якщо шлях уже збережений і відрізняється від поточного — перезапуск.
+    Якщо з’явився ще один Python (наприклад після встановлення 3.12) — запитати знову.
+    Якщо шлях уже підтверджений і набір інсталяцій не змінився — перезапуск на збережений.
     """
     if os.environ.get("WHISPER_PYTHON_REEXEC") == "1":
         # Уже перезапущені обраним Python — не зациклюватись
@@ -390,15 +418,22 @@ def ensure_preferred_python() -> None:
 
     settings = load_app_settings()
     saved = (settings.get("python_path") or "").strip()
-
-    if saved and os.path.isfile(saved):
-        if not _same_install(saved, sys.executable):
-            _reexec(saved)
-        return
-
     candidates = discover_pythons()
+    discovered = _discovered_ids(candidates)
+
+    def _commit(chosen: dict, chosen_by_user: bool) -> None:
+        payload = {
+            "python_path": chosen["path"],
+            "python_version": chosen.get("version_str", ""),
+            "python_discovered": discovered,
+        }
+        if chosen_by_user:
+            payload["python_path_chosen"] = True
+        save_app_settings(payload)
+        if not _same_install(chosen["path"], sys.executable):
+            _reexec(chosen["path"])
+
     if not candidates:
-        # Лише поточний (навіть якщо probe не вдався)
         cur = _candidate(sys.executable) or {
             "path": _to_python_exe(sys.executable),
             "version": sys.version_info[:3],
@@ -407,26 +442,22 @@ def ensure_preferred_python() -> None:
         }
         if not cur.get("recommended"):
             _show_no_suitable_info(cur.get("version_str", "?"))
-        save_app_settings({
-            "python_path": cur["path"],
-            "python_version": cur.get("version_str", ""),
-        })
+        _commit(cur, chosen_by_user=False)
         return
 
     if len(candidates) == 1:
         chosen = candidates[0]
         if not chosen.get("recommended"):
             _show_no_suitable_info(chosen.get("version_str", "?"))
-    else:
+        _commit(chosen, chosen_by_user=False)
+        return
+
+    if _should_prompt_python_choice(candidates, saved, settings):
         chosen = _show_select_dialog(candidates)
         if chosen is None:
-            # Скасування: найновіша сумісна; інакше — інфо + поточна
             chosen = _choice_on_cancel(candidates)
+        _commit(chosen, chosen_by_user=True)
+        return
 
-    save_app_settings({
-        "python_path": chosen["path"],
-        "python_version": chosen.get("version_str", ""),
-    })
-
-    if not _same_install(chosen["path"], sys.executable):
-        _reexec(chosen["path"])
+    if saved and os.path.isfile(saved) and not _same_install(saved, sys.executable):
+        _reexec(saved)

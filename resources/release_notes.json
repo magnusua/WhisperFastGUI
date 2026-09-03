@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "1.2.16",
+      "date": "03.09.2026",
+      "notes": {
+        "EN": [
+          "Python 3.13: pydub needs audioop-lts (stdlib audioop was removed). The old pyaudioop package has no 3.13 wheels.",
+          "NVIDIA: if settings.json already has gpu_model starting with NVIDIA, install.bat skips the hardware check and the Y/N prompt and installs CUDA PyTorch plus nvidia-cublas/cudnn.",
+          "Python picker: if another interpreter appears (for example 3.12 after 3.13), the choice dialog is shown again; 3.12 is preferred."
+        ],
+        "UK": [
+          "Python 3.13: для pydub ставиться audioop-lts (модуль audioop прибрано зі stdlib). Пакета pyaudioop для 3.13 немає.",
+          "NVIDIA: якщо в settings.json уже є gpu_model з NVIDIA, install.bat не перевіряє залізо і не питає Y/N — одразу ставить CUDA PyTorch і nvidia-cublas/cudnn.",
+          "Вибір Python: якщо з’явився ще один інтерпретатор (наприклад 3.12 після 3.13), діалог показується знову; типово 3.12."
+        ],
+        "RU": [
+          "Python 3.13: для pydub ставится audioop-lts (модуль audioop убран из stdlib). Пакета pyaudioop для 3.13 нет.",
+          "NVIDIA: если в settings.json уже есть gpu_model с NVIDIA, install.bat не проверяет железо и не спрашивает Y/N — сразу ставит CUDA PyTorch и nvidia-cublas/cudnn.",
+          "Выбор Python: если появился ещё один интерпретатор (например 3.12 после 3.13), диалог показывается снова; по умолчанию 3.12."
+        ]
+      }
+    },
+    {
       "version": "1.2.15",
       "date": "03.09.2026",
       "notes": {

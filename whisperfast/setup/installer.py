@@ -9,7 +9,7 @@ import urllib.request
 import json
 from whisperfast.config import CUDA_INDEX, UPDATE_PACKAGES
 
-from whisperfast.setup.gpu_info import refresh_gpu_settings
+from whisperfast.setup.gpu_info import nvidia_from_settings, nvidia_for_install, refresh_gpu_settings
 from whisperfast.settings import save_app_settings
 from whisperfast.updates.app_updates import check_app_update
 from whisperfast.updates.model_updates import check_downloaded_whisper_model_updates
@@ -48,24 +48,91 @@ def parse_installer_argv(argv=None):
 def _resolve_cuda_choice(use_cuda_arg):
     """
     Returns (use_cuda_torch, include_nvidia_libs, gpu_name).
-    User --cuda/--cpu overrides detect_nvidia_gpu(); auto-detect only when arg is None.
+    If settings.gpu_model already names NVIDIA, skip hardware probe and install
+    CUDA torch + nvidia-cublas/cudnn. --cpu still skips CUDA for that run.
     """
+    saved, saved_name = nvidia_from_settings()
+    if saved:
+        save_app_settings({"has_nvidia": True, "gpu_model": saved_name})
+        if use_cuda_arg is False:
+            return False, False, saved_name
+        return True, True, saved_name
+
     detected, name = refresh_gpu_settings()
-    if use_cuda_arg is None:
-        return bool(detected), False, name
-    if use_cuda_arg:
+    if use_cuda_arg is False:
+        save_app_settings({"has_nvidia": False})
+        return False, False, name
+    if use_cuda_arg is True:
         save_app_settings({
             "has_nvidia": True,
             "gpu_model": (name or "").strip() or "NVIDIA",
         })
         return True, True, name
-    save_app_settings({"has_nvidia": False})
-    return False, False, name
+    use_cuda = bool(detected)
+    return use_cuda, use_cuda, name
 
 def needs_pyaudioop():
-    """Проверяет, нужен ли pyaudioop (для Python 3.13+)."""
-    version = get_python_version()
-    return version >= (3, 13)
+    """Нужен ли шим audioop на Python 3.13+ (pydub)."""
+    return get_python_version() >= (3, 13)
+
+
+def audioop_available():
+    """True if stdlib audioop or a 3.13 shim (audioop-lts / pyaudioop) can be imported."""
+    for name in ("audioop", "pyaudioop"):
+        try:
+            __import__(name)
+            return True
+        except ImportError:
+            continue
+    return False
+
+
+AUDIOOP_SHIM_PIP = "audioop-lts"
+
+
+def _normalize_pip_spec(spec):
+    """Map the dead PyPI name pyaudioop to audioop-lts (no 3.13 wheels)."""
+    if not spec:
+        return spec
+    name = spec.split("[")[0].split("==")[0].split(">=")[0].split("<=")[0].split("~=")[0]
+    name = name.split("<")[0].split(">")[0].strip().lower()
+    if name == "pyaudioop":
+        return AUDIOOP_SHIM_PIP
+    return spec
+
+
+def _normalize_pip_specs(specs):
+    out = []
+    seen = set()
+    for spec in specs:
+        spec = _normalize_pip_spec(spec)
+        if not spec:
+            continue
+        key = spec.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(spec)
+    return out
+
+
+def ensure_audioop_shim(log_func=print, summarize=True):
+    """Install audioop-lts so pydub can import audioop on Python 3.13+."""
+    if not needs_pyaudioop() or audioop_available():
+        return True
+    log_func(t("python_detected", major=sys.version_info.major, minor=sys.version_info.minor))
+    log_func(t("installing_pyaudioop"))
+    import importlib
+
+    _run_pip_specs([AUDIOOP_SHIM_PIP], log_func, summarize=summarize, retry_each=False)
+    importlib.invalidate_caches()
+    if audioop_available():
+        log_func(t("pyaudioop_installed"))
+        return True
+    log_func(t("pyaudioop_warning"))
+    log_func(t("pyaudioop_manual"))
+    return False
+
 
 def get_latest_pypi_version(package):
     """Получает последнюю версию пакета с PyPI."""
@@ -141,7 +208,7 @@ def check_updates(log_func):
     """Проверяет наличие обновлений для всех компонентов, нужных для работы программы.
     Пакеты, которые не установлены, добавляются в список для установки (например pystray, Pillow)."""
     log_func(t("checking_updates"))
-    has_nvidia, gpu_name = refresh_gpu_settings()
+    has_nvidia, gpu_name = nvidia_for_install()
     if gpu_name:
         log_func(t("gpu_info", name=gpu_name))
     elif has_nvidia:
@@ -151,7 +218,7 @@ def check_updates(log_func):
     app_update = check_app_update(log_func=log_func)
     updates_found = []
     for pkg in UPDATE_PACKAGES:
-        if pkg == "pyaudioop" and not needs_pyaudioop():
+        if pkg in ("pyaudioop", "audioop-lts") and not needs_pyaudioop():
             continue
         try:
             current = importlib.metadata.version(pkg)
@@ -170,6 +237,9 @@ def check_updates(log_func):
             else:
                 log_func(t("package_ok", package=pkg, version=current))
         except (importlib.metadata.PackageNotFoundError, TypeError):
+            if pkg in ("audioop-lts", "pyaudioop") and audioop_available():
+                log_func(t("package_ok", package=pkg, version="ok"))
+                continue
             if pkg == "torch":
                 latest = (
                     get_latest_pip_index_version(pkg, CUDA_INDEX)
@@ -353,7 +423,7 @@ def _run_pip_specs(
     retry_each=True,
 ):
     """Install specs as a group; if that fails, retry each spec so one bad wheel does not block the rest."""
-    specs = [s for s in specs if s]
+    specs = _normalize_pip_specs(specs)
     if not specs:
         return 0
     code = _run_install_cmd(
@@ -407,8 +477,8 @@ def _run_torch_install(log_func, use_cuda, force=False, summarize=True):
 
 def _multimedia_required_specs():
     specs = list(MULTIMEDIA_REQUIRED)
-    if needs_pyaudioop():
-        specs.insert(0, "pyaudioop")
+    if needs_pyaudioop() and not audioop_available():
+        specs.insert(0, AUDIOOP_SHIM_PIP)
     return specs
 
 
@@ -462,7 +532,7 @@ def _run_full_package_install(log_func, include_nvidia=False, use_cuda_torch=Fal
 def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
     """Command list for tests/docs; runtime install uses _run_full_package_install."""
     if use_cuda_torch is None:
-        use_cuda_torch, _ = refresh_gpu_settings()
+        use_cuda_torch, _ = nvidia_for_install()
     py = _pip_python()
     commands = [
         [t("installing_tools"), [py, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"]],
@@ -479,14 +549,16 @@ def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
 def install_dependencies(force=False, log_func=print, packages_to_update=None, include_nvidia=False, install_external=None):
     """
     Универсальная функция: устанавливает зависимости с нуля или обновляет выбранные пакеты.
-    include_nvidia: ставить nvidia-* только при вызове из GUI (кнопки «Обновления» / «Зависимости»).
-    При первом запуске (install.bat или автоустановка из main) nvidia не ставится.
+    include_nvidia: ставить nvidia-cublas/cudnn. Если в settings уже NVIDIA GPU —
+    CUDA torch и эти библиотеки ставятся всегда, даже если флаг False.
     install_external: ставить FFmpeg/Pandoc. По умолчанию — да при полной установке, нет при точечном pip.
     """
-    has_nvidia, gpu_name = refresh_gpu_settings()
+    has_nvidia, gpu_name = nvidia_for_install()
     if gpu_name:
         log_func(t("gpu_info", name=gpu_name))
     use_cuda_torch = has_nvidia
+    if use_cuda_torch:
+        include_nvidia = True
     _cleanup_broken_pip_dists(log_func)
     if packages_to_update:
         packages_list = [p[0] for p in packages_to_update]
@@ -494,6 +566,7 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         commands = []
         py = _pip_python()
         for pkg, _, _ in packages_to_update:
+            pkg = _normalize_pip_spec(pkg)
             if pkg == "torch":
                 commands.append([t("updating_package", package=pkg), None])
             elif pkg == "markitdown":
@@ -553,12 +626,11 @@ def check_system(log_func):
     python_version = get_python_version()
     log_func(t("python_version", major=sys.version_info.major, minor=sys.version_info.minor, micro=sys.version_info.micro))
     
-    # Проверка pyaudioop для Python 3.13+
+    # Проверка audioop для Python 3.13+
     if needs_pyaudioop():
-        try:
-            import pyaudioop
+        if audioop_available():
             log_func(t("pyaudioop_installed_check"))
-        except ImportError:
+        else:
             log_func(t("pyaudioop_not_installed"))
             log_func(t("pyaudioop_install_cmd"))
     
@@ -641,9 +713,8 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("cursor-sdk", "cursor_sdk")
     _check_package_verbose("markitdown")
     _check_package_verbose("packaging")
-    if needs_pyaudioop():
-        if not _check_package_verbose("pyaudioop"):
-            print(t("pyaudioop_not_installed"))
+    if needs_pyaudioop() and not audioop_available():
+        print(t("pyaudioop_not_installed"))
     print()
     print(t("install_continue"))
     print()
@@ -711,7 +782,10 @@ def run_full_installation(use_cuda_arg=None):
     except ImportError:
         print(t("install_tkinter_error"))
     if needs_pyaudioop():
-        _check_package_verbose("pyaudioop")
+        if audioop_available():
+            print(t("pyaudioop_installed_check"))
+        else:
+            print(t("pyaudioop_not_installed"))
     print()
     from whisperfast.setup.external_tools import install_external_tools
 

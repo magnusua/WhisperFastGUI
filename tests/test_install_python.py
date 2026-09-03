@@ -106,9 +106,10 @@ class TestCudaCliOverride(unittest.TestCase):
     def test_user_yes_overrides_false_detect(self):
         from whisperfast.setup import installer as inst
 
-        with patch.object(inst, "refresh_gpu_settings", return_value=(False, None)):
-            with patch.object(inst, "save_app_settings") as save:
-                use_cuda, include_nvidia, _ = inst._resolve_cuda_choice(True)
+        with patch.object(inst, "nvidia_from_settings", return_value=(False, "")):
+            with patch.object(inst, "refresh_gpu_settings", return_value=(False, None)):
+                with patch.object(inst, "save_app_settings") as save:
+                    use_cuda, include_nvidia, _ = inst._resolve_cuda_choice(True)
         self.assertTrue(use_cuda)
         self.assertTrue(include_nvidia)
         save.assert_called()
@@ -117,12 +118,106 @@ class TestCudaCliOverride(unittest.TestCase):
     def test_user_no_skips_even_if_detected(self):
         from whisperfast.setup import installer as inst
 
-        with patch.object(inst, "refresh_gpu_settings", return_value=(True, "RTX")):
-            with patch.object(inst, "save_app_settings") as save:
-                use_cuda, include_nvidia, _ = inst._resolve_cuda_choice(False)
+        with patch.object(inst, "nvidia_from_settings", return_value=(False, "")):
+            with patch.object(inst, "refresh_gpu_settings", return_value=(True, "RTX")):
+                with patch.object(inst, "save_app_settings") as save:
+                    use_cuda, include_nvidia, _ = inst._resolve_cuda_choice(False)
         self.assertFalse(use_cuda)
         self.assertFalse(include_nvidia)
         save.assert_called_with({"has_nvidia": False})
+
+    def test_saved_nvidia_skips_probe_and_installs_cuda_stack(self):
+        from whisperfast.setup import installer as inst
+
+        with patch.object(
+            inst, "nvidia_from_settings", return_value=(True, "NVIDIA GeForce RTX 4090")
+        ):
+            with patch.object(inst, "refresh_gpu_settings") as refresh:
+                with patch.object(inst, "save_app_settings") as save:
+                    use_cuda, include_nvidia, name = inst._resolve_cuda_choice(None)
+        refresh.assert_not_called()
+        self.assertTrue(use_cuda)
+        self.assertTrue(include_nvidia)
+        self.assertEqual(name, "NVIDIA GeForce RTX 4090")
+        save.assert_called_with(
+            {"has_nvidia": True, "gpu_model": "NVIDIA GeForce RTX 4090"}
+        )
+
+    def test_auto_detect_also_installs_nvidia_libs(self):
+        from whisperfast.setup import installer as inst
+
+        with patch.object(inst, "nvidia_from_settings", return_value=(False, "")):
+            with patch.object(
+                inst, "refresh_gpu_settings", return_value=(True, "NVIDIA GeForce RTX 4090")
+            ):
+                use_cuda, include_nvidia, name = inst._resolve_cuda_choice(None)
+        self.assertTrue(use_cuda)
+        self.assertTrue(include_nvidia)
+        self.assertEqual(name, "NVIDIA GeForce RTX 4090")
+
+
+class TestAudioopShim(unittest.TestCase):
+    def test_multimedia_starts_with_audioop_lts_on_313(self):
+        from whisperfast.setup import installer as inst
+
+        with patch.object(inst, "needs_pyaudioop", return_value=True):
+            with patch.object(inst, "audioop_available", return_value=False):
+                specs = inst._multimedia_required_specs()
+        self.assertEqual(specs[0], "audioop-lts")
+
+    def test_run_pip_specs_rewrites_pyaudioop(self):
+        from whisperfast.setup import installer as inst
+
+        cmds = []
+
+        def fake_run(cmd, log_func, timeout=600, summarize=True):
+            cmds.append(list(cmd))
+            return 0
+
+        with patch.object(inst, "_run_install_cmd", side_effect=fake_run):
+            with patch.object(inst, "_pip_python", return_value="python"):
+                inst._run_pip_specs(
+                    ["pygame", "pyaudioop"], lambda *_: None, retry_each=False
+                )
+        specs = [p for p in cmds[0][5:] if not str(p).startswith("-")]
+        self.assertIn("audioop-lts", specs)
+        self.assertNotIn("pyaudioop", specs)
+
+    def test_multimedia_omits_shim_below_313(self):
+        from whisperfast.setup import installer as inst
+
+        with patch.object(inst, "needs_pyaudioop", return_value=False):
+            specs = inst._multimedia_required_specs()
+        self.assertNotIn("audioop-lts", specs)
+        self.assertNotIn("pyaudioop", specs)
+
+    def test_ensure_audioop_shim_skips_when_available(self):
+        from whisperfast.setup import installer as inst
+
+        logs = []
+        with patch.object(inst, "needs_pyaudioop", return_value=True):
+            with patch.object(inst, "audioop_available", return_value=True):
+                with patch.object(inst, "_run_pip_specs") as pip:
+                    ok = inst.ensure_audioop_shim(logs.append)
+        self.assertTrue(ok)
+        pip.assert_not_called()
+
+    def test_ensure_audioop_shim_tries_audioop_lts_first(self):
+        from whisperfast.setup import installer as inst
+
+        logs = []
+        available = [False, True]
+
+        def fake_available():
+            return available.pop(0)
+
+        with patch.object(inst, "needs_pyaudioop", return_value=True):
+            with patch.object(inst, "audioop_available", side_effect=fake_available):
+                with patch.object(inst, "_run_pip_specs", return_value=0) as pip:
+                    ok = inst.ensure_audioop_shim(logs.append)
+        self.assertTrue(ok)
+        pip.assert_called_once()
+        self.assertEqual(pip.call_args[0][0], ["audioop-lts"])
 
 
 if __name__ == "__main__":

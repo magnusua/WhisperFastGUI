@@ -57,6 +57,8 @@ _DEFAULTS = {
     "azure_openai_api_version": "2024-08-01-preview",
     "python_path": "",
     "python_version": "",
+    "python_path_chosen": False,
+    "python_discovered": [],
     "skip_app_update_version": "",  # не пропонувати цю remote-версію при старті
 }
 

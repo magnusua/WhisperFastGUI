@@ -1300,29 +1300,29 @@
     "RU": "У вас Python {major}.{minor}.\n\nДля этой версии обычно ещё нет готовых колёс PyTorch, ctranslate2, faster-whisper — установка через pip падает (No matching distribution).\n\nРекомендуется: установить Python 3.12 или 3.11 с python.org, создать venv в папке проекта и снова запустить install.bat / установить зависимости.\n\nOK — попробовать запуск. Отмена — выход."
   },
   "python_detected": {
-    "EN": ">> Python {major}.{minor} detected - pyaudioop required",
-    "UK": ">> Python {major}.{minor} виявлено - потрібен pyaudioop",
-    "RU": ">> Python {major}.{minor} обнаружен - требуется pyaudioop"
+    "EN": ">> Python {major}.{minor} detected - audioop-lts required",
+    "UK": ">> Python {major}.{minor} виявлено - потрібен audioop-lts",
+    "RU": ">> Python {major}.{minor} обнаружен - требуется audioop-lts"
   },
   "installing_pyaudioop": {
-    "EN": ">> Installing pyaudioop...",
-    "UK": ">> Встановлення pyaudioop...",
-    "RU": ">> Установка pyaudioop..."
+    "EN": ">> Installing audioop-lts...",
+    "UK": ">> Встановлення audioop-lts...",
+    "RU": ">> Установка audioop-lts..."
   },
   "pyaudioop_installed": {
-    "EN": ">> pyaudioop installed",
-    "UK": ">> pyaudioop встановлено",
-    "RU": ">> pyaudioop установлен"
+    "EN": ">> audioop-lts installed",
+    "UK": ">> audioop-lts встановлено",
+    "RU": ">> audioop-lts установлен"
   },
   "pyaudioop_warning": {
-    "EN": ">> ⚠ Warning: Failed to install pyaudioop automatically",
-    "UK": ">> ⚠ Попередження: Не вдалося встановити pyaudioop автоматично",
-    "RU": ">> ⚠ Предупреждение: Не удалось установить pyaudioop автоматически"
+    "EN": ">> ⚠ Warning: Failed to install audioop-lts automatically",
+    "UK": ">> ⚠ Попередження: Не вдалося встановити audioop-lts автоматично",
+    "RU": ">> ⚠ Предупреждение: Не удалось установить audioop-lts автоматически"
   },
   "pyaudioop_manual": {
-    "EN": ">> Try installing manually: pip install pyaudioop",
-    "UK": ">> Спробуйте встановити вручну: pip install pyaudioop",
-    "RU": ">> Попробуйте установить вручную: pip install pyaudioop"
+    "EN": ">> Try installing manually: pip install audioop-lts",
+    "UK": ">> Спробуйте встановити вручну: pip install audioop-lts",
+    "RU": ">> Попробуйте установить вручную: pip install audioop-lts"
   },
   "all_dependencies_found": {
     "EN": ">> All basic dependencies found.",
@@ -1655,9 +1655,9 @@
     "RU": "▶ Установка зависимостей (принудительная переустановка)…"
   },
   "python_detected_info": {
-    "EN": "ℹ Python {major}.{minor} detected - pyaudioop will be installed",
-    "UK": "ℹ Python {major}.{minor} виявлено - буде встановлено pyaudioop",
-    "RU": "ℹ Python {major}.{minor} обнаружен - будет установлен pyaudioop"
+    "EN": "ℹ Python {major}.{minor} detected - audioop-lts will be installed",
+    "UK": "ℹ Python {major}.{minor} виявлено - буде встановлено audioop-lts",
+    "RU": "ℹ Python {major}.{minor} обнаружен - будет установлен audioop-lts"
   },
   "installing_tools": {
     "EN": "pip, setuptools, wheel",
@@ -1705,19 +1705,19 @@
     "RU": "▶ Python: {major}.{minor}.{micro}"
   },
   "pyaudioop_installed_check": {
-    "EN": "✅ pyaudioop: installed (required for Python 3.13+)",
-    "UK": "✅ pyaudioop: встановлено (потрібно для Python 3.13+)",
-    "RU": "✅ pyaudioop: установлен (требуется для Python 3.13+)"
+    "EN": "✅ audioop: installed (required for Python 3.13+)",
+    "UK": "✅ audioop: встановлено (потрібно для Python 3.13+)",
+    "RU": "✅ audioop: установлен (требуется для Python 3.13+)"
   },
   "pyaudioop_not_installed": {
-    "EN": "❌ pyaudioop: NOT INSTALLED (required for Python 3.13+)",
-    "UK": "❌ pyaudioop: НЕ ВСТАНОВЛЕНО (потрібно для Python 3.13+)",
-    "RU": "❌ pyaudioop: НЕ УСТАНОВЛЕН (требуется для Python 3.13+)"
+    "EN": "❌ audioop-lts: NOT INSTALLED (required for Python 3.13+)",
+    "UK": "❌ audioop-lts: НЕ ВСТАНОВЛЕНО (потрібно для Python 3.13+)",
+    "RU": "❌ audioop-lts: НЕ УСТАНОВЛЕН (требуется для Python 3.13+)"
   },
   "pyaudioop_install_cmd": {
-    "EN": "   Install: pip install pyaudioop",
-    "UK": "   Встановіть: pip install pyaudioop",
-    "RU": "   Установите: pip install pyaudioop"
+    "EN": "   Install: pip install audioop-lts",
+    "UK": "   Встановіть: pip install audioop-lts",
+    "RU": "   Установите: pip install audioop-lts"
   },
   "torch_info": {
     "EN": "▶ Torch: {version} | CUDA: {available}",
@@ -2090,9 +2090,9 @@
     "RU": "[7/10] Установка мультимедийных библиотек..."
   },
   "install_multimedia_pyaudioop": {
-    "EN": "   (Python 3.13+ detected — pyaudioop will be installed)",
-    "UK": "   (Python 3.13+ виявлено — буде встановлено pyaudioop)",
-    "RU": "   (Python 3.13+ обнаружен — будет установлен pyaudioop)"
+    "EN": "   (Python 3.13+ detected — audioop-lts will be installed)",
+    "UK": "   (Python 3.13+ виявлено — буде встановлено audioop-lts)",
+    "RU": "   (Python 3.13+ обнаружен — будет установлен audioop-lts)"
   },
   "install_multimedia_error": {
     "EN": "❌ Error installing multimedia libraries",
@@ -2545,9 +2545,9 @@
     "RU": "Остановить текущую транскрибацию (после завершения текущего сегмента)."
   },
   "pydub_import_error": {
-    "EN": "{error_label}: Failed to import pydub.\n\nPython {major}.{minor} requires pyaudioop.\n\nInstall with:\npip install pyaudioop\n\nOr use the [{deps}] button for automatic installation.",
-    "UK": "{error_label}: Не вдалося імпортувати pydub.\n\nДля Python {major}.{minor} потрібен pyaudioop.\n\nВстановіть командою:\npip install pyaudioop\n\nАбо скористайтеся кнопкою [{deps}] для автоматичного встановлення.",
-    "RU": "{error_label}: Не удалось импортировать pydub.\n\nДля Python {major}.{minor} требуется pyaudioop.\n\nУстановите командой:\npip install pyaudioop\n\nИли используйте кнопку [{deps}] для автоматической установки."
+    "EN": "{error_label}: Failed to import pydub.\n\nPython {major}.{minor} requires audioop-lts (stdlib audioop was removed).\n\nInstall with:\npip install audioop-lts\n\nOr use the [{deps}] button for automatic installation.",
+    "UK": "{error_label}: Не вдалося імпортувати pydub.\n\nДля Python {major}.{minor} потрібен audioop-lts (модуль audioop прибрано зі stdlib).\n\nВстановіть командою:\npip install audioop-lts\n\nАбо скористайтеся кнопкою [{deps}] для автоматичного встановлення.",
+    "RU": "{error_label}: Не удалось импортировать pydub.\n\nДля Python {major}.{minor} требуется audioop-lts (модуль audioop убран из stdlib).\n\nУстановите командой:\npip install audioop-lts\n\nИли используйте кнопку [{deps}] для автоматической установки."
   },
   "not_installed_short": {
     "EN": "not installed",

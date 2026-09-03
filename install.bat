@@ -63,15 +63,31 @@ if errorlevel 1 (
     echo.
 )
 
-echo Автопроверка NVIDIA (подсказка, не запрет):
-"!PYEXE!" -c "from whisperfast.setup.gpu_info import detect_nvidia_gpu; h,n=detect_nvidia_gpu(); print('  найдена: '+n if h and n else '  не найдена')"
-echo.
+set "GPU_LINE=NOTFOUND"
+for /f "usebackq delims=" %%A in (`"!PYEXE!" -c "from whisperfast.setup.gpu_info import install_gpu_status_line; print(install_gpu_status_line())"`) do set "GPU_LINE=%%A"
+
+set "INSTALL_ARGS=--cpu"
+echo !GPU_LINE! | findstr /B /C:"SAVED:" >nul
+if not errorlevel 1 (
+    set "INSTALL_ARGS=--cuda"
+    echo В settings.json указана видеокарта NVIDIA: !GPU_LINE:~6!
+    echo CUDA и библиотеки NVIDIA ставим без проверки и без вопроса.
+    goto after_cuda_choice
+)
+echo !GPU_LINE! | findstr /B /C:"FOUND:" >nul
+if not errorlevel 1 (
+    set "INSTALL_ARGS=--cuda"
+    echo Найдена видеокарта NVIDIA: !GPU_LINE:~6!
+    echo CUDA ставим без вопроса.
+    goto after_cuda_choice
+)
+
+echo Видеокарта NVIDIA не найдена автоматически.
 echo ----------------------------------------
 echo   У вас видеокарта NVIDIA?
 echo   Y = да, установить CUDA (PyTorch cu121 + библиотеки NVIDIA)
 echo   N = нет, пропустить CUDA и продолжить установку на CPU
 echo ----------------------------------------
-set "INSTALL_ARGS=--cpu"
 choice /C YN /N /M "NVIDIA [Y/N]?"
 if errorlevel 2 goto after_cuda_choice
 set "INSTALL_ARGS=--cuda"

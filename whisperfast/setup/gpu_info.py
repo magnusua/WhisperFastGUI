@@ -59,14 +59,59 @@ def detect_nvidia_gpu():
     return False, None
 
 
+def gpu_model_looks_nvidia(name):
+    """True if settings.gpu_model already names an NVIDIA card (no hardware probe)."""
+    return "nvidia" in (name or "").strip().lower()
+
+
+def nvidia_from_settings():
+    """
+    Trust settings.json when gpu_model contains 'NVIDIA'.
+    Returns (True, name) or (False, name_or_empty). Does not probe hardware.
+    """
+    name = (load_app_settings().get("gpu_model") or "").strip()
+    if gpu_model_looks_nvidia(name):
+        return True, name
+    return False, name
+
+
+def install_gpu_status_line():
+    """One-line status for install.bat: SAVED:/FOUND:/NOTFOUND. Skips probe if settings name NVIDIA."""
+    saved, name = nvidia_from_settings()
+    if saved:
+        return "SAVED:" + name
+    has, live = detect_nvidia_gpu()
+    if has:
+        return "FOUND:" + ((live or "").strip() or "NVIDIA")
+    return "NOTFOUND"
+
+
+def nvidia_for_install():
+    """Install path: trust settings.gpu_model if it names NVIDIA; otherwise probe."""
+    saved, name = nvidia_from_settings()
+    if saved:
+        save_app_settings({"has_nvidia": True, "gpu_model": name})
+        return True, name
+    return refresh_gpu_settings()
+
+
 def refresh_gpu_settings():
-    """Оновлює has_nvidia та gpu_model у settings.json. Повертає (has_nvidia, gpu_name)."""
+    """
+    Оновлює has_nvidia та gpu_model у settings.json. Повертає (has_nvidia, gpu_name).
+    If gpu_model already names NVIDIA, a failed probe does not clear it.
+    """
+    saved, saved_name = nvidia_from_settings()
     has_nvidia, name = detect_nvidia_gpu()
-    save_app_settings({
-        "has_nvidia": has_nvidia,
-        "gpu_model": (name or "").strip(),
-    })
-    return has_nvidia, name
+    live = (name or "").strip()
+    if has_nvidia:
+        final = live or saved_name or "NVIDIA"
+        save_app_settings({"has_nvidia": True, "gpu_model": final})
+        return True, final
+    if saved:
+        save_app_settings({"has_nvidia": True, "gpu_model": saved_name})
+        return True, saved_name
+    save_app_settings({"has_nvidia": False, "gpu_model": live})
+    return False, name
 
 
 def get_saved_gpu_settings():

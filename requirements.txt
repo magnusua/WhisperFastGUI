@@ -28,9 +28,9 @@ cursor-sdk>=1.0.0
 markitdown[pdf,docx,pptx,xlsx,xls]>=0.0.1
 packaging>=23.0
 
-# Лише для Python 3.13+: заміна прибраного стандартного модуля audioop
-# (потрібен pydub). На 3.9-3.12 модуль стандартний, цей пакет там зайвий.
-pyaudioop; python_version >= "3.13"
+# Лише для Python 3.13+: pydub потребує модуль audioop, прибраний зі stdlib.
+# audioop-lts дає import audioop. Пакет pyaudioop на 3.13 часто без коліс.
+audioop-lts; python_version >= "3.13"
 
 # nvidia-cublas-cu12 / nvidia-cudnn-cu12 навмисно НЕ включені сюди: вони
 # ставляться лише за потреби через GUI ([Оновлення] / [Залежності]), не

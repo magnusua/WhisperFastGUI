@@ -8,9 +8,8 @@ warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
 
 # Импортируем только то, что гарантированно есть в стандартной поставке Python
 from tkinter import messagebox
-from whisperfast.setup.installer import install_dependencies
+from whisperfast.setup.installer import install_dependencies, ensure_audioop_shim, needs_pyaudioop
 from whisperfast.i18n import t, set_language
-from whisperfast.platform_util import win_no_window_kwargs
 
 
 def on_app_closing(root, app=None, WhisperModelSingleton=None):
@@ -48,23 +47,9 @@ def main():
         except Exception:
             pass
 
-    # 0. Проверка версии Python и установка pyaudioop для Python 3.13+
-    python_version = sys.version_info[:2]
-    if python_version >= (3, 13):
-        try:
-            import pyaudioop  # noqa: F401
-        except ImportError:
-            print(t("python_detected", major=python_version[0], minor=python_version[1]))
-            print(t("installing_pyaudioop"))
-            import subprocess
-            kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-            kwargs.update(win_no_window_kwargs())
-            result = subprocess.run([_to_python_exe(sys.executable), "-m", "pip", "install", "pyaudioop"], **kwargs)
-            if result.returncode == 0:
-                print(t("pyaudioop_installed"))
-            else:
-                print(t("pyaudioop_warning"))
-                print(t("pyaudioop_manual"))
+    # 0. Python 3.13+: pydub needs audioop (removed from stdlib) via audioop-lts
+    if needs_pyaudioop():
+        ensure_audioop_shim(log_func=print, summarize=False)
 
     # 1. Проверка наличия критических библиотек перед импортом GUI
     def _check_deps():

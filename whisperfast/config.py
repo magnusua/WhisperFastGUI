@@ -71,7 +71,7 @@ UPDATE_PACKAGES = [
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
     "cursor-sdk", "markitdown",
     "torch", "faster-whisper", "ctranslate2",
-    "pyaudioop",  # для Python 3.13+; если не установлен — проверка пропускается
+    "audioop-lts",  # Python 3.13+: stdlib audioop removed; pyaudioop wheels often missing
 ]
 
 # Языки интерфейса и значение «авто» для языка транскрипции
