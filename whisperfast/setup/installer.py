@@ -10,10 +10,12 @@ import json
 from whisperfast.config import CUDA_INDEX, UPDATE_PACKAGES
 
 from whisperfast.setup.gpu_info import refresh_gpu_settings
+from whisperfast.settings import save_app_settings
 from whisperfast.updates.app_updates import check_app_update
 from whisperfast.updates.model_updates import check_downloaded_whisper_model_updates
 from whisperfast.i18n import t
 from whisperfast.platform_util import run_logged_command, win_no_window_kwargs
+from whisperfast.setup.python_selector import _to_python_exe
 
 try:
     from packaging.version import Version
@@ -26,6 +28,39 @@ except ImportError:
 def get_python_version():
     """Получает версию Python в виде кортежа (major, minor)."""
     return sys.version_info[:2]
+
+
+def _pip_python():
+    """python.exe for pip — pythonw.exe hides output and often fails the install."""
+    return _to_python_exe(sys.executable) or sys.executable
+
+
+def parse_installer_argv(argv=None):
+    """CLI for install.bat: --cuda / --cpu override GPU auto-detect. None = auto."""
+    args = [str(a).strip().lower() for a in (sys.argv[1:] if argv is None else argv)]
+    if "--cuda" in args:
+        return True
+    if "--cpu" in args:
+        return False
+    return None
+
+
+def _resolve_cuda_choice(use_cuda_arg):
+    """
+    Returns (use_cuda_torch, include_nvidia_libs, gpu_name).
+    User --cuda/--cpu overrides detect_nvidia_gpu(); auto-detect only when arg is None.
+    """
+    detected, name = refresh_gpu_settings()
+    if use_cuda_arg is None:
+        return bool(detected), False, name
+    if use_cuda_arg:
+        save_app_settings({
+            "has_nvidia": True,
+            "gpu_model": (name or "").strip() or "NVIDIA",
+        })
+        return True, True, name
+    save_app_settings({"has_nvidia": False})
+    return False, False, name
 
 def needs_pyaudioop():
     """Проверяет, нужен ли pyaudioop (для Python 3.13+)."""
@@ -46,7 +81,7 @@ def get_latest_pip_index_version(package, index_url):
     """Последняя версия пакета з індексу pip (наприклад PyTorch cu121)."""
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "index", "versions", package, "--index-url", index_url],
+            [_pip_python(), "-m", "pip", "index", "versions", package, "--index-url", index_url],
             capture_output=True,
             text=True,
             timeout=20,
@@ -96,7 +131,7 @@ def _torch_needs_update(current, latest):
 
 
 def _torch_install_cmd(use_cuda_index):
-    cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "torch", "torchvision", "torchaudio"]
+    cmd = [_pip_python(), "-m", "pip", "install", "--upgrade", "torch", "torchvision", "torchaudio"]
     if use_cuda_index:
         cmd.extend(["--index-url", CUDA_INDEX])
     return cmd
@@ -167,6 +202,19 @@ MARKITDOWN_PIP_SPEC = "markitdown[pdf,docx,pptx,xlsx,xls]"
 # див. CODE-REVIEW.md, розділ 7.
 FASTER_WHISPER_PIP_SPEC = "faster-whisper>=1.0.0,<2.0.0"
 CTRANSLATE2_PIP_SPEC = "ctranslate2>=4.0,<5.0"
+_TORCH_INSTALL_TIMEOUT = 1800
+MULTIMEDIA_REQUIRED = (
+    "pygame",
+    "pydub",
+    "tkinterdnd2-universal",
+    "pystray",
+    "Pillow",
+    "packaging",
+)
+MULTIMEDIA_OPTIONAL = (
+    "cursor-sdk",
+    MARKITDOWN_PIP_SPEC,
+)
 
 _PIP_NOISE = (
     "requirement already satisfied",
@@ -263,8 +311,11 @@ def _run_install_cmd(cmd, log_func, timeout=600, summarize=True):
 
     def _on_line(line):
         collected.append(line)
-        if summarize and _pip_should_stream(line):
-            log_func("   " + line)
+        if summarize:
+            if _pip_should_stream(line):
+                log_func("   " + line)
+        else:
+            log_func(line)
 
     code = run_logged_command(pip_cmd, log_func=_on_line, timeout=timeout)
     if not summarize:
@@ -282,33 +333,146 @@ def _run_install_cmd(cmd, log_func, timeout=600, summarize=True):
     return code
 
 
-def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
-    """
-    Возвращает единый список команд полной установки: [(label, cmd), ...].
-    Используется в install_dependencies и run_full_installation.
-    """
-    if use_cuda_torch is None:
-        use_cuda_torch, _ = refresh_gpu_settings()
-    multimedia_packages = [
-        "pygame",
-        "pydub",
-        "tkinterdnd2-universal",
-        "pystray",
-        "Pillow",
-        "cursor-sdk",
-        "packaging",
-        MARKITDOWN_PIP_SPEC,
-    ]
+def _pip_install_cmd(specs, extra_args=None, force=False):
+    cmd = [_pip_python(), "-m", "pip", "install", "--upgrade"]
+    if extra_args:
+        cmd.extend(extra_args)
+    cmd.extend(specs)
+    if force:
+        cmd.extend(["--force-reinstall", "--no-cache-dir"])
+    return cmd
+
+
+def _run_pip_specs(
+    specs,
+    log_func,
+    extra_args=None,
+    force=False,
+    summarize=True,
+    timeout=600,
+    retry_each=True,
+):
+    """Install specs as a group; if that fails, retry each spec so one bad wheel does not block the rest."""
+    specs = [s for s in specs if s]
+    if not specs:
+        return 0
+    code = _run_install_cmd(
+        _pip_install_cmd(specs, extra_args, force),
+        log_func,
+        timeout=timeout,
+        summarize=summarize,
+    )
+    if code == 0 or not retry_each or len(specs) <= 1:
+        return code
+    log_func(t("install_retry_each_package"))
+    failed = False
+    for spec in specs:
+        one = _run_install_cmd(
+            _pip_install_cmd([spec], extra_args, force),
+            log_func,
+            timeout=timeout,
+            summarize=summarize,
+        )
+        if one != 0:
+            failed = True
+            log_func(t("install_step_failed", name=spec))
+    return 1 if failed else 0
+
+
+def _run_torch_install(log_func, use_cuda, force=False, summarize=True):
+    specs = ["torch", "torchvision", "torchaudio"]
+    extra = ["--index-url", CUDA_INDEX] if use_cuda else None
+    code = _run_pip_specs(
+        specs,
+        log_func,
+        extra_args=extra,
+        force=force,
+        summarize=summarize,
+        timeout=_TORCH_INSTALL_TIMEOUT,
+        retry_each=False,
+    )
+    if code != 0 and use_cuda:
+        log_func(t("install_torch_cuda_fallback"))
+        code = _run_pip_specs(
+            specs,
+            log_func,
+            extra_args=None,
+            force=force,
+            summarize=summarize,
+            timeout=_TORCH_INSTALL_TIMEOUT,
+            retry_each=False,
+        )
+    return code
+
+
+def _multimedia_required_specs():
+    specs = list(MULTIMEDIA_REQUIRED)
     if needs_pyaudioop():
-        multimedia_packages.append("pyaudioop")
-    commands = [
-        [t("installing_tools"), [sys.executable, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"]],
-        [t("installing_torch"), _torch_install_cmd(use_cuda_torch)],
-        [t("installing_whisper"), [sys.executable, "-m", "pip", "install", "--upgrade", FASTER_WHISPER_PIP_SPEC, CTRANSLATE2_PIP_SPEC]],
-        [t("installing_multimedia"), [sys.executable, "-m", "pip", "install", "--upgrade"] + multimedia_packages],
+        specs.insert(0, "pyaudioop")
+    return specs
+
+
+def _run_full_package_install(log_func, include_nvidia=False, use_cuda_torch=False, force=False, summarize=True):
+    """pip/setuptools → torch (CUDA then CPU fallback) → whisper → required GUI pkgs → optional extras."""
+    steps = [
+        ("installing_tools", lambda: _run_pip_specs(
+            ["pip", "setuptools", "wheel"], log_func, force=force, summarize=summarize
+        )),
+        ("installing_torch", lambda: _run_torch_install(
+            log_func, use_cuda=use_cuda_torch, force=force, summarize=summarize
+        )),
+        ("installing_whisper", lambda: _run_pip_specs(
+            [FASTER_WHISPER_PIP_SPEC, CTRANSLATE2_PIP_SPEC],
+            log_func, force=force, summarize=summarize,
+        )),
     ]
     if include_nvidia:
-        commands.insert(3, [t("installing_nvidia"), [sys.executable, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
+        steps.append((
+            "installing_nvidia",
+            lambda: _run_pip_specs(
+                ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"],
+                log_func, force=force, summarize=summarize,
+            ),
+        ))
+
+    def _multimedia():
+        if needs_pyaudioop():
+            log_func(t("install_multimedia_pyaudioop"))
+        return _run_pip_specs(
+            _multimedia_required_specs(), log_func, force=force, summarize=summarize
+        )
+
+    steps.append(("installing_multimedia", _multimedia))
+    steps.append((
+        "installing_optional",
+        lambda: _run_pip_specs(
+            list(MULTIMEDIA_OPTIONAL), log_func, force=force, summarize=summarize
+        ),
+    ))
+    codes = {}
+    for key, runner in steps:
+        log_func(t("install_step_progress", name=t(key)))
+        code = runner()
+        codes[key] = code
+        if code != 0:
+            log_func(t("install_step_failed", name=t(key)))
+    return codes
+
+
+def _get_full_install_commands(include_nvidia=False, use_cuda_torch=None):
+    """Command list for tests/docs; runtime install uses _run_full_package_install."""
+    if use_cuda_torch is None:
+        use_cuda_torch, _ = refresh_gpu_settings()
+    py = _pip_python()
+    commands = [
+        [t("installing_tools"), [py, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"]],
+        [t("installing_torch"), _torch_install_cmd(use_cuda_torch)],
+        [t("installing_whisper"), [py, "-m", "pip", "install", "--upgrade", FASTER_WHISPER_PIP_SPEC, CTRANSLATE2_PIP_SPEC]],
+        [t("installing_multimedia"), [py, "-m", "pip", "install", "--upgrade"] + _multimedia_required_specs()],
+        [t("installing_optional"), [py, "-m", "pip", "install", "--upgrade"] + list(MULTIMEDIA_OPTIONAL)],
+    ]
+    if include_nvidia:
+        commands.insert(3, [t("installing_nvidia"), [py, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
     return commands
 
 
@@ -328,37 +492,47 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
         packages_list = [p[0] for p in packages_to_update]
         log_func(t("updating_packages", packages=str(packages_list)))
         commands = []
+        py = _pip_python()
         for pkg, _, _ in packages_to_update:
             if pkg == "torch":
-                cmd = _torch_install_cmd(use_cuda_torch)
+                commands.append([t("updating_package", package=pkg), None])
             elif pkg == "markitdown":
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", MARKITDOWN_PIP_SPEC]
+                cmd = [py, "-m", "pip", "install", "--upgrade", MARKITDOWN_PIP_SPEC]
+                commands.append([t("updating_package", package=pkg), cmd])
             elif pkg == "faster-whisper":
                 # Точечное обновление тоже должно уважать пиннинг совместимости с
                 # ctranslate2 (см. FASTER_WHISPER_PIP_SPEC/CTRANSLATE2_PIP_SPEC выше и
                 # CODE-REVIEW.md, разд. 7) — иначе кнопка «Обновления» в GUI могла
                 # молча поставить faster-whisper без диапазона версий.
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", FASTER_WHISPER_PIP_SPEC]
+                cmd = [py, "-m", "pip", "install", "--upgrade", FASTER_WHISPER_PIP_SPEC]
+                commands.append([t("updating_package", package=pkg), cmd])
             elif pkg == "ctranslate2":
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", CTRANSLATE2_PIP_SPEC]
+                cmd = [py, "-m", "pip", "install", "--upgrade", CTRANSLATE2_PIP_SPEC]
+                commands.append([t("updating_package", package=pkg), cmd])
             else:
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", pkg]
-            commands.append([t("updating_package", package=pkg), cmd])
+                cmd = [py, "-m", "pip", "install", "--upgrade", pkg]
+                commands.append([t("updating_package", package=pkg), cmd])
         if include_nvidia and has_nvidia:
-            commands.append([t("installing_nvidia"), [sys.executable, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
+            commands.append([t("installing_nvidia"), [py, "-m", "pip", "install", "--upgrade", "nvidia-cublas-cu12", "nvidia-cudnn-cu12"]])
+        for name, cmd in commands:
+            log_func(t("install_step_progress", name=name))
+            if cmd is None:
+                code = _run_torch_install(log_func, use_cuda=use_cuda_torch, summarize=True)
+            else:
+                code = _run_install_cmd(cmd, log_func)
+            if code != 0:
+                log_func(t("install_step_failed", name=name))
     else:
         log_func(t("full_install_force") if force else t("full_install"))
         if needs_pyaudioop():
             log_func(t("python_detected_info", major=sys.version_info.major, minor=sys.version_info.minor))
-        commands = _get_full_install_commands(include_nvidia=include_nvidia, use_cuda_torch=use_cuda_torch)
-
-    for name, cmd in commands:
-        if force and not packages_to_update:
-            cmd.extend(["--force-reinstall", "--no-cache-dir"])
-        log_func(t("install_step_progress", name=name))
-        code = _run_install_cmd(cmd, log_func)
-        if code != 0:
-            log_func(t("install_step_failed", name=name))
+        _run_full_package_install(
+            log_func,
+            include_nvidia=include_nvidia,
+            use_cuda_torch=use_cuda_torch,
+            force=force,
+            summarize=True,
+        )
     if install_external is None:
         install_external = not packages_to_update
     if install_external:
@@ -423,22 +597,33 @@ def check_system(log_func):
 
     log_external_tools_status(log_func)
 
+def _distribution_installed(dist_name):
+    try:
+        importlib.metadata.version(dist_name)
+        return True
+    except importlib.metadata.PackageNotFoundError:
+        return False
+
+
 def _check_package_verbose(pkg_name, import_name=None):
     """Проверяет наличие пакета и выводит сообщение через t(). Возвращает True если установлен."""
     if import_name is None:
         import_name = pkg_name
     try:
-        mod = __import__(import_name)
-        ver = getattr(mod, "__version__", None)
-        print(t("install_pkg_ok", pkg=pkg_name) + (f" ({ver})" if ver else ""))
-        return True
-    except ImportError:
+        ver = importlib.metadata.version(pkg_name)
+    except importlib.metadata.PackageNotFoundError:
         print(t("install_pkg_missing", pkg=pkg_name))
         return False
+    try:
+        __import__(import_name)
+    except ImportError:
+        pass
+    print(t("install_pkg_ok", pkg=pkg_name) + (f" ({ver})" if ver else ""))
+    return True
 
 
-def run_full_installation():
-    """Выполняет полную установку всех зависимостей с подробным выводом. Использует _get_full_install_commands."""
+def run_full_installation(use_cuda_arg=None):
+    """Выполняет полную установку всех зависимостей с подробным выводом."""
     print("==========================================")
     print("  " + t("install_title"))
     print("==========================================")
@@ -462,23 +647,51 @@ def run_full_installation():
     print()
     print(t("install_continue"))
     print()
-    commands = _get_full_install_commands(include_nvidia=False)
-    # Длина step_labels должна совпадать с len(commands) (при include_nvidia=False — 4 шага)
-    step_labels = [
-        ("install_step_pip", "install_tools_ok", "install_pip_error"),
-        ("install_step_torch", "install_torch_ok", "install_torch_warn"),
-        ("install_step_whisper", "install_whisper_ok", "install_whisper_error"),
-        ("install_step_multimedia", "install_multimedia_ok", "install_multimedia_error"),
-    ]
-    assert len(step_labels) == len(commands), "step_labels must match commands length"
-    for i, (name, cmd) in enumerate(commands):
-        step_msg, ok_msg, err_msg = step_labels[i]
-        print(t(step_msg))
-        if i == 3 and needs_pyaudioop():
-            print(t("install_multimedia_pyaudioop"))
-        code = _run_install_cmd(cmd, print, summarize=False)
-        print(t(ok_msg) if code == 0 else t(err_msg))
+    use_cuda_torch, include_nvidia, gpu_name = _resolve_cuda_choice(use_cuda_arg)
+    if use_cuda_torch:
+        if gpu_name:
+            print(t("gpu_info", name=gpu_name))
+        print(t("install_cuda_chosen_yes"))
+    else:
+        print(t("install_cuda_chosen_no"))
+    print()
+
+    print(t("install_step_pip"))
+    code = _run_pip_specs(["pip", "setuptools", "wheel"], print, summarize=False)
+    print(t("install_tools_ok") if code == 0 else t("install_pip_error"))
+    print()
+
+    print(t("install_step_torch_cuda") if use_cuda_torch else t("install_step_torch_cpu"))
+    code = _run_torch_install(print, use_cuda=use_cuda_torch, summarize=False)
+    print(t("install_torch_ok") if code == 0 else t("install_torch_warn"))
+    print()
+
+    print(t("install_step_whisper"))
+    code = _run_pip_specs(
+        [FASTER_WHISPER_PIP_SPEC, CTRANSLATE2_PIP_SPEC], print, summarize=False
+    )
+    print(t("install_whisper_ok") if code == 0 else t("install_whisper_error"))
+    print()
+
+    if include_nvidia:
+        print(t("install_step_nvidia_libs"))
+        nv = _run_pip_specs(
+            ["nvidia-cublas-cu12", "nvidia-cudnn-cu12"], print, summarize=False
+        )
+        print(t("install_nvidia_libs_ok") if nv == 0 else t("install_nvidia_libs_warn"))
         print()
+
+    print(t("install_step_multimedia"))
+    if needs_pyaudioop():
+        print(t("install_multimedia_pyaudioop"))
+    code = _run_pip_specs(_multimedia_required_specs(), print, summarize=False)
+    print(t("install_multimedia_ok") if code == 0 else t("install_multimedia_error"))
+    print()
+
+    print(t("install_step_optional"))
+    opt = _run_pip_specs(list(MULTIMEDIA_OPTIONAL), print, summarize=False)
+    print(t("install_optional_ok") if opt == 0 else t("install_optional_warn"))
+    print()
     print(t("install_step_verify"))
     print()
     _check_package_verbose("torch")
@@ -518,6 +731,16 @@ def run_full_installation():
     except Exception:
         print(t("install_cuda_cpu"))
     print()
+
+    missing = []
+    for pkg in ("torch", "faster-whisper", "pydub"):
+        if not _distribution_installed(pkg):
+            missing.append(pkg)
+    if missing:
+        print(t("install_critical_missing", packages=", ".join(missing)))
+        print(t("install_critical_missing_hint"))
+        sys.exit(1)
+
     print("==========================================")
     print(t("install_done_title"))
     print("==========================================")
@@ -529,7 +752,7 @@ def run_full_installation():
 
 if __name__ == "__main__":
     try:
-        run_full_installation()
+        run_full_installation(use_cuda_arg=parse_installer_argv())
     except KeyboardInterrupt:
         print("\n\n" + t("install_cancelled"))
         sys.exit(1)

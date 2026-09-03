@@ -25,7 +25,7 @@ def on_app_closing(root, app=None, WhisperModelSingleton=None):
 
 def main():
     # Перший запуск: вибір Python серед встановлених версій → settings.json → за потреби re-exec
-    from whisperfast.setup.python_selector import ensure_preferred_python
+    from whisperfast.setup.python_selector import ensure_preferred_python, _to_python_exe
     ensure_preferred_python()
 
     # Один екземпляр (після можливого re-exec Python)
@@ -59,7 +59,7 @@ def main():
             import subprocess
             kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
             kwargs.update(win_no_window_kwargs())
-            result = subprocess.run([sys.executable, "-m", "pip", "install", "pyaudioop"], **kwargs)
+            result = subprocess.run([_to_python_exe(sys.executable), "-m", "pip", "install", "pyaudioop"], **kwargs)
             if result.returncode == 0:
                 print(t("pyaudioop_installed"))
             else:
@@ -85,7 +85,7 @@ def main():
         if not ok:
             messagebox.showerror(
                 t("import_error"),
-                t("deps_install_incomplete_msg", py=sys.executable),
+                t("deps_install_incomplete_msg"),
             )
             return
         messagebox.showinfo(t("installation"), t("dependencies_installed"))

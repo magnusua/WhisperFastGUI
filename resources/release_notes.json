@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "1.2.15",
+      "date": "03.09.2026",
+      "notes": {
+        "EN": [
+          "install.bat: pip uses python.exe (not pythonw); start the app with run_whisper.vbs.",
+          "CUDA: the installer always asks if you have an NVIDIA GPU — Yes installs CUDA, No skips it and continues on CPU, even if auto-detect found nothing.",
+          "Dependencies: if one package in a group fails, the rest are installed one by one; if the CUDA PyTorch wheel is missing (common on Python 3.13), a CPU build is installed from PyPI."
+        ],
+        "UK": [
+          "install.bat: pip через python.exe (не pythonw); запускайте програму файлом run_whisper.vbs.",
+          "CUDA: батник завжди питає, чи є відеокарта NVIDIA — так ставить CUDA, ні пропускає й продовжує на CPU, навіть якщо автоперевірка нічого не знайшла.",
+          "Залежності: якщо один пакет у групі падає, решта ставиться окремо; якщо CUDA-колесо PyTorch недоступне (часто Python 3.13) — CPU-збірка з PyPI."
+        ],
+        "RU": [
+          "install.bat: pip через python.exe (не pythonw); программу запускайте файлом run_whisper.vbs.",
+          "CUDA: установщик всегда спрашивает, есть ли видеокарта NVIDIA — да ставит CUDA, нет пропускает и продолжает на CPU, даже если автопроверка ничего не нашла.",
+          "Зависимости: если один пакет в группе падает, остальные ставятся по одному; если CUDA-колесо PyTorch недоступно (часто Python 3.13) — CPU-сборка с PyPI."
+        ]
+      }
+    },
+    {
       "version": "1.2.14",
       "date": "03.09.2026",
       "notes": {

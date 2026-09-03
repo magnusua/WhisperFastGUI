@@ -1235,9 +1235,9 @@
     "RU": "Не удалось загрузить модули GUI: {error}"
   },
   "deps_install_incomplete_msg": {
-    "EN": "Dependencies are still missing after install (e.g. pydub).\n\nOpen a terminal in the project folder and run:\n\n{py} -m pip install pydub pygame tkinterdnd2-universal pystray Pillow\n\nOr run install.bat again. Also install FFmpeg if not in PATH.",
-    "UK": "Після встановлення залежності все ще відсутні (наприклад pydub).\n\nУ терміналі в папці проєкту:\n\n{py} -m pip install pydub pygame tkinterdnd2-universal pystray Pillow\n\nАбо знову install.bat. Потрібен FFmpeg у PATH.",
-    "RU": "После установки зависимостей чего-то всё ещё не хватает (часто pydub).\n\nВ терминале в папке проекта выполните:\n\n{py} -m pip install pydub pygame tkinterdnd2-universal pystray Pillow\n\nИли снова запустите install.bat. Нужен FFmpeg в PATH."
+    "EN": "Dependencies are still missing after install.\n\n1. Close this window.\n2. Run install.bat in the project folder (it uses python.exe, not pythonw).\n3. Start the app by double-clicking run_whisper.vbs — not pythonw.exe and not main.py.",
+    "UK": "Після встановлення залежності все ще відсутні.\n\n1. Закрийте це вікно.\n2. Запустіть install.bat у папці проєкту (він викликає python.exe, не pythonw).\n3. Програму запускайте файлом run_whisper.vbs — не pythonw.exe і не main.py.",
+    "RU": "После установки зависимостей чего-то всё ещё не хватает.\n\n1. Закройте это окно.\n2. Запустите install.bat в папке проекта (он вызывает python.exe, не pythonw).\n3. Программу запускайте файлом run_whisper.vbs — не pythonw.exe и не main.py."
   },
   "critical_error": {
     "EN": "Critical Error",
@@ -1680,9 +1680,14 @@
     "RU": "faster-whisper"
   },
   "installing_multimedia": {
-    "EN": "multimedia (pydub, markitdown…)",
-    "UK": "мультимедіа (pydub, markitdown…)",
-    "RU": "мультимедиа (pydub, markitdown…)"
+    "EN": "multimedia (pydub, pygame…)",
+    "UK": "мультимедіа (pydub, pygame…)",
+    "RU": "мультимедиа (pydub, pygame…)"
+  },
+  "installing_optional": {
+    "EN": "optional (cursor-sdk, markitdown…)",
+    "UK": "опційні (cursor-sdk, markitdown…)",
+    "RU": "опциональные (cursor-sdk, markitdown…)"
   },
   "install_complete": {
     "EN": "✅ Dependencies done",
@@ -2014,6 +2019,16 @@
     "UK": "[4/10] Встановлення PyTorch з CUDA 12.1...",
     "RU": "[4/10] Установка PyTorch с поддержкой CUDA 12.1..."
   },
+  "install_step_torch_cuda": {
+    "EN": "[4/10] Installing PyTorch with CUDA 12.1...",
+    "UK": "[4/10] Встановлення PyTorch з CUDA 12.1...",
+    "RU": "[4/10] Установка PyTorch с поддержкой CUDA 12.1..."
+  },
+  "install_step_torch_cpu": {
+    "EN": "[4/10] Installing PyTorch (CPU, no CUDA)...",
+    "UK": "[4/10] Встановлення PyTorch (CPU, без CUDA)...",
+    "RU": "[4/10] Установка PyTorch (CPU, без CUDA)..."
+  },
   "install_torch_warn": {
     "EN": "⚠ Warning: CUDA install may have failed. Try CPU build manually if needed.",
     "UK": "⚠ Попередження: Можлива помилка встановлення CUDA. Спробуйте CPU вручну за потреби.",
@@ -2023,6 +2038,31 @@
     "EN": "✓ PyTorch installed",
     "UK": "✓ PyTorch встановлено",
     "RU": "✓ PyTorch установлен"
+  },
+  "install_cuda_chosen_yes": {
+    "EN": "CUDA: yes — installing PyTorch cu121 and NVIDIA libs.",
+    "UK": "CUDA: так — ставимо PyTorch cu121 і бібліотеки NVIDIA.",
+    "RU": "CUDA: да — ставим PyTorch cu121 и библиотеки NVIDIA."
+  },
+  "install_cuda_chosen_no": {
+    "EN": "CUDA: skip — installing CPU PyTorch, then the rest.",
+    "UK": "CUDA: пропуск — ставимо CPU PyTorch, далі решта.",
+    "RU": "CUDA: пропуск — ставим CPU PyTorch, дальше остальное."
+  },
+  "install_step_nvidia_libs": {
+    "EN": "[5/10] Installing NVIDIA CUDA libraries…",
+    "UK": "[5/10] Встановлення бібліотек NVIDIA CUDA…",
+    "RU": "[5/10] Установка библиотек NVIDIA CUDA…"
+  },
+  "install_nvidia_libs_ok": {
+    "EN": "✓ NVIDIA CUDA libraries installed",
+    "UK": "✓ Бібліотеки NVIDIA CUDA встановлено",
+    "RU": "✓ Библиотеки NVIDIA CUDA установлены"
+  },
+  "install_nvidia_libs_warn": {
+    "EN": "⚠ NVIDIA CUDA libraries failed. PyTorch may still work; retry from Dependencies in the GUI.",
+    "UK": "⚠ Бібліотеки NVIDIA CUDA не встали. PyTorch може працювати; повторіть через «Залежності» в GUI.",
+    "RU": "⚠ Библиотеки NVIDIA CUDA не встали. PyTorch может работать; повторите через «Зависимости» в GUI."
   },
   "install_skip_nvidia": {
     "EN": "[5/10] Skipping NVIDIA libs (use Updates or Dependencies in GUI)...",
@@ -2063,6 +2103,31 @@
     "EN": "✓ Multimedia libraries installed",
     "UK": "✓ Мультимедійні бібліотеки встановлено",
     "RU": "✓ Мультимедийные библиотеки установлены"
+  },
+  "install_step_optional": {
+    "EN": "[7b/10] Installing optional packages (Cursor / MarkItDown)…",
+    "UK": "[7b/10] Встановлення опційних пакетів (Cursor / MarkItDown)…",
+    "RU": "[7b/10] Установка опциональных пакетов (Cursor / MarkItDown)…"
+  },
+  "install_optional_ok": {
+    "EN": "✓ Optional packages installed",
+    "UK": "✓ Опційні пакети встановлено",
+    "RU": "✓ Опциональные пакеты установлены"
+  },
+  "install_optional_warn": {
+    "EN": "⚠ Optional packages failed (cursor-sdk / markitdown). The app can still start; retry from Dependencies in the GUI.",
+    "UK": "⚠ Опційні пакети не встали (cursor-sdk / markitdown). Програма все одно може запуститися; повторіть через «Залежності» в GUI.",
+    "RU": "⚠ Опциональные пакеты не встали (cursor-sdk / markitdown). Программа всё равно может запуститься; повторите через «Зависимости» в GUI."
+  },
+  "install_torch_cuda_fallback": {
+    "EN": "⚠ CUDA PyTorch wheel failed (common on Python 3.13). Installing CPU build from PyPI…",
+    "UK": "⚠ CUDA-збірка PyTorch не встала (часто на Python 3.13). Ставиться CPU-збірка з PyPI…",
+    "RU": "⚠ CUDA-сборка PyTorch не встала (часто на Python 3.13). Ставится CPU-сборка с PyPI…"
+  },
+  "install_retry_each_package": {
+    "EN": "   Group install failed — retrying each package separately…",
+    "UK": "   Групове встановлення не вдалося — кожен пакет окремо…",
+    "RU": "   Групповая установка не удалась — каждый пакет отдельно…"
   },
   "install_step_verify": {
     "EN": "[8/10] Verifying installed packages...",
@@ -2115,14 +2180,24 @@
     "RU": "✅ Установка зависимостей завершена"
   },
   "install_run_hint": {
-    "EN": "You can now run Whisper Fast GUI: run_whisper.bat",
-    "UK": "Тепер можна запускати Whisper Fast GUI: run_whisper.bat",
-    "RU": "Теперь можно запускать Whisper Fast GUI: run_whisper.bat"
+    "EN": "Start Whisper Fast GUI by double-clicking run_whisper.vbs in this folder.\nDo not launch pythonw.exe or main.py directly.",
+    "UK": "Запускайте Whisper Fast GUI подвійним кліком по run_whisper.vbs у цій папці.\nНе відкривайте pythonw.exe і не запускайте main.py напряму.",
+    "RU": "Запускайте Whisper Fast GUI двойным щелчком по run_whisper.vbs в этой папке.\nНе открывайте pythonw.exe и не запускайте main.py напрямую."
   },
   "install_cpu_note": {
     "EN": "Note: Without NVIDIA GPU the app runs on CPU (slower but functional).",
     "UK": "Примітка: Без NVIDIA GPU додаток працює на CPU (повільніше, але функціонально).",
     "RU": "Примечание: Без NVIDIA GPU приложение работает в режиме CPU (медленнее, но функционально)."
+  },
+  "install_critical_missing": {
+    "EN": "Installation did not finish: still missing {packages}.",
+    "UK": "Встановлення не завершено: досі немає {packages}.",
+    "RU": "Установка не завершена: всё ещё нет {packages}."
+  },
+  "install_critical_missing_hint": {
+    "EN": "Check the pip errors above. Then run install.bat again. Do not start the app with pythonw.exe.",
+    "UK": "Подивіться помилки pip вище. Потім знову запустіть install.bat. Не запускайте програму через pythonw.exe.",
+    "RU": "Посмотрите ошибки pip выше. Затем снова запустите install.bat. Не запускайте программу через pythonw.exe."
   },
   "install_cancelled": {
     "EN": "Installation cancelled by user",

@@ -1,6 +1,6 @@
 # Whisper Fast GUI
 
-**Версія:** 1.2.14
+**Версія:** 1.2.15
 **Дата публікації:** 03.09.2026
 
 Графічний інтерфейс для транскрибації аудіо та відео на основі Faster-Whisper (OpenAI Whisper). Також обробляє текстові/офісні документи (конвертація в Markdown, опційно AI-постпроцесинг і Word).
@@ -50,6 +50,23 @@ Python 3.9–3.13 (рекомендовано 3.11/3.12), FFmpeg у PATH, опц
 | [UPDATES.uk.md](docs/UPDATES.uk.md) | Самооновлення застосунку та моделі Whisper |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Історія змін по версіях |
 | `resources/Help_EN.md` / `Help_UK.md` / `Help_RU.md` | Довідка кінцевого користувача (відкривається кнопкою [Довідка] у GUI) |
+
+## Як опублікувати нову версію
+
+Пуш у `main` **недостатньо**. GUI порівнює локальну версію з **останнім GitHub Release** (`/releases/latest`), а не з гілкою `main`. Без опублікованого тега й асета `SHA256SUMS` оновлення не пропонується. Механізм — [UPDATES.uk.md](docs/UPDATES.uk.md).
+
+1. Підніміть версію в цьому файлі: `**Версія:** X.Y.Z` і `**Дата публікації:** DD.MM.YYYY`. Це єдине джерело `APP_VERSION`.
+2. Додайте нотатки: `docs/CHANGELOG.md` і `resources/release_notes.json` (EN / UK / RU — вікно «Що нового» в GUI).
+3. Закомітьте й запуште `main`.
+4. Опублікуйте **GitHub Release** (не draft і не pre-release) з тегом `vX.Y.Z` на цей коміт. Заголовок — `X.Y.Z` (без `v`). Приклад:
+
+```bash
+gh release create vX.Y.Z --title "X.Y.Z" --target main --notes "…"
+```
+
+5. Дочекайтеся workflow `release-checksums` (подія `release: published`): він збере `WhisperFastGUI-X.Y.Z-src.zip` і `SHA256SUMS` і прикріпить їх до релізу. Без `SHA256SUMS` програма оновлення не запропонує.
+
+ZIP-інсталяції оновлюються з асетів релізу. Клон із `.git` після підтвердження робить `git pull` з `main`, але **діалог** «є нова версія» все одно з’являється лише після кроку 4–5.
 
 ## Куди дивитися далі
 
