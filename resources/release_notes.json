@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "1.2.17",
+      "date": "14.09.2026",
+      "notes": {
+        "EN": [
+          "After a Cursor (or other AI API) error, a Restart job button appears under the file log and reruns the same prompts — no prompt dialog and no 5s wait."
+        ],
+        "UK": [
+          "Після помилки Cursor (або іншого AI API) в логу файлу з’являється кнопка «Перезапустити завдання»: ті самі промпти без діалогу і без паузи 5 с."
+        ],
+        "RU": [
+          "После ошибки Cursor (или другого AI API) в логе файла появляется кнопка «Перезапустить задание»: те же промпты без диалога и без паузы 5 с."
+        ]
+      }
+    },
+    {
       "version": "1.2.16",
       "date": "03.09.2026",
       "notes": {

@@ -55,6 +55,9 @@ class FakeHost:
     def set_file_prompt_callback(self, file_id, callback):
         pass
 
+    def set_file_retry_callback(self, file_id, callback):
+        pass
+
     def set_file_source(self, file_id, path):
         pass
 

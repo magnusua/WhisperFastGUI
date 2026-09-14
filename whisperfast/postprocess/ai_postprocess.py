@@ -27,7 +27,7 @@ def process_txt_with_ai(
     delay_s: float = AI_POSTPROCESS_DELAY_S,
     resolve_output_path: Optional[Callable[[str], str]] = None,
     prompts: Optional[List[PromptTuple]] = None,
-) -> None:
+) -> List[str]:
     """Затримка → промпти → обраний AI-провайдер (API або browser/Chat fallback)."""
     credentials = credentials or {}
     provider_id = normalize_provider_id(provider_id)
@@ -51,7 +51,7 @@ def process_txt_with_ai(
                 log_func(t("cursor_no_prompts"))
             except ImportError:
                 pass
-        return
+        return []
 
     provider = get_provider(provider_id)
     if log_func:
@@ -67,14 +67,14 @@ def process_txt_with_ai(
         except ImportError:
             pass
 
-    provider.process(
+    return provider.process(
         txt_path,
         prompts,
         credentials,
         log_func=log_func,
         on_file_created=on_file_created,
         resolve_output_path=resolve_output_path,
-    )
+    ) or []
 
 
 def start_ai_postprocess_async(
@@ -83,7 +83,7 @@ def start_ai_postprocess_async(
     credentials: Optional[Dict[str, Any]] = None,
     log_func: Optional[LogFunc] = None,
     on_file_created: Optional[Callable[[str], None]] = None,
-    on_complete: Optional[Callable[[], None]] = None,
+    on_complete: Optional[Callable[..., None]] = None,
     delay_s: float = AI_POSTPROCESS_DELAY_S,
     resolve_output_path: Optional[Callable[[str], str]] = None,
     prompts: Optional[List[PromptTuple]] = None,
@@ -91,8 +91,9 @@ def start_ai_postprocess_async(
     """Запускає process_txt_with_ai у daemon-потоці."""
 
     def _run():
+        created: List[str] = []
         try:
-            process_txt_with_ai(
+            created = process_txt_with_ai(
                 txt_path,
                 provider_id=provider_id,
                 credentials=credentials,
@@ -101,7 +102,7 @@ def start_ai_postprocess_async(
                 delay_s=delay_s,
                 resolve_output_path=resolve_output_path,
                 prompts=prompts,
-            )
+            ) or []
         except Exception as e:
             if log_func:
                 try:
@@ -112,7 +113,12 @@ def start_ai_postprocess_async(
         finally:
             if on_complete:
                 try:
-                    on_complete()
+                    on_complete(created)
+                except TypeError:
+                    try:
+                        on_complete()
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 

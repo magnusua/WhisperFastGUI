@@ -824,6 +824,16 @@
     "UK": "▶ Обрати промти",
     "RU": "▶ Выбрать промты"
   },
+  "log_file_retry_ai_btn": {
+    "EN": "▶ Restart job",
+    "UK": "▶ Перезапустити завдання",
+    "RU": "▶ Перезапустить задание"
+  },
+  "ai_retrying": {
+    "EN": "▶ Restarting AI job: {name}",
+    "UK": "▶ Перезапуск завдання AI: {name}",
+    "RU": "▶ Перезапуск задания AI: {name}"
+  },
   "log_file_header": {
     "EN": "{mark} {name}  [{status}]",
     "UK": "{mark} {name}  [{status}]",

@@ -15,7 +15,11 @@ from whisperfast.postprocess.cursor_postprocess import (
     open_redactor_file,
     parse_redactor_prompts,
 )
-from whisperfast.postprocess.providers import PROVIDER_CURSOR, normalize_provider_id
+from whisperfast.postprocess.providers import (
+    PROVIDER_CURSOR,
+    get_provider,
+    normalize_provider_id,
+)
 from whisperfast.setup.installer import install_dependencies
 from whisperfast.ui import dialogs as ui_dialogs
 from whisperfast.utils import play_finish_sound
@@ -114,6 +118,7 @@ class AiJobQueue:
             "status": "pending",  # pending | selecting | skipped | running | done
             "dialog": None,
             "log_file_id": file_id,
+            "prompts": None,
         }
         self._job_begin()
         return job_id
@@ -259,15 +264,69 @@ class AiJobQueue:
             ),
         }
 
-    def start_after_prompt_choice(self, job, prompts, provider_id):
+    def _clear_ai_retry(self, job):
+        """Прибрати кнопку «Перезапустити завдання» для цього job."""
+        fid = job.get("log_file_id")
+        setter = getattr(self.app, "set_file_retry_callback", None)
+        if fid and callable(setter):
+            setter(fid, None)
+
+    def _offer_ai_retry(self, job):
+        """Показати кнопку повторного запуску після помилки AI (ті самі промпти)."""
+        job_id = job.get("id")
+        if not job_id:
+            return
+        cb = lambda jid=job_id: self.retry_job(jid)
+        fid = job.get("log_file_id")
+        setter = getattr(self.app, "set_file_retry_callback", None)
+        if fid and callable(setter):
+            setter(fid, cb)
+        else:
+            self.app.log_action(t("log_file_retry_ai_btn"), cb)
+
+    def retry_job(self, job_id):
+        """Повторити AI-завдання з уже обраними промптами (без діалогу і без паузи)."""
+        job = self._jobs.get(job_id)
+        if not job:
+            return
+        if job.get("status") == "running":
+            return
+        prompts = job.get("prompts")
+        if not prompts:
+            self.open_prompt_dialog(job_id)
+            return
+        if job.get("status") in ("skipped", "done"):
+            self._job_begin()
+        job["status"] = "running"
+        self._clear_ai_retry(job)
+        file_name = os.path.basename(job["txt_path"])
+        fid = job.get("log_file_id")
+        msg = t("ai_retrying", name=file_name)
+        if fid:
+            self.app.log_file_event(msg, file_id=fid)
+        else:
+            self.app.log(msg)
+        self.start_after_prompt_choice(
+            job,
+            prompts,
+            job.get("provider_id") or PROVIDER_CURSOR,
+            delay_s=0,
+        )
+
+    def start_after_prompt_choice(self, job, prompts, provider_id, delay_s=None):
         """Після вибору промптів/провайдера → асинхронний постпроцесинг."""
         app = self.app
         txt_path = job["txt_path"]
         do_export = job["export_md_to_docx"]
         credentials = self.credentials()
         provider_id = normalize_provider_id(provider_id)
+        job["provider_id"] = provider_id
+        job["prompts"] = list(prompts)
         file_id = job.get("log_file_id")
         log_func = app.make_file_logger(file_id) if file_id else app.log
+        used_api = get_provider(provider_id).has_api_credentials(credentials)
+        expected = len(prompts)
+        self._clear_ai_retry(job)
 
         def on_created(path):
             app.queue_ctrl.register_output_paths([path])
@@ -280,11 +339,19 @@ class AiJobQueue:
             if do_export and os.path.splitext(path)[1].lower() in (".md", ".markdown"):
                 app._export_markdown_to_docx(path, log_file_id=file_id)
 
-        def on_complete():
+        def on_complete(created=None):
             job["status"] = "done"
+            n = len(created) if created is not None else 0
+            if used_api and expected and n < expected:
+                self._offer_ai_retry(job)
+            else:
+                self._clear_ai_retry(job)
             self._job_end()
 
         def start():
+            kwargs = {}
+            if delay_s is not None:
+                kwargs["delay_s"] = delay_s
             start_ai_postprocess_async(
                 txt_path,
                 provider_id=provider_id,
@@ -294,6 +361,7 @@ class AiJobQueue:
                 on_complete=on_complete,
                 resolve_output_path=app.resolve_output_path,
                 prompts=prompts,
+                **kwargs,
             )
 
         def maybe_install_then_start():

@@ -62,6 +62,7 @@ class LogPanel:
         self._file_tx_expanded = {}  # file_id -> bool (default False)
         self._file_out_expanded = {}  # file_id -> bool (default True)
         self._file_action_callbacks = {}  # file_id -> latest action callback
+        self._file_retry_callbacks = {}  # file_id -> retry AI job callback
 
     def bind_widget(self, log_box):
         self.log_box = log_box
@@ -217,6 +218,24 @@ class LogPanel:
 
         self.root.after(0, _do)
 
+    def set_file_retry_callback(self, file_id, callback):
+        """Кнопка «Перезапустити завдання» після помилки AI. callback=None — прибрати."""
+        fid = file_id or self._active_file_id
+        if not fid:
+            return
+
+        def _do():
+            if callback is None:
+                self._file_retry_callbacks.pop(fid, None)
+            else:
+                self._file_retry_callbacks[fid] = callback
+            entry = self._store.get_file(fid)
+            if entry:
+                self._render_file_entry(entry, insert_new=False)
+            self._scroll_to_end_if_today()
+
+        self.root.after(0, _do)
+
     def make_file_logger(self, file_id):
         """Callable сумісний з log_func(msg, tag=None) — пише в file-сесію."""
 
@@ -231,6 +250,7 @@ class LogPanel:
         self._store.clear()
         self._action_callbacks.clear()
         self._file_action_callbacks.clear()
+        self._file_retry_callbacks.clear()
         self._day_expanded.clear()
         self._day_body_loaded.clear()
         self._file_block_tags.clear()
@@ -296,6 +316,7 @@ class LogPanel:
         self._store.prune_days_without_files(keep_today=True)
         self._action_callbacks.clear()
         self._file_action_callbacks.clear()
+        self._file_retry_callbacks.clear()
         self._day_expanded.clear()
         self._day_body_loaded.clear()
         self._file_block_tags.clear()
@@ -338,6 +359,7 @@ class LogPanel:
         tx_exp = dict(self._file_tx_expanded)
         out_exp = dict(self._file_out_expanded)
         cbs = dict(self._file_action_callbacks)
+        retry_cbs = dict(self._file_retry_callbacks)
 
         self._action_callbacks.clear()
         self._day_body_loaded.clear()
@@ -347,6 +369,7 @@ class LogPanel:
         self._file_tx_expanded = tx_exp
         self._file_out_expanded = out_exp
         self._file_action_callbacks = cbs
+        self._file_retry_callbacks = retry_cbs
         self._ui_day = None
 
         box = self.log_box
@@ -726,6 +749,7 @@ class LogPanel:
         body_tag = self._file_body_tag(file_id)
         body_day = self._day_body_tag(day_key)
         action_tag = f"file_action_{file_id}"
+        retry_tag = f"file_retry_{file_id}"
         expanded = self._is_file_expanded(file_id)
         tx_expanded = self._is_file_tx_expanded(file_id)
         out_expanded = self._is_file_out_expanded(file_id)
@@ -771,6 +795,7 @@ class LogPanel:
         # 3.2 Created files (+ окрема кнопка промтів поза списком файлів)
         outputs = entry.get("outputs") or []
         has_prompt = self._file_action_callbacks.get(file_id) is not None
+        has_retry = self._file_retry_callbacks.get(file_id) is not None
         if outputs or has_prompt:
             mark = "▼" if out_expanded else "▶"
             out_h = "   " + t("log_file_outputs_header", mark=mark) + "\n"
@@ -844,6 +869,15 @@ class LogPanel:
                 tags.append("link")
             box.insert(cursor, display, tuple(tags))
             cursor = box.index(f"{cursor}+{len(display)}c")
+
+        if has_retry:
+            rbtn = "   " + t("log_file_retry_ai_btn") + "\n"
+            box.insert(
+                cursor,
+                rbtn,
+                tuple(base_body + ["action", retry_tag]),
+            )
+            cursor = box.index(f"{cursor}+{len(rbtn)}c")
 
         return cursor
 
@@ -1001,6 +1035,15 @@ class LogPanel:
             if tag.startswith("file_action_"):
                 fid = tag[len("file_action_") :]
                 cb = self._file_action_callbacks.get(fid)
+                if cb is not None:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+                    return "break"
+            if tag.startswith("file_retry_"):
+                fid = tag[len("file_retry_") :]
+                cb = self._file_retry_callbacks.get(fid)
                 if cb is not None:
                     try:
                         cb()
