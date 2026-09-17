@@ -34,6 +34,9 @@ EXCLUDE_DIR_NAMES = frozenset(
         ".cursor",
         "tools",
         "_update_staging",
+        "dist",
+        "captures",
+        "downloads",
     }
 )
 EXCLUDE_FILE_NAMES = frozenset(
