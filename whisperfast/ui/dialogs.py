@@ -20,7 +20,8 @@ from whisperfast.core.input_files import (
     validate_and_filter_files,
 )
 from whisperfast.core.model_manager import WhisperModelSingleton
-from whisperfast.i18n import t
+from whisperfast.i18n import get_language, t
+from whisperfast.ui.widgets import Tooltip
 from whisperfast.updates.model_updates import (
     is_model_downloaded,
     model_needs_update,
@@ -1111,6 +1112,7 @@ def show_ai_prompts_dialog(
     default_nums: номери промптів, позначені за замовчуванням.
     """
     from whisperfast.postprocess.cursor_postprocess import default_checked_prompt_nums
+    from whisperfast.postprocess.prompt_library import load_prompt_specs
     from whisperfast.postprocess.providers import (
         PROVIDER_CURSOR,
         normalize_provider_id,
@@ -1185,6 +1187,8 @@ def show_ai_prompts_dialog(
 
     check_vars = []
     prompt_name_labels = []
+    dialog._wf_tips = []
+    hint_by_num = {s.num: s.hint_for(get_language()) for s in load_prompt_specs()}
     checked_nums = default_checked_prompt_nums(prompts, default_nums)
     for num, name, _text in prompts:
         var = tk.BooleanVar(value=(num in checked_nums))
@@ -1192,7 +1196,8 @@ def show_ai_prompts_dialog(
         label = name or f"#{num}"
         row = ttk.Frame(rows_frame)
         row.pack(fill="x", pady=2)
-        ttk.Checkbutton(row, variable=var).pack(side="left")
+        cb = ttk.Checkbutton(row, variable=var)
+        cb.pack(side="left")
         name_lbl = ttk.Label(
             row,
             text=t("cursor_prompt_row", num=num, name=label),
@@ -1200,6 +1205,9 @@ def show_ai_prompts_dialog(
         )
         name_lbl.pack(side="left", fill="x", expand=True, padx=(4, 0))
         prompt_name_labels.append((name_lbl, num, label))
+        prompt_hint = hint_by_num.get(num) or t("tooltip_ai_prompt_checkbox")
+        dialog._wf_tips.append(Tooltip(cb, prompt_hint, is_key=False))
+        dialog._wf_tips.append(Tooltip(name_lbl, prompt_hint, is_key=False))
 
         def _toggle(_event=None, v=var):
             v.set(not v.get())
@@ -1260,6 +1268,10 @@ def show_ai_prompts_dialog(
     all_btn.grid(row=0, column=0, sticky="ew", padx=(0, 6))
     run_btn = ttk.Button(buttons, text=t("cursor_prompts_run"), command=on_run_selected)
     run_btn.grid(row=0, column=1, sticky="ew")
+    dialog._wf_tips.append(Tooltip(all_btn, "tooltip_cursor_prompts_all", is_key=True))
+    dialog._wf_tips.append(Tooltip(run_btn, "tooltip_cursor_prompts_run", is_key=True))
+    for rb, _label_key in provider_radios:
+        dialog._wf_tips.append(Tooltip(rb, "tooltip_ai_provider_choice", is_key=True))
 
     def apply_language():
         dialog.title(t("cursor_prompts_title"))
@@ -1311,29 +1323,25 @@ def show_ai_prompts_dialog(
 
 
 def show_ai_prompts_overview_dialog(app):
-    """Огляд промптів: які є і які позначені на виконання за замовчуванням.
-
-    Кнопка внизу відкриває redactor1.md (колишній функціонал кнопки «В AI»).
-    """
+    """Огляд промптів: галочка = увімкнено за замовчуванням; редагування — у рядку."""
     from whisperfast.postprocess.cursor_postprocess import (
         default_checked_prompt_nums,
         ensure_redactor_file,
-        open_redactor_file,
-        parse_redactor_prompts,
     )
+    from whisperfast.postprocess.prompt_library import load_prompt_specs, open_prompt_file
 
     ensure_redactor_file()
 
     dialog = tk.Toplevel(app.root)
     dialog.title(t("ai_prompts_overview_title"))
     dialog.transient(app.root)
-    dialog.minsize(440, 360)
-    dialog.geometry("500x440")
+    dialog.minsize(480, 360)
+    dialog.geometry("560x460")
 
     frame = ttk.Frame(dialog, padding=15)
     frame.pack(fill="both", expand=True)
 
-    hint_lbl = ttk.Label(frame, text=t("ai_prompts_overview_hint"), wraplength=460)
+    hint_lbl = ttk.Label(frame, text=t("ai_prompts_overview_hint"), wraplength=520)
     hint_lbl.pack(anchor="w", pady=(0, 8))
 
     list_wrap = ttk.Frame(frame)
@@ -1358,15 +1366,11 @@ def show_ai_prompts_overview_dialog(app):
 
     state = {
         "check_vars": [],
-        "status_labels": [],
         "name_labels": [],
+        "edit_buttons": [],
         "empty_lbl": None,
+        "tips": [],
     }
-
-    def _status_text(enabled):
-        return t(
-            "ai_prompts_overview_default_on" if enabled else "ai_prompts_overview_default_off"
-        )
 
     def _save_defaults():
         nums = [num for num, var in state["check_vars"] if var.get()]
@@ -1375,20 +1379,17 @@ def show_ai_prompts_overview_dialog(app):
         if callable(persist):
             persist()
 
-    def _on_toggle(var, status_lbl):
-        status_lbl.config(text=_status_text(var.get()))
-        _save_defaults()
-
     def rebuild_rows():
         for child in rows_frame.winfo_children():
             child.destroy()
         state["check_vars"] = []
-        state["status_labels"] = []
         state["name_labels"] = []
+        state["edit_buttons"] = []
         state["empty_lbl"] = None
+        state["tips"] = []
 
-        prompts = parse_redactor_prompts()
-        if not prompts:
+        specs = load_prompt_specs()
+        if not specs:
             empty_lbl = ttk.Label(
                 rows_frame,
                 text=t("ai_prompts_overview_empty"),
@@ -1399,35 +1400,47 @@ def show_ai_prompts_overview_dialog(app):
             return
 
         stored = getattr(app, "ai_default_prompt_nums", None)
-        checked_nums = default_checked_prompt_nums(prompts, stored)
-        for num, name, _text in prompts:
-            var = tk.BooleanVar(value=(num in checked_nums))
-            label = name or f"#{num}"
+        tuples = [s.as_tuple() for s in specs]
+        checked_nums = default_checked_prompt_nums(tuples, stored)
+        log_func = getattr(app, "log", None)
+        for spec in specs:
+            var = tk.BooleanVar(value=(spec.num in checked_nums))
+            label = spec.name or f"#{spec.num}"
             row = ttk.Frame(rows_frame)
             row.pack(fill="x", pady=2)
-            status_lbl = ttk.Label(row, text=_status_text(var.get()))
-            cb = ttk.Checkbutton(
-                row,
-                variable=var,
-                command=lambda v=var, s=status_lbl: _on_toggle(v, s),
-            )
+            cb = ttk.Checkbutton(row, variable=var, command=_save_defaults)
             cb.pack(side="left")
             name_lbl = ttk.Label(
                 row,
-                text=t("cursor_prompt_row", num=num, name=label),
+                text=t("cursor_prompt_row", num=spec.num, name=label),
                 cursor="hand2",
             )
             name_lbl.pack(side="left", fill="x", expand=True, padx=(4, 8))
-            status_lbl.pack(side="right")
+            edit_btn = ttk.Button(
+                row,
+                text=t("ai_prompt_edit"),
+                width=10,
+                command=lambda p=spec.path: open_prompt_file(p, log_func=log_func),
+            )
+            edit_btn.pack(side="right")
 
-            def _click(_event=None, v=var, s=status_lbl):
+            def _click(_event=None, v=var):
                 v.set(not v.get())
-                _on_toggle(v, s)
+                _save_defaults()
 
             name_lbl.bind("<Button-1>", _click)
-            state["check_vars"].append((num, var))
-            state["status_labels"].append(status_lbl)
-            state["name_labels"].append((name_lbl, num, label))
+            prompt_hint = spec.hint_for(get_language())
+            state["tips"].append(Tooltip(cb, "tooltip_ai_prompt_checkbox", is_key=True))
+            if prompt_hint:
+                state["tips"].append(Tooltip(name_lbl, prompt_hint, is_key=False))
+            else:
+                state["tips"].append(Tooltip(name_lbl, "tooltip_ai_prompt_checkbox", is_key=True))
+            state["tips"].append(Tooltip(edit_btn, "tooltip_ai_prompt_edit", is_key=True))
+            state["check_vars"].append((spec.num, var))
+            state["name_labels"].append((name_lbl, spec.num, label))
+            state["edit_buttons"].append(edit_btn)
+
+        dialog._wf_tips = state["tips"]
 
     def _on_mousewheel(event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -1438,34 +1451,18 @@ def show_ai_prompts_overview_dialog(app):
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(12, 0))
 
-    def on_edit():
-        open_redactor_file(log_func=getattr(app, "log", None))
-
     def on_rules():
         show_prompt_rules_dialog(app)
 
-    edit_btn = ttk.Button(
-        buttons, text=t("ai_prompts_overview_edit"), command=on_edit
-    )
-    edit_btn.pack(side="left", fill="x", expand=True)
     rules_btn = ttk.Button(buttons, text=t("ai_prompt_rules_button"), command=on_rules)
-    rules_btn.pack(side="left", padx=(6, 0))
+    rules_btn.pack(side="right")
+    dialog._wf_rules_tip = Tooltip(rules_btn, "tooltip_ai_prompt_rules", is_key=True)
 
     def apply_language():
         dialog.title(t("ai_prompts_overview_title"))
         hint_lbl.config(text=t("ai_prompts_overview_hint"))
-        edit_btn.config(text=t("ai_prompts_overview_edit"))
         rules_btn.config(text=t("ai_prompt_rules_button"))
-        empty_lbl = state.get("empty_lbl")
-        if empty_lbl is not None:
-            try:
-                empty_lbl.config(text=t("ai_prompts_overview_empty"))
-            except tk.TclError:
-                pass
-        for name_lbl, num, label in state["name_labels"]:
-            name_lbl.config(text=t("cursor_prompt_row", num=num, name=label))
-        for (_num, var), status_lbl in zip(state["check_vars"], state["status_labels"]):
-            status_lbl.config(text=_status_text(var.get()))
+        rebuild_rows()
 
     rebuild_rows()
     track_i18n_window(app, dialog, apply_language)

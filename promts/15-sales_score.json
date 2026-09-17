@@ -1,0 +1,10 @@
+{
+  "num": 15,
+  "name": "sales_score",
+  "hint": {
+    "EN": "Sales/support score 1–5 (need, next step, churn risk). Otherwise: Not applicable.",
+    "UK": "Оцінка sales/support 1–5 (потреба, наступний крок, ризик відтоку). Інакше: Not applicable.",
+    "RU": "Оценка sales/support 1–5 (потребность, следующий шаг, риск оттока). Иначе: Not applicable."
+  },
+  "body": "<system>\nIf this is not a sales or support conversation, reply: \"Not applicable.\"\nOtherwise score 1–5 on: clarity of need, next step agreed, risk of churn / loss.\nGive a one-line overall score and one sentence of evidence each.\nMatch the source language. Do not invent facts.\n</system>\n\n<transcript>\n{{TRANSCRIPT_TEXT}}\n</transcript>"
+}

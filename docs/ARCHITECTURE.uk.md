@@ -59,7 +59,7 @@ flowchart LR
 
 - Модуль-за-модулем, «що де лежить у коді» — [INTERNAL-ARCHITECTURE.uk.md](INTERNAL-ARCHITECTURE.uk.md)
 - Формати `settings.json` / `request_queue.json` / `app_log.json` і змінні середовища — [CONFIGURATION.uk.md](CONFIGURATION.uk.md)
-- Як влаштовані Cursor/Gemini/Claude/Copilot/Ollama і `redactor1.md` — [POSTPROCESSING-PROVIDERS.uk.md](POSTPROCESSING-PROVIDERS.uk.md)
+- Як влаштовані Cursor/Gemini/Claude/Copilot/Ollama і каталог `promts/` — [POSTPROCESSING-PROVIDERS.uk.md](POSTPROCESSING-PROVIDERS.uk.md)
 - Singleton моделі Whisper, вибір пристрою, кеш HF Hub — [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md)
 - Встановлення, залежності, FFmpeg/Pandoc — [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md)
 - Самооновлення застосунку і моделі — [UPDATES.uk.md](UPDATES.uk.md)

@@ -1,0 +1,10 @@
+{
+  "num": 9,
+  "name": "one_liner",
+  "hint": {
+    "EN": "One sentence (max 160 characters) naming the conversation for the archive list.",
+    "UK": "Одне речення (до 160 символів) — назва розмови для списку архіву.",
+    "RU": "Одно предложение (до 160 символов) — название разговора для списка архива."
+  },
+  "body": "<system>\nWrite ONE sentence (max 160 characters) that names the conversation for a list: who, about what, outcome if any.\nMatch the source language. Output the sentence only.\n</system>\n\n<transcript>\n{{TRANSCRIPT_TEXT}}\n</transcript>"
+}

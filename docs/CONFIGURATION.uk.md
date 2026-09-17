@@ -6,7 +6,7 @@
 
 ## Загальна структура файлів стану
 
-Усі перелічені нижче файли лежать в одному каталозі — `BASE_DIR` (каталог, де знаходиться `main.py`; обчислюється в `whisperfast/config.py` як `os.path.dirname` каталогу пакета `whisperfast/`). Жоден з них не версіонується в git (усі, крім `README.md` і `redactor1.md`, — у `.gitignore`).
+Усі перелічені нижче файли лежать в одному каталозі — `BASE_DIR` (каталог, де знаходиться `main.py`; обчислюється в `whisperfast/config.py` як `os.path.dirname` каталогу пакета `whisperfast/`). Жоден з них не версіонується в git (усі, крім `README.md` і `promts/*.json`, — у `.gitignore`).
 
 | Файл | Призначення | Джерело правди (модуль) |
 |---|---|---|
@@ -15,7 +15,7 @@
 | `app_log.json` | Лог програми по днях (у `.gitignore`) | `whisperfast/log_store.py` |
 | `library.sqlite` | Архів розмов (FTS-пошук, шляхи txt/srt/mp3/AI) | `whisperfast/library.py` |
 | `captures/` | Каталог стерео WAV запису зустрічі (`capture_YYYYMMDD_HHMMSS.wav`); поруч може бути `.inprogress` | `whisperfast/core/capture.py` |
-| `redactor1.md` | Бібліотека AI-промптів, редагується користувачем із GUI | `whisperfast/postprocess/cursor_postprocess.py` (парсинг) |
+| `promts/*.json` | Бібліотека AI-промптів (`num`, `name`, `body`; `hint` лише UI) | `whisperfast/postprocess/prompt_library.py` |
 | `whisperfast/i18n/lang.json` | Тексти інтерфейсу EN/UK/RU | `whisperfast/i18n/lang_manager.py` |
 | `README.md` | **Єдине джерело версії застосунку** (`**Версія:**` / `**Дата публікації:**`); продуктова назва **FTW** | `whisperfast/config.py: parse_app_metadata`, `APP_NAME` |
 | `LICENSE` / `THIRD-PARTY-NOTICES.md` | MIT на вихідний код FTW і ліцензії залежностей | не runtime-стан |

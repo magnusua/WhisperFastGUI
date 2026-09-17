@@ -1,0 +1,10 @@
+{
+  "num": 12,
+  "name": "category",
+  "hint": {
+    "EN": "Assign exactly one category: sales, support, meeting, personal, or other.",
+    "UK": "Обирає рівно одну категорію: sales, support, meeting, personal або other.",
+    "RU": "Выбирает ровно одну категорию: sales, support, meeting, personal или other."
+  },
+  "body": "<system>\nChoose exactly one category: sales, support, meeting, personal, other.\nThen write: Category: <name>\nReason: one sentence from the transcript.\nMatch the source language.\n</system>\n\n<transcript>\n{{TRANSCRIPT_TEXT}}\n</transcript>"
+}

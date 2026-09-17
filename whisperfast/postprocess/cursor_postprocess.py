@@ -11,19 +11,17 @@ import time
 from typing import Callable, List, Optional, Tuple
 
 from whisperfast.config import BASE_DIR
-from whisperfast.open_path import open_file
 from whisperfast.platform_util import win_no_window_kwargs
+from whisperfast.postprocess.prompt_library import (
+    ensure_prompt_library,
+    load_prompt_tuples,
+    open_prompt_file,
+)
 
-REDACTOR_FILENAME = "redactor1.md"
 CURSOR_POSTPROCESS_DELAY_S = 5.0
 CURSOR_SDK_NETWORK_ATTEMPTS = 3
 CURSOR_SDK_NETWORK_RETRY_DELAY_S = 2.0
 CURSOR_SDK_BRIDGE_RETRY_DELAY_S = 0.5
-
-_PROMPT_HEADER_RE = re.compile(
-    r'^##\s*(?:Промпт|Prompt)\s*[№#]?\s*(\d+)\s*(?:"([^"]*)"|\'([^\']*)\')?\s*$',
-    re.IGNORECASE | re.MULTILINE,
-)
 
 LogFunc = Callable[..., None]
 
@@ -292,33 +290,13 @@ def _prepare_cursor_sdk() -> None:
 
 
 def redactor_path() -> str:
-    return os.path.join(BASE_DIR, REDACTOR_FILENAME)
+    """Каталог ``promts/`` (раніше був шлях до redactor1.md)."""
+    return ensure_prompt_library()
 
 
 def ensure_redactor_file() -> str:
-    """Створює шаблон redactor1.md, якщо файлу ще немає. Повертає шлях."""
-    path = redactor_path()
-    if not os.path.exists(path):
-        template = (
-            "# Redactor prompts for FTW\n"
-            "\n"
-            "Numbered prompts below are applied in order after transcription.\n"
-            "Output files use the prompt name in quotes: ## Промпт №1 \"redactor\" → *_redactor.md\n"
-            "\n"
-            "## Промпт №1 \"redactor\"\n"
-            "\n"
-            "Clean up the transcript: fix obvious punctuation and capitalization,\n"
-            "remove filler words where safe, keep the original meaning and language.\n"
-            "Output Markdown only (no commentary outside the document).\n"
-            "\n"
-            "## Промпт №2 \"summary\"\n"
-            "\n"
-            "Add a short title and a brief summary at the top, then keep the cleaned body.\n"
-            "\n"
-        )
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(template)
-    return path
+    """Сумісність: створює ``promts/``, якщо каталогу ще немає."""
+    return ensure_prompt_library()
 
 
 def default_checked_prompt_nums(
@@ -347,31 +325,18 @@ def default_checked_prompt_nums(
 
 
 def parse_redactor_prompts(path: Optional[str] = None) -> List[Tuple[int, str, str]]:
-    """Парсить «## Промпт №N "name"» / «## Prompt #N "name"» → [(n, name, text), ...] за зростанням n.
+    """``(num, name, body)`` з ``promts/*.json``. Поле ``hint`` у запит не входить.
 
-    name — з лапок після номера (може бути порожнім, якщо лапок немає).
-    Порожні секції (без тексту) пропускаються.
+    ``path``: ``None`` — каталог програми; каталог з ``promts/``; або сам ``promts``.
     """
-    path = path or redactor_path()
-    if not os.path.isfile(path):
-        return []
-    with open(path, "r", encoding="utf-8") as f:
-        content = f.read()
-    matches = list(_PROMPT_HEADER_RE.finditer(content))
-    if not matches:
-        return []
-    prompts: List[Tuple[int, str, str]] = []
-    for i, m in enumerate(matches):
-        num = int(m.group(1))
-        name = (m.group(2) if m.group(2) is not None else m.group(3) or "") or ""
-        name = name.strip()
-        start = m.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
-        text = content[start:end].strip()
-        if text:
-            prompts.append((num, name, text))
-    prompts.sort(key=lambda x: x[0])
-    return prompts
+    if path is None:
+        return load_prompt_tuples()
+    if os.path.isdir(path):
+        base = os.path.basename(os.path.normpath(path))
+        if base == "promts":
+            return load_prompt_tuples(os.path.dirname(path))
+        return load_prompt_tuples(path)
+    return []
 
 
 def sanitize_prompt_filename(name: str) -> str:
@@ -407,25 +372,10 @@ def edited_output_path(txt_path: str, prompt_num: int, prompt_name: str = "") ->
     return base + f"_edited_{prompt_num}.md"
 
 
-def open_redactor_file(log_func: Optional[LogFunc] = None) -> str:
-    """Гарантує наявність redactor1.md і відкриває його системним редактором."""
-    path = ensure_redactor_file()
-    try:
-        open_file(path)
-        if log_func:
-            try:
-                from whisperfast.i18n import t
-                log_func(t("redactor_opened", name=os.path.basename(path)))
-            except ImportError:
-                pass
-    except OSError as e:
-        if log_func:
-            try:
-                from whisperfast.i18n import t
-                log_func(t("redactor_open_error", error=str(e)))
-            except ImportError:
-                pass
-    return path
+def open_redactor_file(log_func: Optional[LogFunc] = None, path: Optional[str] = None) -> str:
+    """Відкриває один JSON-промпт (або каталог ``promts/``)."""
+    target = path or ensure_prompt_library()
+    return open_prompt_file(target, log_func=log_func)
 
 
 def _find_cursor_gui_exe() -> Optional[str]:
@@ -781,7 +731,7 @@ def process_txt_with_cursor(
     resolve_output_path: Optional[Callable[[str], str]] = None,
     prompts: Optional[List[Tuple[int, str, str]]] = None,
 ) -> None:
-    """Затримка → промпти (передані або з redactor1.md) → SDK / Chat fallback."""
+    """Затримка → промпти (передані або з ``promts/*.json``) → SDK / Chat fallback."""
     if delay_s > 0:
         if log_func:
             try:

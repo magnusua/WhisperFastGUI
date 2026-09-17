@@ -48,7 +48,7 @@ class AiJobQueue:
         open_redactor_file(log_func=self.app.log)
 
     def show_prompts_overview(self):
-        """Вікно зі списком промптів і позначками «за замовчуванням»; кнопка редагує файл."""
+        """Вікно зі списком промптів; галочка = за замовчуванням; Змінити відкриває JSON рядка."""
         dialog = getattr(self, "_overview_dialog", None)
         if dialog is not None:
             try:

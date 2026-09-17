@@ -36,7 +36,8 @@ except ImportError:
     Version = None
 
 _UPDATE_STAGING_DIR = "_update_staging"
-_PRESERVE_FILES = frozenset({"settings.json", "request_queue.json", "redactor1.md"})
+_PRESERVE_FILES = frozenset({"settings.json", "request_queue.json"})
+_PROMPT_DIR_NAME = "promts"
 _RELEASES_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 _RELEASE_SIGNING_KEY = os.path.join(RESOURCES_DIR, "release_signing_key.asc")
 _USER_AGENT = "FTW-Updater"
@@ -401,6 +402,23 @@ def _is_safe_update_entry_name(name: str) -> bool:
     return True
 
 
+def _merge_prompt_dir(src: str, dst: str) -> None:
+    """Copy new prompt JSON files; keep existing user-edited ones."""
+    os.makedirs(dst, exist_ok=True)
+    try:
+        names = os.listdir(src)
+    except OSError:
+        return
+    for name in names:
+        if not name.lower().endswith(".json"):
+            continue
+        source = os.path.join(src, name)
+        target = os.path.join(dst, name)
+        if os.path.isfile(target):
+            continue
+        shutil.copy2(source, target)
+
+
 def _copy_update_files(source_dir: str, log_func: Callable[[str], None]) -> int:
     copied = 0
     for name in os.listdir(source_dir):
@@ -412,9 +430,14 @@ def _copy_update_files(source_dir: str, log_func: Callable[[str], None]) -> int:
             if os.path.isdir(src):
                 if os.path.basename(src) == "__pycache__":
                     continue
-                if os.path.isdir(dst):
-                    shutil.rmtree(dst, ignore_errors=True)
-                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+                if os.path.basename(src) == _PROMPT_DIR_NAME:
+                    _merge_prompt_dir(src, dst)
+                else:
+                    if os.path.isdir(dst):
+                        shutil.rmtree(dst, ignore_errors=True)
+                    shutil.copytree(
+                        src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+                    )
             else:
                 shutil.copy2(src, dst)
             copied += 1
@@ -444,6 +467,7 @@ def _write_apply_update_py(source_dir: str) -> str:
         f"DST = {os.path.abspath(BASE_DIR)!r}\n"
         f"PRESERVE = {set(_PRESERVE_FILES)!r}\n"
         f"STAGING_NAME = {_UPDATE_STAGING_DIR!r}\n"
+        f"PROMPT_DIR = {_PROMPT_DIR_NAME!r}\n"
         "\n"
         "def _ok(name):\n"
         "    if not name or name.startswith('.'):\n"
@@ -456,6 +480,16 @@ def _write_apply_update_py(source_dir: str) -> str:
         "        return False\n"
         "    return True\n"
         "\n"
+        "def _merge_prompts(src, dst):\n"
+        "    os.makedirs(dst, exist_ok=True)\n"
+        "    for name in os.listdir(src):\n"
+        "        if not name.lower().endswith('.json'):\n"
+        "            continue\n"
+        "        target = os.path.join(dst, name)\n"
+        "        if os.path.isfile(target):\n"
+        "            continue\n"
+        "        shutil.copy2(os.path.join(src, name), target)\n"
+        "\n"
         "def main():\n"
         "    if not os.path.isdir(SRC):\n"
         "        sys.exit(1)\n"
@@ -467,6 +501,9 @@ def _write_apply_update_py(source_dir: str) -> str:
         "        try:\n"
         "            if os.path.isdir(src):\n"
         "                if os.path.basename(src) == '__pycache__':\n"
+        "                    continue\n"
+        "                if os.path.basename(src) == PROMPT_DIR:\n"
+        "                    _merge_prompts(src, dst)\n"
         "                    continue\n"
         "                if os.path.isdir(dst):\n"
         "                    shutil.rmtree(dst, ignore_errors=True)\n"

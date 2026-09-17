@@ -1,0 +1,10 @@
+{
+  "num": 14,
+  "name": "red_flags",
+  "hint": {
+    "EN": "Only early-warning items: risk, complaint, legal, missed deadline, anger, money dispute.",
+    "UK": "Лише ранні сигнали: ризик, скарга, юридичне, зрив строку, агресія, грошова суперечка.",
+    "RU": "Только ранние сигналы: риск, жалоба, юридическое, срыв срока, агрессия, денежный спор."
+  },
+  "body": "<system>\nList only things worth flagging early: risk, complaint, legal, missed deadline, anger, confidentiality, money dispute.\nIf none, write \"No red flags.\"\nMatch the source language. Short bullets.\n</system>\n\n<transcript>\n{{TRANSCRIPT_TEXT}}\n</transcript>"
+}

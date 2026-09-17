@@ -43,7 +43,7 @@ FTW **повністю безкоштовний**: немає акаунта, п
 - `main.py` + пакет `whisperfast/` (`core`, `ui`, `postprocess`, `setup`, `updates`, `i18n`) — сам застосунок.
 - `docs/` — внутрішня документація (архітектура, конфігурація, оновлення).
 - `resources/` — іконка, звук завершення, довідка для кінцевого користувача (`Help_EN.md` / `Help_UK.md` / `Help_RU.md`).
-- `redactor1.md` — бібліотека AI-промптів, редагується з GUI.
+- `promts/` — бібліотека AI-промптів (окремий JSON на кожен промпт; поле `hint` лише для підказки в GUI).
 - `install.bat`, `run_whisper.vbs`, `start_delayed.vbs`, `autorun_delayed.bat` — запуск і автозапуск на Windows.
 - `settings.json`, `request_queue.json`, `app_log.json` — стан і налаштування користувача (створюються при першому запуску, у git не потрапляють).
 
@@ -69,7 +69,7 @@ Python 3.9–3.13 (рекомендовано 3.11/3.12), FFmpeg у PATH, опц
 | [ARCHITECTURE.uk.md](docs/ARCHITECTURE.uk.md) | Концептуальна модель: черга, запис зустрічі, архів, «одна задача одночасно» |
 | [INTERNAL-ARCHITECTURE.uk.md](docs/INTERNAL-ARCHITECTURE.uk.md) | Карта модулів пакета `whisperfast/`, потоки виконання, «де що міняти» |
 | [CONFIGURATION.uk.md](docs/CONFIGURATION.uk.md) | `settings.json`, `request_queue.json`, `app_log.json`, змінні середовища |
-| [POSTPROCESSING-PROVIDERS.uk.md](docs/POSTPROCESSING-PROVIDERS.uk.md) | Cursor / Gemini / Claude / Copilot / Ollama, `redactor1.md` |
+| [POSTPROCESSING-PROVIDERS.uk.md](docs/POSTPROCESSING-PROVIDERS.uk.md) | Cursor / Gemini / Claude / Copilot / Ollama, каталог `promts/` |
 | [MODEL-AND-DEVICE-MANAGEMENT.uk.md](docs/MODEL-AND-DEVICE-MANAGEMENT.uk.md) | Вибір пристрою, singleton моделі Whisper, кеш Hugging Face Hub |
 | [SETUP-AND-DEPENDENCIES.uk.md](docs/SETUP-AND-DEPENDENCIES.uk.md) | Встановлення, pip-залежності, FFmpeg/Pandoc, автозапуск |
 | [UPDATES.uk.md](docs/UPDATES.uk.md) | Самооновлення застосунку та моделі Whisper |

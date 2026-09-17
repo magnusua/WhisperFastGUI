@@ -21,7 +21,7 @@ FTW сам себе оновлює з GitHub, а окремо — оновлює
 
 **GPG не потрібен для нормальної роботи.** Код уміє перевірити від’єднаний підпис `SHA256SUMS.asc`, але лише якщо в `resources/release_signing_key.asc` лежить непустий публічний ключ. Зараз цього файлу немає — достатньо SHA-256. Приватний ключ у репозиторій не кладеться.
 
-Файли копіюються поверх поточної інсталяції (`_copy_update_files`), крім захищених (`_PRESERVE_FILES = {"settings.json", "request_queue.json", "redactor1.md"}`). На Windows копіювання відкладається до перезапуску через `_apply_update.py` (запускається з `_apply_update.bat`); на macOS/Linux застосовується одразу. Розпакування ZIP — через `archive_extract.safe_extract_zip` (відсікання zip-slip).
+Файли копіюються поверх поточної інсталяції (`_copy_update_files`), крім захищених (`settings.json`, `request_queue.json`). Каталог `promts/` зливається: уже наявні JSON користувача не перезаписуються, нові файли з релізу додаються. На Windows копіювання відкладається до перезапуску через `_apply_update.py` (запускається з `_apply_update.bat`); на macOS/Linux застосовується одразу. Розпакування ZIP — через `archive_extract.safe_extract_zip` (відсікання zip-slip).
 
 **Публікація релізу:** workflow `.github/workflows/release-checksums.yml` на подію `release: published` збирає `FTW-{version}-src.zip` і `SHA256SUMS` (`scripts/make_release_checksums.py`) і завантажує їх як асети. Підпис `SHA256SUMS.asc` з’явиться лише якщо в GitHub Secrets задано `GPG_PRIVATE_KEY` — це свідомо не налаштовано.
 

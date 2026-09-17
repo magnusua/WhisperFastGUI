@@ -90,7 +90,7 @@
 
 ### postprocess/ — AI-постпроцесинг
 
-Коротко: `ai_postprocess.py` — оркестратор; `common.py` — HTTP/clipboard; `cursor_postprocess.py` — Cursor SDK; `providers/` — Claude, Gemini, Copilot, Ollama, OpenAI-compatible + `base.py`; `prompt_rules.py` — автозапуск; `usage.py` — токени/бюджет; `connection_test.py` — кнопка «Перевірити з'єднання».
+Коротко: `ai_postprocess.py` — оркестратор; `prompt_library.py` — `promts/*.json`; `common.py` — HTTP/clipboard; `cursor_postprocess.py` — Cursor SDK; `providers/` — Claude, Gemini, Copilot, Ollama, OpenAI-compatible + `base.py`; `prompt_rules.py` — автозапуск; `usage.py` — токени/бюджет; `connection_test.py` — кнопка «Перевірити з'єднання».
 
 ### setup/ — перший запуск і залежності
 

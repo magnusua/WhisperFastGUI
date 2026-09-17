@@ -1,0 +1,10 @@
+{
+  "num": 10,
+  "name": "topics",
+  "hint": {
+    "EN": "List of distinct topics (3–12) with a one-sentence note each.",
+    "UK": "Список окремих тем (3–12) з одним реченням по кожній.",
+    "RU": "Список отдельных тем (3–12) с одним предложением по каждой."
+  },
+  "body": "<system>\nList the distinct topics covered, 3–12 items. For each: a short title and one sentence of what was said.\nMatch the source language. Markdown only.\n</system>\n\n<transcript>\n{{TRANSCRIPT_TEXT}}\n</transcript>"
+}

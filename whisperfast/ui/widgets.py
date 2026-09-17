@@ -52,6 +52,7 @@ class Tooltip:
             font=("Segoe UI", 9),
             padx=6,
             pady=4,
+            wraplength=420,
         )
         label.pack()
         self._tw.update_idletasks()

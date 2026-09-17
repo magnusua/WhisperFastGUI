@@ -1,9 +1,11 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal EnableDelayedExpansion
 chcp 65001 >nul
+title FTW — установка зависимостей
 
 echo ==========================================
 echo   FTW — установка зависимостей
+echo   pip / CUDA через python.exe (не pythonw)
 echo ==========================================
 echo.
 
@@ -11,7 +13,7 @@ cd /d "%~dp0"
 
 set "PYEXE="
 
-:: 1) Python из settings.json (pythonw.exe → python.exe: pip через pythonw ломается)
+:: 1) Python из settings.json. Для pip всегда python.exe: pythonw прячет вывод и ломает установку.
 if exist "settings.json" (
     for /f "usebackq delims=" %%A in (`powershell -NoProfile -Command "$ErrorActionPreference='SilentlyContinue'; try { $p=[string]((Get-Content -Raw -LiteralPath 'settings.json' | ConvertFrom-Json).python_path); if (-not $p) { exit 0 }; if ($p -match '(?i)pythonw\.exe$') { $p = $p -replace '(?i)pythonw\.exe$','python.exe' } elseif (([IO.Path]::GetFileName($p)) -eq 'pythonw') { $p = Join-Path ([IO.Path]::GetDirectoryName($p)) 'python' }; if (Test-Path -LiteralPath $p) { $p } } catch { }"`) do set "PYEXE=%%A"
 )
@@ -30,15 +32,17 @@ if not defined PYEXE (
     )
 )
 
-:: 3) python из PATH
+:: 3) python из PATH, пропуск заглушки Microsoft Store (WindowsApps)
 if not defined PYEXE (
-    set "CAND="
     for /f "delims=" %%A in ('where python 2^>nul') do (
-        if not defined CAND set "CAND=%%A"
-    )
-    if defined CAND (
-        call :to_python_exe CAND
-        if exist "!CAND!" set "PYEXE=!CAND!"
+        if not defined PYEXE (
+            set "CAND=%%A"
+            echo !CAND! | findstr /I /C:"WindowsApps" >nul
+            if errorlevel 1 (
+                call :to_python_exe CAND
+                if exist "!CAND!" set "PYEXE=!CAND!"
+            )
+        )
     )
 )
 
@@ -46,7 +50,7 @@ if not defined PYEXE (
     echo Python 3.9-3.13 не найден.
     echo Скачайте установщик: https://www.python.org/downloads/windows/
     echo Рекомендуется Python 3.12. При установке отметьте "Add python.exe to PATH".
-    echo После установки снова запустите install.bat.
+    echo После установки снова запустите install.bat из этой папки.
     pause
     exit /b 1
 )
@@ -107,15 +111,23 @@ set "ERR=!errorlevel!"
 echo.
 if !ERR! neq 0 (
     echo Установка не завершена. Смотрите ошибки pip выше, затем снова install.bat.
-    echo Не запускайте программу через pythonw.exe.
+    echo Для pip нужен python.exe — не запускайте установку через pythonw.exe.
     pause
     exit /b 1
 )
 
 echo ----------------------------------------
-echo   Запускайте FTW файлом:
-echo     run_whisper.vbs
-echo   Не используйте pythonw.exe и не открывайте main.py напрямую.
+echo   Готово. Запускайте FTW так:
+echo     run_whisper.vbs       обычный запуск (без окна консоли)
+echo     autorun_delayed.bat   ярлык в автозагрузку Windows (задержка 25 с)
+echo     start_delayed.vbs     тот же отложенный запуск вручную
+echo.
+echo   run_whisper.vbs сам возьмёт Python из settings.json и вызовет
+echo   pythonw + main.py — так и задумано, консоль не нужна.
+echo.
+echo   Не открывайте pythonw.exe или main.py двойным щелчком в Проводнике:
+echo   не будет рабочей папки и интерпретатора из settings.json.
+echo   install.bat / pip — только через python.exe (этот файл так и делает).
 echo ----------------------------------------
 echo.
 pause

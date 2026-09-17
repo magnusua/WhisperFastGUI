@@ -1,0 +1,10 @@
+{
+  "num": 11,
+  "name": "names",
+  "hint": {
+    "EN": "Extract people, organisations, phones, emails, URLs, amounts, dates, product names.",
+    "UK": "Витягує людей, організації, телефони, email, URL, суми, дати, назви продуктів.",
+    "RU": "Извлекает людей, организации, телефоны, email, URL, суммы, даты, названия продуктов."
+  },
+  "body": "<system>\nExtract people, organisations, phone numbers, emails, URLs, amounts, dates and system/product names.\nGroup under headings. If none, write \"None found\".\nMatch the source language. Do not invent.\n</system>\n\n<transcript>\n{{TRANSCRIPT_TEXT}}\n</transcript>"
+}

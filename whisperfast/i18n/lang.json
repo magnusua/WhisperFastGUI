@@ -465,9 +465,9 @@
     "RU": "После обработки открыть «Промты» и выполнить через Cursor / Gemini / Copilot (API или браузерный fallback)."
   },
   "tooltip_edit_redactor": {
-    "EN": "Show prompts from redactor1.md and which ones are selected by default. The button in that window opens the file for editing.",
-    "UK": "Показати промпти з redactor1.md і які з них позначені за замовчуванням. Кнопка в тому вікні відкриває файл для редагування.",
-    "RU": "Показать промты из redactor1.md и какие из них отмечены по умолчанию. Кнопка в том окне открывает файл для редактирования."
+    "EN": "Open the prompt list. A check mark means the prompt runs by default; Edit on a row opens that prompt file.",
+    "UK": "Відкрити список промптів. Галочка — промпт виконується за замовчуванням; «Змінити» в рядку відкриває файл цього промпту.",
+    "RU": "Открыть список промтов. Галочка — промт выполняется по умолчанию; «Изменить» в строке открывает файл этого промта."
   },
   "tooltip_cursor_api_key": {
     "EN": "Open AI API keys (Cursor, Gemini, Azure OpenAI / Copilot). Empty credentials → browser/Chat fallback.",
@@ -555,19 +555,54 @@
     "RU": "Промты"
   },
   "ai_prompts_overview_hint": {
-    "EN": "Prompts from redactor1.md. A check mark means the prompt is selected by default when AI runs. The button below opens the file for editing.",
-    "UK": "Промпти з redactor1.md. Галочка — промпт позначено за замовчуванням при запуску AI. Кнопка внизу відкриває файл для редагування.",
-    "RU": "Промты из redactor1.md. Галочка — промт отмечен по умолчанию при запуске AI. Кнопка внизу открывает файл для редактирования."
+    "EN": "The check mark (left) turns the prompt on for default AI processing. Hover a name for what the prompt does. Edit opens that prompt’s JSON in promts/.",
+    "UK": "Галочка ліворуч вмикає промпт у обробку AI за замовчуванням. Наведіть на назву, щоб побачити навіщо він. «Змінити» відкриває JSON цього промпту в promts/.",
+    "RU": "Галочка слева включает промт в обработку AI по умолчанию. Наведите на название, чтобы увидеть, зачем он. «Изменить» открывает JSON этого промта в promts/."
   },
   "ai_prompts_overview_edit": {
     "EN": "Edit prompts",
     "UK": "Редагувати промпти",
     "RU": "Редактировать промты"
   },
+  "ai_prompt_edit": {
+    "EN": "Edit",
+    "UK": "Змінити",
+    "RU": "Изменить"
+  },
+  "tooltip_ai_prompt_checkbox": {
+    "EN": "Check to include this prompt in default AI processing.",
+    "UK": "Позначте, щоб цей промпт виконувався в AI за замовчуванням.",
+    "RU": "Отметьте, чтобы этот промт выполнялся в AI по умолчанию."
+  },
+  "tooltip_ai_prompt_edit": {
+    "EN": "Open this prompt’s JSON file for editing. The hint field is not sent to the model.",
+    "UK": "Відкрити JSON цього промпту для редагування. Поле hint у модель не надсилається.",
+    "RU": "Открыть JSON этого промта для редактирования. Поле hint в модель не отправляется."
+  },
+  "tooltip_ai_prompt_rules": {
+    "EN": "Rules that auto-run selected prompts after a file is ready (optionally without this window).",
+    "UK": "Правила, які самі запускають обрані промпти після готового файлу (за бажанням без цього вікна).",
+    "RU": "Правила, которые сами запускают выбранные промты после готового файла (по желанию без этого окна)."
+  },
+  "tooltip_cursor_prompts_all": {
+    "EN": "Select every prompt in the list and run them now.",
+    "UK": "Позначити всі промпти в списку і виконати їх зараз.",
+    "RU": "Отметить все промты в списке и выполнить их сейчас."
+  },
+  "tooltip_cursor_prompts_run": {
+    "EN": "Run only the checked prompts. Space does the same.",
+    "UK": "Виконати лише позначені промпти. Пробіл робить те саме.",
+    "RU": "Выполнить только отмеченные промты. Пробел делает то же."
+  },
+  "tooltip_ai_provider_choice": {
+    "EN": "Which AI runs the selected prompts (API key or browser fallback).",
+    "UK": "Який AI виконає позначені промпти (ключ API або браузерний fallback).",
+    "RU": "Какой AI выполнит отмеченные промты (ключ API или браузерный fallback)."
+  },
   "ai_prompts_overview_empty": {
-    "EN": "No numbered prompts found. Edit the file to add them (## Prompt #1 \"name\" / ## Промпт №1 \"name\").",
-    "UK": "Нумерованих промптів не знайдено. Відредагуйте файл, щоб додати їх (## Промпт №1 \"name\" / ## Prompt #1 \"name\").",
-    "RU": "Нумерованные промты не найдены. Отредактируйте файл, чтобы добавить их (## Промпт №1 \"name\" / ## Prompt #1 \"name\")."
+    "EN": "No prompts found. Add JSON files to the promts/ folder (num, name, body; hint is UI-only).",
+    "UK": "Промптів не знайдено. Додайте JSON-файли в каталог promts/ (num, name, body; hint лише для підказки).",
+    "RU": "Промты не найдены. Добавьте JSON-файлы в каталог promts/ (num, name, body; hint только для подсказки)."
   },
   "ai_prompts_overview_default_on": {
     "EN": "On by default",
@@ -615,9 +650,9 @@
     "RU": "📋 Промпт скопирован в буфер — вставьте в Gemini и подтвердите."
   },
   "gemini_browser_manual_hint": {
-    "EN": "💡 Open Gemini and paste the prompt from redactor1.md, then confirm.",
-    "UK": "💡 Відкрийте Gemini, вставте промпт з redactor1.md і підтвердіть.",
-    "RU": "💡 Откройте Gemini, вставьте промпт из redactor1.md и подтвердите."
+    "EN": "💡 Open Gemini, paste the prompt, then confirm.",
+    "UK": "💡 Відкрийте Gemini, вставте промпт і підтвердіть.",
+    "RU": "💡 Откройте Gemini, вставьте промт и подтвердите."
   },
   "gemini_processing_prompt": {
     "EN": "▶ Gemini: processing prompt #{num} ({name})…",
@@ -660,9 +695,9 @@
     "RU": "📋 Промпт скопирован в буфер — вставьте в Claude и подтвердите."
   },
   "claude_browser_manual_hint": {
-    "EN": "💡 Open Claude and paste the prompt from redactor1.md, then confirm.",
-    "UK": "💡 Відкрийте Claude, вставте промпт з redactor1.md і підтвердіть.",
-    "RU": "💡 Откройте Claude, вставьте промпт из redactor1.md и подтвердите."
+    "EN": "💡 Open Claude, paste the prompt, then confirm.",
+    "UK": "💡 Відкрийте Claude, вставте промпт і підтвердіть.",
+    "RU": "💡 Откройте Claude, вставьте промт и подтвердите."
   },
   "claude_processing_prompt": {
     "EN": "▶ Claude: processing prompt #{num} ({name})…",
@@ -705,9 +740,9 @@
     "RU": "📋 Промпт скопирован в буфер — вставьте в Copilot и подтвердите."
   },
   "copilot_browser_manual_hint": {
-    "EN": "💡 Open Copilot and paste the prompt from redactor1.md, then confirm.",
-    "UK": "💡 Відкрийте Copilot, вставте промпт з redactor1.md і підтвердіть.",
-    "RU": "💡 Откройте Copilot, вставьте промпт из redactor1.md и подтвердите."
+    "EN": "💡 Open Copilot, paste the prompt, then confirm.",
+    "UK": "💡 Відкрийте Copilot, вставте промпт і підтвердіть.",
+    "RU": "💡 Откройте Copilot, вставьте промт и подтвердите."
   },
   "copilot_processing_prompt": {
     "EN": "▶ Copilot/Azure: processing prompt #{num} ({name})…",
@@ -735,9 +770,9 @@
     "RU": "⚠ Copilot/Azure завершил без выходных файлов для: {name}"
   },
   "cursor_no_prompts": {
-    "EN": "❌ No numbered prompts found in redactor1.md (use ## Prompt #1 \"name\" / ## Промпт №1 \"name\").",
-    "UK": "❌ У redactor1.md не знайдено нумерованих промптів (використовуйте ## Промпт №1 \"name\" / ## Prompt #1 \"name\").",
-    "RU": "❌ В redactor1.md не найдены нумерованные промпты (используйте ## Промпт №1 \"name\" / ## Prompt #1 \"name\")."
+    "EN": "❌ No numbered prompts found in the promts/ folder.",
+    "UK": "❌ У каталозі promts/ не знайдено промптів.",
+    "RU": "❌ В каталоге promts/ не найдены промты."
   },
   "cursor_no_api_key_fallback": {
     "EN": "⚠ No Cursor API key — opening Chat (confirm the prompt manually).",
@@ -795,9 +830,9 @@
     "RU": "📋 Промпт №1 скопирован в буфер — вставьте в Chat и подтвердите."
   },
   "cursor_chat_manual_hint": {
-    "EN": "💡 Open Chat and paste prompt #1 from redactor1.md, then confirm.",
-    "UK": "💡 Відкрийте Chat, вставте промпт №1 з redactor1.md і підтвердіть.",
-    "RU": "💡 Откройте Chat, вставьте промпт №1 из redactor1.md и подтвердите."
+    "EN": "💡 Open Chat, paste prompt #1, then confirm.",
+    "UK": "💡 Відкрийте Chat, вставте промпт №1 і підтвердіть.",
+    "RU": "💡 Откройте Chat, вставьте промт №1 и подтвердите."
   },
   "cursor_chat_error": {
     "EN": "❌ Failed to open Cursor Chat: {error}",
