@@ -5,13 +5,36 @@ import os
 import tkinter as tk
 from tkinter import messagebox
 
+from whisperfast.core.auto_detect import meeting_window_title, match_allowlist, parse_custom_exes
+from whisperfast.core.auto_record import (
+    START_AUTO,
+    START_CALENDAR,
+    STOP_EVENT_END,
+    STOP_GONE,
+    STOP_SILENCE,
+    AutoRecordMachine,
+)
+from whisperfast.core.calendar import collect_events, overlapping_event, upcoming_event
 from whisperfast.core.capture import (
     capture_available,
     default_capture_dir,
     get_capture_session,
     recover_captures,
 )
+from whisperfast.core.capture_finalize import (
+    capture_dir_from_settings,
+    finalize_wav,
+    run_on_stop_hook,
+    settings_from_app,
+)
+from whisperfast.core.capture_names import format_clip_seconds, parse_clip_seconds
+from whisperfast.core.capture_prefs import enabled_auto_apps
+from whisperfast.core.ipc_cmd import take_command
 from whisperfast.i18n import t
+
+_machine = AutoRecordMachine()
+_poll_started = False
+_manual_hold = False
 
 
 def ensure_consent(app) -> bool:
@@ -29,27 +52,38 @@ def ensure_consent(app) -> bool:
 
 
 def toggle_capture(app) -> None:
+    global _manual_hold
     session = get_capture_session()
     if session.running:
-        path = session.stop(log_func=app.log)
-        refresh_capture_buttons(app)
-        if path and os.path.isfile(path):
-            _enqueue_capture(app, path)
+        _manual_hold = False
+        _stop_and_enqueue(app, session)
         return
     if not capture_available():
         messagebox.showinfo(t("capture_title"), t("capture_need_sounddevice"), parent=app.root)
         return
     if not ensure_consent(app):
         return
-    out_dir = (app.output_dir.get() or "").strip()
-    if not out_dir or not os.path.isdir(out_dir):
-        out_dir = default_capture_dir()
-    try:
-        session.start(out_dir, log_func=app.log)
-    except Exception as e:
-        messagebox.showerror(t("capture_title"), str(e), parent=app.root)
+    _manual_hold = True
+    _start_session(app, trigger="manual")
+
+
+def start_capture(app, trigger: str = "manual") -> None:
+    session = get_capture_session()
+    if session.running:
         return
-    refresh_capture_buttons(app)
+    if not capture_available():
+        return
+    if not ensure_consent(app):
+        return
+    _start_session(app, trigger=trigger)
+
+
+def stop_capture(app) -> None:
+    global _manual_hold
+    _manual_hold = False
+    session = get_capture_session()
+    if session.running:
+        _stop_and_enqueue(app, session)
 
 
 def toggle_pause(app) -> None:
@@ -60,15 +94,33 @@ def toggle_pause(app) -> None:
     refresh_capture_buttons(app)
 
 
-def recover_interrupted_captures(app) -> None:
-    dirs = []
-    out_dir = ""
+def save_clip(app) -> None:
+    session = get_capture_session()
+    if not session.running:
+        return
+    settings = settings_from_app(app)
+    requested = parse_clip_seconds(
+        _clip_var_text(app), fallback=int(settings.get("capture_clip_seconds") or 122)
+    )
+    elapsed = session.elapsed_seconds()
+    if elapsed > 0:
+        requested = min(requested, max(1, int(elapsed)))
     try:
-        out_dir = (app.output_dir.get() or "").strip()
-    except Exception:
-        out_dir = ""
-    if out_dir and os.path.isdir(out_dir):
-        dirs.append(out_dir)
+        wav = session.copy_last_seconds(float(requested))
+    except Exception as e:
+        messagebox.showerror(t("capture_title"), str(e), parent=app.root)
+        return
+    final = _finalize_and_enqueue(app, wav, settings, is_clip=True)
+    if final:
+        app.log(t("capture_clip_saved", path=final))
+
+
+def recover_interrupted_captures(app) -> None:
+    settings = settings_from_app(app)
+    dirs = []
+    cap = (settings.get("capture_dir") or "").strip()
+    if cap and os.path.isdir(cap):
+        dirs.append(cap)
     default_dir = default_capture_dir()
     if default_dir not in dirs:
         dirs.append(default_dir)
@@ -80,7 +132,7 @@ def recover_interrupted_captures(app) -> None:
                 continue
             seen.add(key)
             app.log(t("capture_recovered", path=path))
-            _enqueue_capture(app, path)
+            _finalize_and_enqueue(app, path, settings, is_clip=False)
 
 
 def capture_blocks_shutdown() -> bool:
@@ -94,12 +146,121 @@ def _enqueue_capture(app, path: str) -> None:
         app.log(path)
 
 
+def _start_session(app, trigger: str) -> None:
+    settings = settings_from_app(app)
+    auto = trigger in ("auto", "calendar")
+    out_dir = capture_dir_from_settings(settings, auto=auto)
+    loop_dev = None
+    raw_dev = str(settings.get("capture_loopback_device") or "").strip()
+    if settings.get("capture_mix_mode") == "device" and raw_dev.isdigit():
+        loop_dev = int(raw_dev)
+    title = ""
+    attendees = []
+    try:
+        events = collect_events(settings)
+        ev = overlapping_event(events) or upcoming_event(
+            events, lead_min=int(settings.get("calendar_start_lead_min") or 2)
+        )
+        if ev:
+            title = str(ev.get("title") or "")
+            attendees = list(ev.get("attendees") or [])
+    except Exception:
+        pass
+    session = get_capture_session()
+    try:
+        session.start(
+            out_dir,
+            log_func=app.log,
+            trigger=trigger,
+            include_mic=bool(settings.get("capture_include_mic", True)),
+            include_system=bool(settings.get("capture_include_system", True)),
+            loopback_device=loop_dev,
+            calendar_title=title,
+            calendar_attendees=attendees,
+        )
+    except Exception as e:
+        messagebox.showerror(t("capture_title"), str(e), parent=app.root)
+        return
+    refresh_capture_buttons(app)
+    if settings.get("live_preview_enabled"):
+        try:
+            from whisperfast.core.live_preview import start_preview
+            from whisperfast.ui.live_preview_ui import show_live_preview
+
+            start_preview(
+                session,
+                model_name=str(settings.get("live_preview_model") or "tiny"),
+                device_mode=str(getattr(app, "device_mode", None) and app.device_mode.get() or "CPU"),
+            )
+            show_live_preview(app)
+        except Exception:
+            pass
+
+
+def _stop_and_enqueue(app, session) -> None:
+    try:
+        from whisperfast.core.live_preview import stop_preview
+
+        stop_preview()
+    except Exception:
+        pass
+    path = session.stop(log_func=app.log)
+    refresh_capture_buttons(app)
+    settings = settings_from_app(app)
+    final = _finalize_and_enqueue(app, path, settings, is_clip=False)
+    run_on_stop_hook(str(settings.get("on_stop_hook") or ""), final or path or "", log_func=app.log)
+
+
+def _finalize_and_enqueue(app, wav_path: str, settings: dict, is_clip: bool) -> str:
+    if not wav_path or not os.path.isfile(wav_path):
+        return ""
+    apps = enabled_auto_apps(settings)
+    custom = parse_custom_exes(str(settings.get("auto_record_custom_exes") or ""))
+    win = meeting_window_title(apps, custom, fallback="FTW")
+    cal = ""
+    session = get_capture_session()
+    if settings.get("capture_filename_use_calendar"):
+        cal = session.calendar_title or ""
+        if not cal:
+            try:
+                ev = overlapping_event(collect_events(settings))
+                if ev:
+                    cal = str(ev.get("title") or "")
+            except Exception:
+                cal = ""
+    final = finalize_wav(
+        wav_path,
+        settings,
+        window_title=win,
+        calendar_title=cal,
+        is_clip=is_clip,
+        log_func=app.log,
+    )
+    if final and os.path.isfile(final):
+        _enqueue_capture(app, final)
+        return final
+    _enqueue_capture(app, wav_path)
+    return wav_path
+
+
+def _clip_var_text(app) -> str:
+    var = getattr(app, "capture_clip_var", None)
+    if var is None:
+        return ""
+    try:
+        return var.get()
+    except tk.TclError:
+        return ""
+
+
 def refresh_capture_buttons(app) -> None:
     session = get_capture_session()
     running = session.running
     paused = session.paused
     btn = getattr(app, "capture_btn", None)
     pause_btn = getattr(app, "capture_pause_btn", None)
+    clip_btn = getattr(app, "capture_clip_btn", None)
+    settings_btn = getattr(app, "capture_settings_btn", None)
     if btn is not None:
         try:
             btn.config(text=t("capture_stop") if running else t("capture_start"))
@@ -111,6 +272,22 @@ def refresh_capture_buttons(app) -> None:
                 text=t("capture_resume") if paused else t("capture_pause"),
                 state=("normal" if running else "disabled"),
             )
+        except tk.TclError:
+            pass
+    if clip_btn is not None:
+        try:
+            clip_btn.config(state=("normal" if running else "disabled"))
+        except tk.TclError:
+            pass
+    if settings_btn is not None:
+        try:
+            settings_btn.config(text=t("capture_settings"))
+        except tk.TclError:
+            pass
+    clip_entry = getattr(app, "capture_clip_entry", None)
+    if clip_entry is not None:
+        try:
+            clip_entry.config(state="normal")
         except tk.TclError:
             pass
 
@@ -137,3 +314,118 @@ def bind_capture_hotkey(app) -> None:
         app.root.bind_all("<Control-Shift-p>", on_pause)
     except tk.TclError:
         pass
+
+
+def start_background_polls(app) -> None:
+    global _poll_started
+    if _poll_started:
+        return
+    _poll_started = True
+
+    def tick():
+        try:
+            _poll_ipc(app)
+            _poll_auto(app)
+            _poll_max_duration(app)
+            refresh_capture_buttons(app)
+        except Exception:
+            pass
+        try:
+            app.root.after(1000, tick)
+        except tk.TclError:
+            pass
+
+    try:
+        app.root.after(800, tick)
+    except tk.TclError:
+        pass
+
+
+def _poll_ipc(app) -> None:
+    cmd = take_command()
+    if not cmd:
+        return
+    action = str(cmd.get("action") or "").strip().lower()
+    if action == "record_start":
+        start_capture(app, trigger="manual")
+    elif action == "record_stop":
+        stop_capture(app)
+    elif action == "process":
+        folder = str(cmd.get("folder") or "")
+        if folder and os.path.isdir(folder):
+            from whisperfast.core.input_files import get_valid_files_from_directory
+
+            paths = get_valid_files_from_directory(folder)
+            if paths:
+                app.queue_ctrl.add_files(paths)
+
+
+def _poll_max_duration(app) -> None:
+    settings = settings_from_app(app)
+    max_s = int(settings.get("capture_max_duration_s") or 0)
+    if max_s <= 0:
+        return
+    session = get_capture_session()
+    if session.running and session.elapsed_seconds() >= max_s:
+        _stop_and_enqueue(app, session)
+
+
+def _poll_auto(app) -> None:
+    global _manual_hold
+    settings = settings_from_app(app)
+    session = get_capture_session()
+    if _manual_hold or (session.running and session.trigger == "manual"):
+        return
+    match = None
+    if settings.get("auto_record_enabled"):
+        match = match_allowlist(
+            enabled_auto_apps(settings),
+            parse_custom_exes(str(settings.get("auto_record_custom_exes") or "")),
+        )
+    cal_on = any(
+        settings.get(k)
+        for k in ("calendar_google_enabled", "calendar_outlook_enabled", "calendar_ics_enabled")
+    )
+    event = None
+    if cal_on:
+        try:
+            events = collect_events(settings)
+            event = upcoming_event(
+                events, lead_min=int(settings.get("calendar_start_lead_min") or 2)
+            )
+        except Exception:
+            event = None
+    action = _machine.tick(
+        auto_enabled=bool(settings.get("auto_record_enabled")),
+        match=match,
+        calendar_event=event,
+        recording=session.running,
+        trigger=session.trigger if session.running else "",
+        elapsed_s=session.elapsed_seconds(),
+        last_sound_age_s=session.last_sound_age(),
+        start_delay_s=float(settings.get("auto_record_start_delay_s") or 0),
+        stop_delay_s=float(settings.get("auto_record_stop_delay_s") or 0),
+        min_duration_s=float(settings.get("auto_record_min_duration_s") or 0),
+        silence_stop_s=float(settings.get("auto_record_silence_stop_s") or 0),
+        calendar_enabled=cal_on,
+    )
+    if action in (START_AUTO, START_CALENDAR):
+        if not ensure_consent(app):
+            return
+        _start_session(app, trigger="auto" if action == START_AUTO else "calendar")
+    elif action in (STOP_GONE, STOP_SILENCE, STOP_EVENT_END):
+        if session.running and session.trigger != "manual":
+            _stop_and_enqueue(app, session)
+
+
+def normalize_clip_entry(app) -> None:
+    var = getattr(app, "capture_clip_var", None)
+    if var is None:
+        return
+    seconds = parse_clip_seconds(var.get(), fallback=122)
+    session = get_capture_session()
+    if session.running:
+        seconds = min(seconds, max(1, int(session.elapsed_seconds() or seconds)))
+    var.set(format_clip_seconds(seconds))
+    if getattr(app, "capture_cfg", None) is not None:
+        app.capture_cfg["capture_clip_seconds"] = seconds

@@ -12,8 +12,9 @@ import os
 import struct
 import threading
 import wave
+import time
 from datetime import datetime
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 LogFunc = Callable[..., None]
 
@@ -80,11 +81,27 @@ def repair_wav_header(path: str) -> bool:
     return True
 
 
-def recover_captures(directory: str) -> List[str]:
+def recover_captures(directory: str, recursive: bool = True) -> List[str]:
     """Repair interrupted capture_*.wav files. Returns recovered paths."""
     recovered: List[str] = []
     if not directory or not os.path.isdir(directory):
         return recovered
+    folders = [directory]
+    if recursive:
+        try:
+            for name in os.listdir(directory):
+                child = os.path.join(directory, name)
+                if os.path.isdir(child):
+                    folders.append(child)
+        except OSError:
+            pass
+    for folder in folders:
+        recovered.extend(_recover_in_dir(folder))
+    return recovered
+
+
+def _recover_in_dir(directory: str) -> List[str]:
+    recovered: List[str] = []
     try:
         names = os.listdir(directory)
     except OSError:
@@ -93,6 +110,8 @@ def recover_captures(directory: str) -> List[str]:
         if not name.lower().startswith("capture_") or not name.lower().endswith(".wav"):
             continue
         path = os.path.join(directory, name)
+        if not os.path.isfile(path):
+            continue
         marker = path + _INPROGRESS_SUFFIX
         needs = os.path.isfile(marker)
         if not needs:
@@ -117,11 +136,39 @@ def recover_captures(directory: str) -> List[str]:
     return recovered
 
 
+def list_loopback_devices() -> List[Tuple[str, str]]:
+    """[(id, label)] WASAPI output devices for loopback. Empty if sounddevice missing."""
+    if not capture_available():
+        return []
+    import sounddevice as sd
+
+    out: List[Tuple[str, str]] = []
+    try:
+        devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
+    except Exception:
+        return out
+    wasapi = None
+    for i, api in enumerate(hostapis):
+        if "wasapi" in str(api.get("name") or "").lower():
+            wasapi = i
+            break
+    for idx, dev in enumerate(devices):
+        if int(dev.get("max_output_channels") or 0) <= 0:
+            continue
+        if wasapi is not None and int(dev.get("hostapi") or -1) != wasapi:
+            continue
+        name = str(dev.get("name") or f"#{idx}")
+        out.append((str(idx), f"{idx}: {name}"))
+    return out
+
+
 class CaptureSession:
     """Background stereo recorder. start() / pause() / resume() / stop() from any thread."""
 
     def __init__(self):
         self._lock = threading.Lock()
+        self._write_lock = threading.Lock()
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
         self._paused = threading.Event()
@@ -129,6 +176,15 @@ class CaptureSession:
         self._error = ""
         self._running = False
         self._samplerate = 48000
+        self._started_at = 0.0
+        self._last_sound_at = 0.0
+        self._last_rms = 0.0
+        self.trigger = "manual"
+        self._include_mic = True
+        self._include_system = True
+        self._loopback_device: Optional[int] = None
+        self.calendar_title = ""
+        self.calendar_attendees: List[str] = []
 
     @property
     def running(self) -> bool:
@@ -146,7 +202,36 @@ class CaptureSession:
     def error(self) -> str:
         return self._error
 
-    def start(self, out_dir: str, log_func: Optional[LogFunc] = None) -> str:
+    @property
+    def samplerate(self) -> int:
+        return int(self._samplerate)
+
+    @property
+    def started_at(self) -> float:
+        return float(self._started_at)
+
+    def elapsed_seconds(self) -> float:
+        if not self._running or self._started_at <= 0:
+            return 0.0
+        return max(0.0, time.time() - self._started_at)
+
+    def last_sound_age(self) -> float:
+        if not self._running or self._last_sound_at <= 0:
+            return 0.0
+        return max(0.0, time.time() - self._last_sound_at)
+
+    def start(
+        self,
+        out_dir: str,
+        log_func: Optional[LogFunc] = None,
+        *,
+        trigger: str = "manual",
+        include_mic: bool = True,
+        include_system: bool = True,
+        loopback_device: Optional[int] = None,
+        calendar_title: str = "",
+        calendar_attendees: Optional[List[str]] = None,
+    ) -> str:
         if not capture_available():
             from whisperfast.i18n import t
 
@@ -161,6 +246,14 @@ class CaptureSession:
             self._stop.clear()
             self._paused.clear()
             self._running = True
+            self._started_at = time.time()
+            self._last_sound_at = self._started_at
+            self.trigger = (trigger or "manual").strip() or "manual"
+            self._include_mic = bool(include_mic)
+            self._include_system = bool(include_system)
+            self._loopback_device = loopback_device
+            self.calendar_title = calendar_title or ""
+            self.calendar_attendees = list(calendar_attendees or [])
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
         if log_func:
@@ -218,6 +311,54 @@ class CaptureSession:
                 pass
         return path
 
+    def copy_last_seconds(self, seconds: float, dest_path: Optional[str] = None) -> str:
+        """Copy the last N seconds of the growing PCM WAV. Session keeps recording."""
+        seconds = max(0.1, float(seconds or 0))
+        src = self._path
+        if not src or not os.path.isfile(src):
+            raise RuntimeError("no capture file")
+        if dest_path is None:
+            parent = os.path.dirname(src)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dest_path = os.path.join(parent, f"capture_clip_{stamp}.wav")
+        channels = 2
+        width = 2
+        frame = channels * width
+        bps = int(self._samplerate) * frame
+        take = int(seconds * bps)
+        take = take - (take % frame)
+        with self._write_lock:
+            try:
+                size = os.path.getsize(src)
+            except OSError as e:
+                raise RuntimeError(str(e)) from e
+            data_len = max(0, size - _WAV_HEADER_BYTES)
+            take = min(data_len, take)
+            take = take - (take % frame)
+            with open(src, "rb") as f:
+                header = f.read(_WAV_HEADER_BYTES)
+                f.seek(_WAV_HEADER_BYTES + data_len - take)
+                pcm = f.read(take)
+        parent = os.path.dirname(dest_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with wave.open(dest_path, "wb") as wf:
+            wf.setnchannels(channels)
+            wf.setsampwidth(width)
+            wf.setframerate(int(self._samplerate))
+            wf.writeframes(pcm)
+        del header
+        return dest_path
+
+    def _note_energy(self, samples) -> None:
+        try:
+            rms = float((samples * samples).mean()) ** 0.5
+        except Exception:
+            return
+        self._last_rms = rms
+        if rms >= 0.008:
+            self._last_sound_at = time.time()
+
     def _run(self) -> None:
         try:
             self._record_loop()
@@ -253,6 +394,7 @@ class CaptureSession:
         if stereo is None or getattr(stereo, "size", 0) == 0:
             return
         clipped = np.clip(stereo, -1.0, 1.0)
+        self._note_energy(clipped)
         pcm = (clipped * 32767.0).astype("<i2")
         with write_lock:
             wf.writeframes(pcm.tobytes())
@@ -265,19 +407,28 @@ class CaptureSession:
         blocksize = 2048
         extra = None
         loopback_dev = None
-        if hasattr(sd, "WasapiSettings"):
+        if self._include_system and hasattr(sd, "WasapiSettings"):
             try:
                 extra = sd.WasapiSettings(loopback=True)
-                loopback_dev = _wasapi_loopback_device(sd)
+                if self._loopback_device is not None:
+                    loopback_dev = int(self._loopback_device)
+                else:
+                    loopback_dev = _wasapi_loopback_device(sd)
             except Exception:
                 extra = None
         mic_dev = None
-        try:
-            mic_dev = sd.default.device[0]
-        except Exception:
-            mic_dev = None
+        if self._include_mic:
+            try:
+                mic_dev = sd.default.device[0]
+            except Exception:
+                mic_dev = None
 
-        if extra is not None and loopback_dev is not None and mic_dev is not None:
+        if (
+            extra is not None
+            and loopback_dev is not None
+            and mic_dev is not None
+            and self._include_system
+        ):
             try:
                 self._record_two_streams(
                     sd, np, mic_dev, loopback_dev, extra, samplerate, blocksize
@@ -288,10 +439,21 @@ class CaptureSession:
                     raise
             except Exception:
                 pass
+        if extra is not None and loopback_dev is not None and not self._include_mic:
+            try:
+                self._record_system_only(
+                    sd, np, loopback_dev, extra, samplerate, blocksize
+                )
+                return
+            except RuntimeError as e:
+                if str(e) == "no audio captured":
+                    raise
+            except Exception:
+                pass
         self._record_mic_only(sd, np, mic_dev, samplerate, blocksize)
 
     def _record_mic_only(self, sd, np, mic_dev, samplerate, blocksize) -> None:
-        write_lock = threading.Lock()
+        write_lock = self._write_lock
         wf = self._open_wav(self._path, samplerate)
         wrote = False
 
@@ -320,8 +482,48 @@ class CaptureSession:
                 pass
             raise RuntimeError("no audio captured")
 
+    def _record_system_only(self, sd, np, loop_dev, extra, samplerate, blocksize) -> None:
+        write_lock = self._write_lock
+        wf = self._open_wav(self._path, samplerate)
+        wrote = False
+
+        def cb_loop(indata, frames, time_info, status):
+            nonlocal wrote
+            del frames, time_info, status
+            if self._paused.is_set():
+                return
+            if indata.ndim > 1:
+                chunk = indata.mean(axis=1)
+            else:
+                chunk = indata.reshape(-1)
+            stereo = np.column_stack((chunk, chunk))
+            self._write_float_stereo(wf, stereo, write_lock)
+            wrote = True
+
+        try:
+            with sd.InputStream(
+                device=loop_dev,
+                channels=2,
+                samplerate=samplerate,
+                blocksize=blocksize,
+                dtype="float32",
+                extra_settings=extra,
+                callback=cb_loop,
+            ):
+                while not self._stop.wait(0.1):
+                    pass
+        finally:
+            with write_lock:
+                wf.close()
+        if not wrote and os.path.isfile(self._path) and os.path.getsize(self._path) <= _WAV_HEADER_BYTES:
+            try:
+                os.remove(self._path)
+            except OSError:
+                pass
+            raise RuntimeError("no audio captured")
+
     def _record_two_streams(self, sd, np, mic_dev, loop_dev, extra, samplerate, blocksize):
-        write_lock = threading.Lock()
+        write_lock = self._write_lock
         state_lock = threading.Lock()
         mic_buf = np.zeros(0, dtype=np.float32)
         loop_buf = np.zeros(0, dtype=np.float32)

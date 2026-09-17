@@ -78,11 +78,13 @@ def show_archive_window(app):
     loc_btn = ttk.Button(actions, text=t("archive_show_folder"))
     del_btn = ttk.Button(actions, text=t("archive_delete"))
     qa_btn = ttk.Button(actions, text=t("archive_ask"))
+    spk_btn = ttk.Button(actions, text=t("archive_rename_speakers"))
     hint_lbl = ttk.Label(actions, text=t("archive_click_hint"))
     open_btn.pack(side="left")
     loc_btn.pack(side="left", padx=4)
     del_btn.pack(side="left", padx=4)
     qa_btn.pack(side="left", padx=4)
+    spk_btn.pack(side="left", padx=4)
     hint_lbl.pack(side="left", padx=10)
 
     state = {"jobs": {}, "cues": [], "job": None}
@@ -198,6 +200,15 @@ def show_archive_window(app):
             return
         show_archive_qa_dialog(app, job)
 
+    def _rename_speakers():
+        job = _selected_job()
+        if not job:
+            return
+        from whisperfast.ui.speaker_rename import show_speaker_rename_dialog
+
+        show_speaker_rename_dialog(app, job)
+        _show_job(_selected_job())
+
     def _refresh():
         _load(search_var.get())
         hint_lbl.config(text=t("archive_click_hint"))
@@ -207,6 +218,7 @@ def show_archive_window(app):
         loc_btn.config(text=t("archive_show_folder"))
         del_btn.config(text=t("archive_delete"))
         qa_btn.config(text=t("archive_ask"))
+        spk_btn.config(text=t("archive_rename_speakers"))
         tree.heading("when", text=t("archive_col_when"))
         tree.heading("name", text=t("archive_col_name"))
         tree.heading("summary", text=t("archive_col_summary"))
@@ -220,6 +232,7 @@ def show_archive_window(app):
     loc_btn.config(command=_show_loc)
     del_btn.config(command=_delete)
     qa_btn.config(command=_ask)
+    spk_btn.config(command=_rename_speakers)
 
     def _on_close():
         stop_playback()

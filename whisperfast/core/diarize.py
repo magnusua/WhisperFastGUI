@@ -9,15 +9,29 @@ from __future__ import annotations
 from typing import Any, Iterable, List, Optional
 
 
-def apply_speakers(path: str, segments: List[Any], enabled: bool = False) -> List[Any]:
-    """Attach `.speaker` on segments when possible. Returns the same list."""
+def apply_speakers(
+    path: str,
+    segments: List[Any],
+    enabled: bool = False,
+    user_name: str = "You",
+    them_name: str = "Them",
+) -> List[Any]:
+    """Attach `.speaker` on segments when possible. Returns the same list.
+
+    Stereo energy uses SPEAKER_00 (mic / You) and SPEAKER_01 (system / Them),
+    then display names replace the raw ids in the segment text field.
+    """
     if not enabled or not segments or not path:
         return segments
     labeled = _label_stereo(path, segments)
-    if labeled:
-        return labeled
-    labeled = _label_pyannote(path, segments)
-    return labeled or segments
+    if not labeled:
+        labeled = _label_pyannote(path, segments)
+    if not labeled:
+        return segments
+    from whisperfast.core.speakers import apply_display_names, default_speakers_map
+
+    apply_display_names(segments, default_speakers_map(user_name, them_name))
+    return segments
 
 
 def _set_speaker(seg: Any, speaker: str) -> None:

@@ -107,9 +107,9 @@ After Whisper or document conversion, the log shows a clickable **Send to AI** l
 
 ## Archive, capture, extra exports
 
-- **Archive** lists processed jobs (`library.sqlite`). Search by transcript text. Double-click an SRT line to hear that moment (needs the source or a saved MP3). **Delete all files** removes the source and every derivative. **Ask** sends a question about that transcript to the current API provider.
-- **Record** (also tray / **Ctrl+Shift+R**) captures microphone + system audio to a stereo WAV written to disk as you go, then adds it to the queue. **Pause** / **Ctrl+Shift+P** skips audio until you resume. You are asked to tell the room the first time. An interrupted recording is repaired on the next launch.
-- **Save settings** can also write **JSON** segments, **WebVTT**, word timestamps, and stereo speaker labels (left/right).
+- **Archive** lists processed jobs (`library.sqlite`). Search by transcript text. Double-click an SRT line to hear that moment (needs the source or a saved MP3). **Delete all files** removes the source and every derivative. **Ask** sends a question about that transcript to the current API provider. **Speakers** renames You/Them using the first and longest utterance.
+- **Record** (also tray / **Ctrl+Shift+R**) captures microphone + system audio. PCM is written to disk as you go; **Stop** and **Clip** encode to Opus (default 24 kbit/s mono), AAC, MP3, or WAV and always enqueue. **Pause** / **Ctrl+Shift+P** skips audio until you resume. The gear opens **recording settings**: mix vs device, codec, auto-record (Zoom/Teams/Meet/Telegram/Viber/Phone Link/WhatsApp), Google Calendar / Outlook / ICS, filename tokens (`%W`, `%C`, …). Manual Start/Stop outranks auto-record and the calendar. A 15 s silence auto-stop applies only to auto sessions. You are asked to tell the room the first time. An interrupted recording is repaired on the next launch. CLI: `python main.py sessions` | `process <folder>` | `record start|stop`.
+- **Save settings** can also write **JSON** segments, **WebVTT**, word timestamps, and stereo speaker labels (You/Them). Session folders get `meta.json`, `speakers.json`, and `summary.md` next to the transcript.
 
 Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`). Empty sections are skipped.
 
@@ -126,7 +126,7 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 - **Cancel** — stop the current task.
 - **Add files / Add directory** — add media or documents.
 - **Archive** — search past transcripts; click a line to hear it.
-- **Record** — capture microphone + system audio into the queue (Ctrl+Shift+R). Pause with Ctrl+Shift+P.
+- **Record** — capture microphone + system audio into the queue (Ctrl+Shift+R). Pause with Ctrl+Shift+P. **Clip** saves the last N seconds; the gear opens recording settings.
 - **Clear queue** — remove all queue items.
 - **System** — check Python, FFmpeg, Pandoc, GPU, CUDA, and installed components.
 - **Dependencies** — install or reinstall pip packages (including `markitdown`) and system tools (FFmpeg, Pandoc).

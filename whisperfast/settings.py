@@ -3,6 +3,7 @@ import json
 import os
 
 from whisperfast.config import BASE_DIR, DEFAULT_MODEL
+from whisperfast.core.capture_prefs import CAPTURE_DEFAULTS
 from whisperfast.postprocess.prompt_rules import normalize_prompt_rules
 from whisperfast.secrets_store import protect_settings, unprotect_settings
 
@@ -82,6 +83,7 @@ _DEFAULTS = {
     "openai_compatible_model": "",
     "capture_consent_shown": False,
 }
+_DEFAULTS.update(CAPTURE_DEFAULTS)
 
 
 def settings_path():

@@ -18,6 +18,8 @@ SECRET_SETTING_KEYS = (
     "anthropic_api_key",
     "azure_openai_api_key",
     "openai_compatible_api_key",
+    "google_calendar_client_secret",
+    "google_calendar_refresh_token",
 )
 
 

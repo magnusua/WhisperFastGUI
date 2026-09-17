@@ -99,9 +99,12 @@ from whisperfast.ui.widgets import (
 from whisperfast.ui import tray as tray_ui
 from whisperfast.ui import dialogs as ui_dialogs
 from whisperfast.ui import capture_ui
+from whisperfast.ui.capture_settings import show_capture_settings_dialog
 from whisperfast.ui.log_panel import LogPanel
 from whisperfast.ui.ai_jobs import AiJobQueue
 from whisperfast.ui.archive import show_archive_window
+from whisperfast.core.capture_prefs import snapshot_capture_settings
+from whisperfast.core.capture_names import format_clip_seconds
 
 
 
@@ -259,6 +262,10 @@ class WhisperGUI:
         self.word_timestamps.set(bool(saved.get("word_timestamps", False)))
         self.diarization_enabled.set(bool(saved.get("diarization_enabled", False)))
         self.capture_consent_shown.set(bool(saved.get("capture_consent_shown", False)))
+        self.capture_cfg = snapshot_capture_settings(saved)
+        self.capture_clip_var = tk.StringVar(
+            value=format_clip_seconds(int(self.capture_cfg.get("capture_clip_seconds") or 122))
+        )
         try:
             self.ai_month_budget.set(float(saved.get("ai_month_budget") or 0.0))
         except (TypeError, ValueError, tk.TclError):
@@ -297,6 +304,7 @@ class WhisperGUI:
         self.queue_ctrl.bind_treeview(self.queue_list)
         capture_ui.bind_capture_hotkey(self)
         self.root.after(400, lambda: capture_ui.recover_interrupted_captures(self))
+        capture_ui.start_background_polls(self)
 
         # Центрирование окна по экрану
         self.root.update_idletasks()
@@ -452,6 +460,21 @@ class WhisperGUI:
             state="disabled",
         )
         self.capture_pause_btn.pack(side="left", padx=(0, 5))
+        self.capture_clip_btn = ttk.Button(
+            header_f,
+            text=t("capture_clip"),
+            command=self._save_capture_clip,
+            state="disabled",
+        )
+        self.capture_clip_btn.pack(side="left", padx=(0, 2))
+        self.capture_clip_entry = ttk.Entry(header_f, textvariable=self.capture_clip_var, width=6)
+        self.capture_clip_entry.pack(side="left", padx=(0, 2))
+        self.capture_clip_entry.bind("<Return>", lambda e: capture_ui.normalize_clip_entry(self))
+        self.capture_clip_entry.bind("<FocusOut>", lambda e: capture_ui.normalize_clip_entry(self))
+        self.capture_settings_btn = ttk.Button(
+            header_f, text=t("capture_settings"), command=self._open_capture_settings, width=3
+        )
+        self.capture_settings_btn.pack(side="left", padx=(0, 5))
         # Чекбокс «Оповещение» (звук по завершении очереди)
         self.play_sound_check = ttk.Checkbutton(header_f, text=t("play_sound_finish"),
                        variable=self.play_sound_on_finish)
@@ -683,6 +706,9 @@ class WhisperGUI:
         tip(self.archive_btn, "tooltip_archive")
         tip(self.capture_btn, "tooltip_capture")
         tip(self.capture_pause_btn, "tooltip_capture_pause")
+        tip(self.capture_clip_btn, "tooltip_capture_clip")
+        tip(self.capture_clip_entry, "tooltip_capture_clip")
+        tip(self.capture_settings_btn, "tooltip_capture_settings")
         tip(self.play_sound_check, "tooltip_play_sound")
         tip(self.help_btn, "tooltip_help")
         tip(self.version_btn, "tooltip_version")
@@ -884,6 +910,12 @@ class WhisperGUI:
                 self.queue_ctrl.watch_pending_continue = True
             return
         self.cancel_requested = False
+        try:
+            from whisperfast.core.live_preview import stop_preview
+
+            stop_preview()
+        except Exception:
+            pass
         self.start_btn.config(state="disabled")
         self.cancel_btn.config(state="normal")
         # Читаем Tk-переменные только в главном потоке и передаём в воркер
@@ -929,6 +961,9 @@ class WhisperGUI:
             "export_vtt": bool(self.export_vtt.get()),
             "word_timestamps": bool(self.word_timestamps.get()),
             "diarization_enabled": bool(self.diarization_enabled.get()),
+            "user_name": str((getattr(self, "capture_cfg", None) or {}).get("user_name") or "You"),
+            "them_name": str((getattr(self, "capture_cfg", None) or {}).get("them_name") or "Them"),
+            "keep_audio": bool((getattr(self, "capture_cfg", None) or {}).get("keep_audio", True)),
             "watch_dirs": parse_watch_dirs(self.watch_dir.get()),
             "_from_watch": bool(from_watch),
         }
@@ -1567,7 +1602,7 @@ class WhisperGUI:
 
     def _persist_settings(self):
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
-        save_app_settings({
+        payload = {
             "language": self.ui_language.get(),
             "output_mode": self.output_mode.get() or "beside",
             "output_dir": normalize_display_path((self.output_dir.get() or "").strip()),
@@ -1623,7 +1658,9 @@ class WhisperGUI:
             "whisper_model": self.whisper_model.get(),
             "has_nvidia": self.has_nvidia,
             "gpu_model": self.gpu_model,
-        })
+        }
+        payload.update(snapshot_capture_settings(getattr(self, "capture_cfg", None) or {}))
+        save_app_settings(payload)
 
     def _on_send_txt_to_ai_toggled(self):
         self._persist_settings()
@@ -1636,6 +1673,15 @@ class WhisperGUI:
 
     def _toggle_capture_pause(self):
         capture_ui.toggle_pause(self)
+
+    def _save_capture_clip(self):
+        capture_ui.save_clip(self)
+
+    def _open_capture_settings(self):
+        show_capture_settings_dialog(self)
+
+    def auto_start_record(self):
+        capture_ui.start_capture(self, trigger="manual")
 
     def _on_send_txt_to_cursor_toggled(self):
         self._on_send_txt_to_ai_toggled()
@@ -1909,6 +1955,11 @@ class WhisperGUI:
             capture_ui.refresh_capture_buttons(self)
         except Exception:
             self.capture_btn.config(text=t("capture_start"))
+        try:
+            self.capture_clip_btn.config(text=t("capture_clip"))
+            self.capture_settings_btn.config(text=t("capture_settings"))
+        except Exception:
+            pass
         self.help_btn.config(text=t("help"))
         self.start_btn.config(text=t("start_transcription"))
         self.dev_f.config(text=t("device_label"))

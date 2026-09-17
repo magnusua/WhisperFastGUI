@@ -470,6 +470,38 @@ class AiJobQueue:
                         lib = getattr(app, "library", None)
                         if lib and summary:
                             lib.set_meta(file_id, summary=summary)
+                        txt_p = job.get("txt_path") or txt_path
+                        folder = os.path.dirname(txt_p) if txt_p else ""
+                        if folder:
+                            from whisperfast.core.session_store import write_summary
+
+                            write_summary(folder, summary)
+                    except Exception:
+                        pass
+                if label.lower() in ("names",):
+                    try:
+                        with open(path, "r", encoding="utf-8", errors="replace") as f:
+                            llm_text = f.read()
+                        txt_p = job.get("txt_path") or txt_path
+                        if txt_p and os.path.isfile(txt_p):
+                            from whisperfast.core.speakers import (
+                                apply_llm_names,
+                                load_speakers,
+                                parse_llm_speaker_names,
+                                save_speakers,
+                                speakers_json_path,
+                            )
+
+                            with open(txt_p, "r", encoding="utf-8", errors="replace") as tf:
+                                transcript = tf.read()
+                            sp_path = speakers_json_path(txt_p)
+                            current = load_speakers(sp_path)
+                            updated, _skipped = apply_llm_names(
+                                current, parse_llm_speaker_names(llm_text), transcript
+                            )
+                            save_speakers(sp_path, updated)
+                            if file_id:
+                                app.add_file_output("speakers", sp_path, file_id=file_id)
                     except Exception:
                         pass
             if do_export and os.path.splitext(path)[1].lower() in (".md", ".markdown"):

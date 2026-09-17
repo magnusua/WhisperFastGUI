@@ -5,7 +5,15 @@ title FTW — установка зависимостей
 
 echo ==========================================
 echo   FTW — установка зависимостей
-echo   pip / CUDA через python.exe (не pythonw)
+echo ==========================================
+echo   pip / CUDA — только python.exe ^(не pythonw^)
+echo.
+echo   Ставится:
+echo     Python-пакеты: torch, faster-whisper, sounddevice, numpy,
+echo     pydub, pygame, pystray, Pillow, cursor-sdk, markitdown
+echo     Windows: pycaw — автозапись звонков ^(Zoom/Teams/Meet/Viber/...^)
+echo     FFmpeg — декод медиа + кодек записи Opus/AAC/MP3
+echo     Pandoc — экспорт Word ^(если доступен установщик^)
 echo ==========================================
 echo.
 
@@ -116,22 +124,71 @@ if !ERR! neq 0 (
     exit /b 1
 )
 
+:: numpy — запись (sounddevice callback); pycaw — автостарт по аудиосессии процесса
+echo Доп. пакеты записи встреч: numpy, pycaw ...
+"!PYEXE!" -m pip install --upgrade numpy
+if errorlevel 1 (
+    echo   Предупреждение: numpy не установился. Запись встречи может не стартовать.
+)
+"!PYEXE!" -m pip install --upgrade pycaw
+if errorlevel 1 (
+    echo   pycaw не обязателен: автозапись будет смотреть окна, без «идёт звук».
+)
+echo.
+
+call :find_ffmpeg
+if defined FFMPEG (
+    echo FFmpeg: !FFMPEG!
+    "!FFMPEG!" -hide_banner -encoders 2>nul | findstr /I /C:"libopus" /C:" aac " /C:"libmp3lame" >nul
+    if errorlevel 1 (
+        echo   Сборка без libopus/AAC: Stop/уривок останутся WAV. Нужен FFmpeg с libopus.
+        echo   Повтор: winget install --id Gyan.FFmpeg -e
+    ) else (
+        echo   Кодеки записи: Opus / AAC / MP3 найдены.
+    )
+) else (
+    echo FFmpeg не найден в PATH и в tools\ffmpeg\bin.
+    echo   Без него нет декода видео и кодирования записи в Opus/AAC/MP3.
+    echo   Поставьте: winget install --id Gyan.FFmpeg -e
+    echo   или снова запустите install.bat — установщик пробует скачать FFmpeg сам.
+)
+echo.
+
 echo ----------------------------------------
 echo   Готово. Запускайте FTW так:
-echo     run_whisper.vbs       обычный запуск (без окна консоли)
-echo     autorun_delayed.bat   ярлык в автозагрузку Windows (задержка 25 с)
+echo     run_whisper.vbs       обычный запуск ^(без окна консоли^)
+echo     autorun_delayed.bat   ярлык в автозагрузку Windows ^(задержка 25 с^)
 echo     start_delayed.vbs     тот же отложенный запуск вручную
+echo.
+echo   Запись: Record / Ctrl+Shift+R, пауза Ctrl+Shift+P, уривок и шестерёнка
+echo   в шапке окна. Кодек по умолчанию — Opus 24 кбит/с моно.
+echo.
+echo   CLI ^(из этой папки, тот же Python^):
+echo     "!PYEXE!" main.py sessions
+echo     "!PYEXE!" main.py process ^<папка^>
+echo     "!PYEXE!" main.py record start^|stop
 echo.
 echo   run_whisper.vbs сам возьмёт Python из settings.json и вызовет
 echo   pythonw + main.py — так и задумано, консоль не нужна.
 echo.
 echo   Не открывайте pythonw.exe или main.py двойным щелчком в Проводнике:
 echo   не будет рабочей папки и интерпретатора из settings.json.
-echo   install.bat / pip — только через python.exe (этот файл так и делает).
+echo   install.bat / pip — только через python.exe ^(этот файл так и делает^).
 echo ----------------------------------------
 echo.
 pause
 exit /b 0
+
+:find_ffmpeg
+set "FFMPEG="
+if exist "%~dp0tools\ffmpeg\bin\ffmpeg.exe" (
+    set "FFMPEG=%~dp0tools\ffmpeg\bin\ffmpeg.exe"
+    goto :eof
+)
+for /f "delims=" %%A in ('where ffmpeg 2^>nul') do (
+    if not defined FFMPEG set "FFMPEG=%%A"
+)
+goto :eof
 
 :to_python_exe
 set "P=!%~1!"

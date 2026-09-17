@@ -34,6 +34,10 @@ packaging>=23.0
 # audioop-lts дає import audioop. Пакет pyaudioop на 3.13 часто без коліс.
 audioop-lts; python_version >= "3.13"
 
+# Windows: автозапис (pycaw бачить, які процеси реально грають звук).
+# Без нього детектор спирається лише на вікна. Не обов'язково на Linux/macOS.
+pycaw>=20230407; sys_platform == "win32"
+
 # nvidia-cublas-cu12 / nvidia-cudnn-cu12 навмисно НЕ включені сюди: вони
 # ставляться лише за потреби через GUI ([Оновлення] / [Залежності]), не
 # при первинному встановленні (див. SETUP-AND-DEPENDENCIES.uk.md).

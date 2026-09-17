@@ -1,7 +1,7 @@
 # FTW
 
-**Версія:** 1.3.1
-**Дата публікації:** 17.09.2026
+**Версія:** 2.0.0
+**Дата публікації:** 18.09.2026
 
 **FTW** (раніше *Whisper Fast GUI*) — графічний інтерфейс для транскрибації аудіо та відео на основі Faster-Whisper (OpenAI Whisper). Також обробляє текстові/офісні документи (конвертація в Markdown, опційно AI-постпроцесинг і Word).
 
@@ -91,7 +91,14 @@ Python 3.9–3.13 (рекомендовано 3.11/3.12), FFmpeg у PATH, опц
 gh release create vX.Y.Z --title "X.Y.Z" --target main --notes "…"
 ```
 
-5. Дочекайтеся workflow `release-checksums` (подія `release: published`): він збере `FTW-X.Y.Z-src.zip` і `SHA256SUMS` і прикріпить їх до релізу. Без `SHA256SUMS` програма оновлення не запропонує. Апдейтер також приймає історичні асети `WhisperFastGUI-*-src.zip`.
+5. Зберіть ZIP і `SHA256SUMS` **локально** і прикріпіть до релізу одразу (workflow `release-checksums` на великих архівах часто зависає):
+
+```bash
+python scripts/make_release_checksums.py --zip-repo --version 2.0.0 --out dist
+gh release create v2.0.0 --title "2.0.0" --target main --notes "…" dist/FTW-2.0.0-src.zip dist/SHA256SUMS
+```
+
+Без `SHA256SUMS` програма оновлення не запропонує. Апдейтер також приймає історичні асети `WhisperFastGUI-*-src.zip`. Якщо workflow усе ж стартував — його можна скасувати: асети вже на релізі.
 
 ZIP-інсталяції оновлюються з асетів релізу. Клон із `.git` після підтвердження робить `git pull` з `main`, але **діалог** «є нова версія» все одно з’являється лише після кроку 4–5.
 

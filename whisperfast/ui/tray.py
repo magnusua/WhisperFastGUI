@@ -65,6 +65,8 @@ def setup_tray(app):
         TrayMenuItem(t("tray_show_window"), show_window, default=True),
         TrayMenuItem(capture_label, lambda icon, item: app.root.after(0, lambda: _tray_capture(app))),
         TrayMenuItem(pause_label, lambda icon, item: app.root.after(0, lambda: _tray_pause(app))),
+        TrayMenuItem(t("capture_clip"), lambda icon, item: app.root.after(0, lambda: _tray_clip(app))),
+        TrayMenuItem(t("capture_settings"), lambda icon, item: app.root.after(0, lambda: _tray_settings(app))),
         TrayMenuItem(t("archive_button"), lambda icon, item: app.root.after(0, lambda: _tray_archive(app))),
         TrayMenuItem(t("exit"), quit_app),
     )
@@ -117,6 +119,18 @@ def _tray_pause(app):
     from whisperfast.ui import capture_ui
 
     capture_ui.toggle_pause(app)
+
+
+def _tray_clip(app):
+    from whisperfast.ui import capture_ui
+
+    capture_ui.save_clip(app)
+
+
+def _tray_settings(app):
+    from whisperfast.ui.capture_settings import show_capture_settings_dialog
+
+    show_capture_settings_dialog(app)
 
 
 def _tray_archive(app):

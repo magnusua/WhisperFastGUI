@@ -45,7 +45,7 @@ GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
 CUDA_INDEX = "https://download.pytorch.org/whl/cu121"
 # Расширения по типам (единый источник для gui и input_files)
-AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg')
+AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.opus')
 VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.webm')
 # Текстовые / документные файлы (без Whisper; PDF/DOC/DOCX → MD, затем опционально Cursor)
 TEXT_EXTENSIONS = ('.md', '.markdown', '.txt', '.text', '.rst', '.csv', '.html', '.htm')
@@ -74,6 +74,7 @@ UPDATE_PACKAGES = [
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
     "cursor-sdk", "markitdown",
     "sounddevice",
+    "numpy",
     "torch", "faster-whisper", "ctranslate2",
     "audioop-lts",  # Python 3.13+: stdlib audioop removed; pyaudioop wheels often missing
 ]

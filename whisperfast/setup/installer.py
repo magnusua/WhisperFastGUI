@@ -281,10 +281,12 @@ MULTIMEDIA_REQUIRED = (
     "Pillow",
     "packaging",
     "sounddevice",
+    "numpy",
 )
 MULTIMEDIA_OPTIONAL = (
     "cursor-sdk",
     MARKITDOWN_PIP_SPEC,
+    "pycaw",
 )
 
 _PIP_NOISE = (
@@ -716,6 +718,8 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("markitdown")
     _check_package_verbose("packaging")
     _check_package_verbose("sounddevice")
+    _check_package_verbose("numpy")
+    _check_package_verbose("pycaw")
     if needs_pyaudioop() and not audioop_available():
         print(t("pyaudioop_not_installed"))
     print()
@@ -780,6 +784,8 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("markitdown")
     _check_package_verbose("packaging")
     _check_package_verbose("sounddevice")
+    _check_package_verbose("numpy")
+    _check_package_verbose("pycaw")
     try:
         import tkinter
         print(t("install_tkinter_ok"))

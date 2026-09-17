@@ -3208,5 +3208,327 @@
     "EN": "OpenAI-compatible: no output for {name}",
     "UK": "OpenAI-compatible: немає виходу для {name}",
     "RU": "OpenAI-compatible: нет выхода для {name}"
+  },
+  "capture_settings": {
+    "EN": "⚙",
+    "UK": "⚙",
+    "RU": "⚙"
+  },
+  "capture_clip": {
+    "EN": "Clip",
+    "UK": "Уривок",
+    "RU": "Уривок"
+  },
+  "capture_clip_saved": {
+    "EN": "Clip saved: {path}",
+    "UK": "Уривок збережено: {path}",
+    "RU": "Уривок сохранён: {path}"
+  },
+  "capture_clip_duration": {
+    "EN": "Clip length (m:ss)",
+    "UK": "Довжина уривка (хв:сс)",
+    "RU": "Длина уривка (м:сс)"
+  },
+  "tooltip_capture_clip": {
+    "EN": "Save the last N seconds without stopping the recording. Enter 2:02 or 122.",
+    "UK": "Зберегти останні N секунд без зупинки запису. Введіть 2:02 або 122.",
+    "RU": "Сохранить последние N секунд без остановки записи. Введите 2:02 или 122."
+  },
+  "tooltip_capture_settings": {
+    "EN": "Recording settings: sources, codec, auto-record, calendar.",
+    "UK": "Налаштування запису: джерела, кодек, автозапис, календар.",
+    "RU": "Настройки записи: источники, кодек, автозапись, календарь."
+  },
+  "capture_tab_sources": {
+    "EN": "Sources",
+    "UK": "Джерела",
+    "RU": "Источники"
+  },
+  "capture_tab_codec": {
+    "EN": "Codec",
+    "UK": "Кодек",
+    "RU": "Кодек"
+  },
+  "capture_tab_auto": {
+    "EN": "Auto-record",
+    "UK": "Автозапис",
+    "RU": "Автозапись"
+  },
+  "capture_tab_calendar": {
+    "EN": "Schedule",
+    "UK": "Розклад",
+    "RU": "Расписание"
+  },
+  "capture_tab_other": {
+    "EN": "Other",
+    "UK": "Інше",
+    "RU": "Прочее"
+  },
+  "capture_mix_mode": {
+    "EN": "What to record",
+    "UK": "Що записувати",
+    "RU": "Что записывать"
+  },
+  "capture_mix_all": {
+    "EN": "All device audio",
+    "UK": "Весь звук пристрою",
+    "RU": "Весь звук устройства"
+  },
+  "capture_mix_process": {
+    "EN": "Allowlisted apps (process loopback)",
+    "UK": "Лише allowlist (process loopback)",
+    "RU": "Только allowlist (process loopback)"
+  },
+  "capture_mix_device": {
+    "EN": "Selected output device",
+    "UK": "Обраний пристрій виходу",
+    "RU": "Выбранное устройство вывода"
+  },
+  "capture_mix_process_hint": {
+    "EN": "Process loopback needs a WASAPI helper; until then FTW records the full mix. Denylist is only used in this mode.",
+    "UK": "Process loopback потребує WASAPI-помічника; поки що FTW пише повний mix. Denylist діє лише в цьому режимі.",
+    "RU": "Process loopback требует WASAPI-помощник; пока FTW пишет полный mix. Denylist действует только в этом режиме."
+  },
+  "capture_include_mic": {
+    "EN": "Microphone",
+    "UK": "Мікрофон",
+    "RU": "Микрофон"
+  },
+  "capture_include_system": {
+    "EN": "System audio",
+    "UK": "Системний звук",
+    "RU": "Системный звук"
+  },
+  "capture_loopback_device": {
+    "EN": "Loopback device",
+    "UK": "Пристрій loopback",
+    "RU": "Устройство loopback"
+  },
+  "capture_source_allowlist": {
+    "EN": "Source allowlist (exe names, comma-separated)",
+    "UK": "Allowlist джерел (exe через кому)",
+    "RU": "Allowlist источников (exe через запятую)"
+  },
+  "capture_source_denylist": {
+    "EN": "Source denylist (only with process loopback)",
+    "UK": "Denylist джерел (лише з process loopback)",
+    "RU": "Denylist источников (только с process loopback)"
+  },
+  "capture_codec": {
+    "EN": "Codec",
+    "UK": "Кодек",
+    "RU": "Кодек"
+  },
+  "capture_bitrate": {
+    "EN": "Bitrate (kbit/s)",
+    "UK": "Бітрейт (кбіт/с)",
+    "RU": "Битрейт (кбит/с)"
+  },
+  "capture_channels": {
+    "EN": "Scene",
+    "UK": "Сцена",
+    "RU": "Сцена"
+  },
+  "capture_channels_mono": {
+    "EN": "Mono (mix, smaller files)",
+    "UK": "Моно (мікс, менші файли)",
+    "RU": "Моно (микс, меньше файлы)"
+  },
+  "capture_channels_stereo": {
+    "EN": "Stereo (mic L / system R, for speakers)",
+    "UK": "Стерео (мікрофон L / система R, для спікерів)",
+    "RU": "Стерео (микрофон L / система R, для спикеров)"
+  },
+  "capture_channels_hint": {
+    "EN": "PCM WAV is always written during recording for crash recovery. Codec conversion happens on Stop or Clip.",
+    "UK": "Під час запису завжди пишеться PCM WAV (crash-recovery). Кодек застосовується на Stop або уривок.",
+    "RU": "Во время записи всегда пишется PCM WAV (crash-recovery). Кодек применяется на Stop или уривок."
+  },
+  "auto_record_enabled": {
+    "EN": "Start recording when a call app is active",
+    "UK": "Починати запис, коли активна програма дзвінка",
+    "RU": "Начинать запись, когда активно приложение звонка"
+  },
+  "auto_record_app_zoom": { "EN": "Zoom", "UK": "Zoom", "RU": "Zoom" },
+  "auto_record_app_teams": { "EN": "Microsoft Teams", "UK": "Microsoft Teams", "RU": "Microsoft Teams" },
+  "auto_record_app_meet": { "EN": "Google Meet", "UK": "Google Meet", "RU": "Google Meet" },
+  "auto_record_app_telegram": { "EN": "Telegram", "UK": "Telegram", "RU": "Telegram" },
+  "auto_record_app_viber": { "EN": "Viber", "UK": "Viber", "RU": "Viber" },
+  "auto_record_app_phone_link": { "EN": "Phone Link", "UK": "Phone Link", "RU": "Phone Link" },
+  "auto_record_app_whatsapp": { "EN": "WhatsApp", "UK": "WhatsApp", "RU": "WhatsApp" },
+  "auto_record_custom_exes": {
+    "EN": "Extra executables (comma-separated)",
+    "UK": "Додаткові exe (через кому)",
+    "RU": "Дополнительные exe (через запятую)"
+  },
+  "auto_record_start_delay": {
+    "EN": "Start delay (s)",
+    "UK": "Затримка старту (с)",
+    "RU": "Задержка старта (с)"
+  },
+  "auto_record_stop_delay": {
+    "EN": "Stop delay (s)",
+    "UK": "Затримка стопу (с)",
+    "RU": "Задержка стопа (с)"
+  },
+  "auto_record_min_duration": {
+    "EN": "Minimum duration (s)",
+    "UK": "Мінімальна тривалість (с)",
+    "RU": "Минимальная длительность (с)"
+  },
+  "auto_record_silence_stop": {
+    "EN": "Silence auto-stop (s, 0 = off)",
+    "UK": "Автостоп за тишею (с, 0 = вимк.)",
+    "RU": "Автостоп по тишине (с, 0 = выкл.)"
+  },
+  "calendar_google": {
+    "EN": "Google Calendar",
+    "UK": "Google Календар",
+    "RU": "Google Календарь"
+  },
+  "calendar_google_client_id": {
+    "EN": "OAuth client ID",
+    "UK": "OAuth client ID",
+    "RU": "OAuth client ID"
+  },
+  "calendar_google_client_secret": {
+    "EN": "OAuth client secret",
+    "UK": "OAuth client secret",
+    "RU": "OAuth client secret"
+  },
+  "calendar_google_ids": {
+    "EN": "Calendar IDs (comma-separated, default primary)",
+    "UK": "ID календарів (через кому, типово primary)",
+    "RU": "ID календарей (через запятую, по умолчанию primary)"
+  },
+  "calendar_google_login": {
+    "EN": "Sign in to Google Calendar",
+    "UK": "Увійти в Google Календар",
+    "RU": "Войти в Google Календарь"
+  },
+  "calendar_google_need_client": {
+    "EN": "Enter a Google OAuth client ID and secret first.",
+    "UK": "Спочатку вкажіть Google OAuth client ID і secret.",
+    "RU": "Сначала укажите Google OAuth client ID и secret."
+  },
+  "calendar_google_ok": {
+    "EN": "Google Calendar connected.",
+    "UK": "Google Календар підключено.",
+    "RU": "Google Календарь подключён."
+  },
+  "calendar_outlook": {
+    "EN": "Outlook (this PC)",
+    "UK": "Outlook (цей ПК)",
+    "RU": "Outlook (этот ПК)"
+  },
+  "calendar_ics": {
+    "EN": "ICS file or URL",
+    "UK": "ICS-файл або URL",
+    "RU": "ICS-файл или URL"
+  },
+  "calendar_start_lead": {
+    "EN": "Start N minutes before event",
+    "UK": "Старт за N хвилин до події",
+    "RU": "Старт за N минут до события"
+  },
+  "calendar_event_filter": {
+    "EN": "Event filter",
+    "UK": "Фільтр подій",
+    "RU": "Фильтр событий"
+  },
+  "calendar_keywords": {
+    "EN": "Title keywords (comma-separated)",
+    "UK": "Ключові слова в назві (через кому)",
+    "RU": "Ключевые слова в названии (через запятую)"
+  },
+  "capture_dir": {
+    "EN": "Recording folder (empty = captures/)",
+    "UK": "Каталог запису (порожньо = captures/)",
+    "RU": "Каталог записи (пусто = captures/)"
+  },
+  "capture_filename_template": {
+    "EN": "Filename template",
+    "UK": "Шаблон імені файлу",
+    "RU": "Шаблон имени файла"
+  },
+  "capture_filename_hint": {
+    "EN": "%Y %y %m %d %H %M %S date/time · %W window title · %C calendar title · %R random · %s unix time",
+    "UK": "%Y %y %m %d %H %M %S дата/час · %W заголовок вікна · %C назва з календаря · %R випадкові · %s unix time",
+    "RU": "%Y %y %m %d %H %M %S дата/время · %W заголовок окна · %C название из календаря · %R случайные · %s unix time"
+  },
+  "capture_filename_use_calendar": {
+    "EN": "Put overlapping calendar title in the filename (%C)",
+    "UK": "Підставляти назву зустрічі з календаря в ім’я файлу (%C)",
+    "RU": "Подставлять название встречи из календаря в имя файла (%C)"
+  },
+  "capture_auto_date_subdir": {
+    "EN": "Auto-recordings in a YYYY-MM-DD subfolder",
+    "UK": "Автозаписи в підкаталог YYYY-MM-DD",
+    "RU": "Автозаписи в подкаталог YYYY-MM-DD"
+  },
+  "keep_audio": {
+    "EN": "Keep audio after transcription",
+    "UK": "Залишати аудіо після транскрипту",
+    "RU": "Оставлять аудио после транскрипта"
+  },
+  "user_name": {
+    "EN": "You",
+    "UK": "Ви",
+    "RU": "Вы"
+  },
+  "them_name": {
+    "EN": "Them",
+    "UK": "Вони",
+    "RU": "Они"
+  },
+  "capture_max_duration": {
+    "EN": "Max session length (s, 0 = unlimited)",
+    "UK": "Макс. тривалість сесії (с, 0 = без ліміту)",
+    "RU": "Макс. длительность сессии (с, 0 = без лимита)"
+  },
+  "live_preview_enabled": {
+    "EN": "Live transcript preview (tiny/base, not saved)",
+    "UK": "Живий прев’ю транскрипту (tiny/base, не зберігається)",
+    "RU": "Живое превью транскрипта (tiny/base, не сохраняется)"
+  },
+  "live_preview_title": {
+    "EN": "Live preview",
+    "UK": "Живий прев’ю",
+    "RU": "Живое превью"
+  },
+  "live_preview_hint": {
+    "EN": "Disposable preview. Errors here do not stop recording.",
+    "UK": "Тимчасовий прев’ю. Помилки тут не зупиняють запис.",
+    "RU": "Временное превью. Ошибки здесь не останавливают запись."
+  },
+  "live_preview_waiting": {
+    "EN": "Waiting for audio…",
+    "UK": "Очікування аудіо…",
+    "RU": "Ожидание аудио…"
+  },
+  "on_stop_hook": {
+    "EN": "Command after Stop ({path} = file)",
+    "UK": "Команда після Stop ({path} = файл)",
+    "RU": "Команда после Stop ({path} = файл)"
+  },
+  "capture_consent_reset": {
+    "EN": "Ask for recording consent again",
+    "UK": "Знову запитати згоду на запис",
+    "RU": "Снова запросить согласие на запись"
+  },
+  "archive_rename_speakers": {
+    "EN": "Speakers",
+    "UK": "Спікери",
+    "RU": "Спикеры"
+  },
+  "archive_speaker_first": {
+    "EN": "First utterance",
+    "UK": "Перша репліка",
+    "RU": "Первая реплика"
+  },
+  "archive_speaker_longest": {
+    "EN": "Longest utterance",
+    "UK": "Найдовша репліка",
+    "RU": "Самая длинная реплика"
   }
 }

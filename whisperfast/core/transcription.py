@@ -313,7 +313,20 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                     if opts.get("diarization_enabled"):
                         from whisperfast.core.diarize import apply_speakers
 
-                        apply_speakers(path, res, enabled=True)
+                        apply_speakers(
+                            path,
+                            res,
+                            enabled=True,
+                            user_name=str(opts.get("user_name") or "You"),
+                            them_name=str(opts.get("them_name") or "Them"),
+                        )
+                    from whisperfast.core.echo_filter import filter_echo_segments
+
+                    res = filter_echo_segments(
+                        res,
+                        near_names=(str(opts.get("user_name") or "You"),),
+                        far_names=(str(opts.get("them_name") or "Them"),),
+                    )
                     is_segment = start_sec >= FULL_VIDEO_SEGMENT_EPS_S or (duration - end_sec) >= FULL_VIDEO_SEGMENT_EPS_S
                     # Через app.save_files — единая точка (GUI-обёртка → этот модуль)
                     saved = app.save_files(
@@ -490,6 +503,60 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
     # Source follows TXT/SRT output directory
     dest_dir = os.path.dirname(os.path.abspath(txt_p))
     final_source = finalize_source_after_processing(app, path, dest_dir, file_id=file_id)
+
+    try:
+        from whisperfast.core.session_store import merge_meta, maybe_drop_audio, write_summary
+        from whisperfast.core.speakers import (
+            default_speakers_map,
+            save_speakers,
+            speakers_json_path,
+        )
+
+        session_folder = dest_dir
+        cal_title = ""
+        attendees = []
+        session = None
+        try:
+            from whisperfast.core.capture import get_capture_session
+
+            session = get_capture_session()
+            cal_title = getattr(session, "calendar_title", "") or ""
+            attendees = list(getattr(session, "calendar_attendees", None) or [])
+        except Exception:
+            pass
+        merge_meta(
+            session_folder,
+            {
+                "source": final_source,
+                "txt_path": txt_p,
+                "model": opts.get("whisper_model") or "",
+                "calendar_title": cal_title,
+                "attendees": attendees,
+                "job_id": file_id,
+            },
+        )
+        if opts.get("diarization_enabled"):
+            sp_path = speakers_json_path(txt_p)
+            save_speakers(
+                sp_path,
+                default_speakers_map(
+                    str(opts.get("user_name") or "You"),
+                    str(opts.get("them_name") or "Them"),
+                ),
+            )
+            if file_id:
+                app.add_file_output("speakers", sp_path, file_id=file_id)
+        keep_audio = True
+        if output_opts:
+            keep_audio = bool(output_opts.get("keep_audio", True))
+        else:
+            cfg = getattr(app, "capture_cfg", None) or {}
+            keep_audio = bool(cfg.get("keep_audio", True))
+        if not keep_audio:
+            maybe_drop_audio(final_source, keep_audio=False, mp3_path=mp3_p or "")
+        del write_summary
+    except Exception:
+        pass
 
     app.end_file_log("done", file_id=file_id)
     return final_source

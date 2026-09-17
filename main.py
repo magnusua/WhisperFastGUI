@@ -31,6 +31,12 @@ def on_app_closing(root, app=None, WhisperModelSingleton=None):
 
 
 def main():
+    # CLI without GUI: sessions / process / record
+    from whisperfast.cli import maybe_run_cli
+
+    if maybe_run_cli(sys.argv):
+        return
+
     # Перший запуск: вибір Python серед встановлених версій → settings.json → за потреби re-exec
     from whisperfast.setup.python_selector import ensure_preferred_python, _to_python_exe
     ensure_preferred_python()
@@ -104,6 +110,8 @@ def main():
 
         if len(sys.argv) > 1 and sys.argv[1].strip().lower() == "--transcribe":
             root.after(500, app.auto_start_queue)
+        if len(sys.argv) > 1 and sys.argv[1].strip().lower() == "--record":
+            root.after(600, app.auto_start_record)
 
         root.mainloop()
     except Exception as e:
