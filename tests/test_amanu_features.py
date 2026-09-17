@@ -13,10 +13,18 @@ from whisperfast.core.auto_record import (
     AutoRecordMachine,
 )
 from whisperfast.core.calendar import (
+    CLIENT_ID_ENV,
+    GoogleLoopbackAuth,
+    clear_google_session,
     event_has_meeting_url,
+    extract_oauth_code_from_url,
     filter_events,
+    google_auth_url,
+    make_pkce,
     overlapping_event,
     parse_ics,
+    resolve_google_client_id,
+    store_google_session,
     upcoming_event,
 )
 from whisperfast.core.capture import CaptureSession
@@ -345,6 +353,73 @@ class TestDateSubdir(unittest.TestCase):
                 auto=False,
             )
             self.assertEqual(os.path.normpath(manual), os.path.normpath(tmp))
+
+
+class TestGoogleBrowserOAuth(unittest.TestCase):
+    def test_pkce_s256(self):
+        import base64
+        import hashlib
+
+        verifier, challenge = make_pkce()
+        self.assertGreater(len(verifier), 40)
+        digest = hashlib.sha256(verifier.encode("ascii")).digest()
+        expected = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+        self.assertEqual(challenge, expected)
+        other_v, other_c = make_pkce()
+        self.assertNotEqual(verifier, other_v)
+        self.assertNotEqual(challenge, other_c)
+
+    def test_auth_url_includes_pkce(self):
+        url = google_auth_url(
+            "cid.apps.googleusercontent.com",
+            "http://127.0.0.1:9/",
+            code_challenge="abc_challenge",
+        )
+        self.assertIn("code_challenge=abc_challenge", url)
+        self.assertIn("code_challenge_method=S256", url)
+        self.assertIn("access_type=offline", url)
+        self.assertIn("calendar.readonly", url)
+        self.assertIn("userinfo.email", url)
+        bare = google_auth_url("cid", "http://127.0.0.1:9/")
+        self.assertNotIn("code_challenge", bare)
+
+    def test_extract_code_and_client_id(self):
+        self.assertEqual(
+            extract_oauth_code_from_url("http://127.0.0.1:1234/?code=XYZ&state=s"),
+            "XYZ",
+        )
+        self.assertEqual(extract_oauth_code_from_url("raw-code"), "raw-code")
+        self.assertEqual(extract_oauth_code_from_url(""), "")
+        self.assertEqual(resolve_google_client_id("from-settings"), "from-settings")
+        old = os.environ.get(CLIENT_ID_ENV)
+        os.environ[CLIENT_ID_ENV] = "from-env"
+        try:
+            self.assertEqual(resolve_google_client_id(""), "from-env")
+            self.assertEqual(resolve_google_client_id("  settings-id  "), "settings-id")
+        finally:
+            if old is None:
+                os.environ.pop(CLIENT_ID_ENV, None)
+            else:
+                os.environ[CLIENT_ID_ENV] = old
+
+    def test_loopback_binds_localhost(self):
+        session = GoogleLoopbackAuth("cid.apps.googleusercontent.com")
+        try:
+            self.assertTrue(session.redirect_uri.startswith("http://127.0.0.1:"))
+            self.assertIn("code_challenge=", session.url)
+            self.assertIn(session.challenge, session.url)
+            self.assertGreater(session.port, 0)
+        finally:
+            session.close()
+
+    def test_store_and_clear_session(self):
+        settings = {}
+        store_google_session(settings, "refresh-token", "user@example.com")
+        self.assertTrue(settings.get("google_calendar_refresh_token"))
+        self.assertEqual(settings.get("google_calendar_email"), "user@example.com")
+        clear_google_session(settings)
+        self.assertEqual(settings.get("google_calendar_refresh_token"), "")
+        self.assertEqual(settings.get("google_calendar_email"), "")
 
 
 if __name__ == "__main__":

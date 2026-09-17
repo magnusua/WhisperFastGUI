@@ -55,6 +55,7 @@ CAPTURE_DEFAULTS: Dict[str, Any] = {
     "google_calendar_client_id": "",
     "google_calendar_client_secret": "",
     "google_calendar_refresh_token": "",
+    "google_calendar_email": "",
     "google_calendar_ids": "primary",
     "live_preview_enabled": False,
     "live_preview_model": "tiny",

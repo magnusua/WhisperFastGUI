@@ -1,19 +1,21 @@
 """Capture settings dialog: sources, codec, auto-record, calendar, extras."""
 from __future__ import annotations
 
-import os
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from urllib.parse import urlparse
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
-import webbrowser
 
 from whisperfast.core.calendar import (
-    exchange_google_code,
-    google_auth_url,
-    store_google_refresh,
+    CLIENT_ID_ENV,
+    GOOGLE_CALENDAR_API_URL,
+    GOOGLE_CLOUD_CREDENTIALS_URL,
+    GoogleLoopbackAuth,
+    clear_google_session,
+    resolve_google_client_id,
+    store_google_session,
 )
+from whisperfast.postprocess.common import copy_text_to_clipboard, open_url_in_browser
+from whisperfast.secrets_store import unprotect_string
 from whisperfast.core.capture import default_capture_dir, list_loopback_devices
 from whisperfast.core.capture_encode import BITRATE_CHOICES
 from whisperfast.core.capture_prefs import AUTO_RECORD_PRESETS, capture_defaults
@@ -163,70 +165,169 @@ def show_capture_settings_dialog(app):
     o_on = _bool("calendar_outlook_enabled", False)
     i_on = _bool("calendar_ics_enabled", False)
     ttk.Checkbutton(cal_f, text=t("calendar_google"), variable=g_on).pack(anchor="w")
+    ttk.Label(cal_f, text=t("calendar_google_hint"), wraplength=580, justify="left").pack(
+        anchor="w", pady=(2, 6)
+    )
     gid = _str("google_calendar_client_id", "")
     gsec = _str("google_calendar_client_secret", "")
+    gmail = _str("google_calendar_email", "")
     gids = _str("google_calendar_ids", "primary")
     ttk.Label(cal_f, text=t("calendar_google_client_id")).pack(anchor="w")
     ttk.Entry(cal_f, textvariable=gid).pack(fill="x")
-    ttk.Label(cal_f, text=t("calendar_google_client_secret")).pack(anchor="w")
+    ttk.Label(cal_f, text=t("calendar_google_secret_optional")).pack(anchor="w", pady=(6, 0))
     ttk.Entry(cal_f, textvariable=gsec, show="*").pack(fill="x")
-    ttk.Label(cal_f, text=t("calendar_google_ids")).pack(anchor="w")
+    ttk.Label(cal_f, text=t("calendar_google_ids")).pack(anchor="w", pady=(6, 0))
     ttk.Entry(cal_f, textvariable=gids).pack(fill="x")
+    google_status = ttk.Label(cal_f, text="", wraplength=580, justify="left")
+    google_status.pack(anchor="w", pady=(6, 2))
+    google_busy = {"on": False, "session": None}
 
-    def do_google_login():
-        client_id = gid.get().strip()
-        secret = gsec.get().strip()
-        if not client_id or not secret:
-            messagebox.showinfo(t("capture_settings"), t("calendar_google_need_client"), parent=dialog)
+    def _google_signed_in() -> bool:
+        email = (gmail.get() or "").strip()
+        token = unprotect_string(str(cfg.get("google_calendar_refresh_token") or ""))
+        if not token:
+            token = unprotect_string(
+                str((getattr(app, "capture_cfg", None) or {}).get("google_calendar_refresh_token") or "")
+            )
+        return bool(email or token)
+
+    def _refresh_google_status(extra: str = ""):
+        if extra:
+            google_status.configure(text=extra)
             return
-        redirect = "http://127.0.0.1:8765/"
-        code_box = {"code": ""}
+        if _google_signed_in():
+            who = (gmail.get() or "").strip()
+            google_status.configure(text=t("calendar_google_signed_in", email=who or "Google"))
+        else:
+            google_status.configure(text="")
 
-        class Handler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                from urllib.parse import parse_qs
+    def _persist_google_now():
+        live = dict(getattr(app, "capture_cfg", None) or cfg)
+        live["google_calendar_refresh_token"] = cfg.get("google_calendar_refresh_token") or ""
+        live["google_calendar_email"] = cfg.get("google_calendar_email") or gmail.get()
+        live["google_calendar_client_id"] = gid.get().strip()
+        live["google_calendar_client_secret"] = gsec.get()
+        live["calendar_google_enabled"] = bool(g_on.get())
+        app.capture_cfg = live
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
 
-                qs = parse_qs(urlparse(self.path).query)
-                code_box["code"] = (qs.get("code") or [""])[0]
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(b"<html><body>FTW: OK. You can close this tab.</body></html>")
-
-            def log_message(self, fmt, *args):
-                del fmt, args
-
-        server = HTTPServer(("127.0.0.1", 8765), Handler)
-
-        def serve():
-            server.handle_request()
-
-        threading.Thread(target=serve, daemon=True).start()
-        webbrowser.open(google_auth_url(client_id, redirect))
-        dialog.after(800, lambda: _wait_google(secret, client_id, redirect, code_box, server))
-
-    def _wait_google(secret, client_id, redirect, code_box, server, tries=0):
-        if code_box.get("code"):
+    def _close_google_session():
+        session = google_busy.get("session")
+        google_busy["session"] = None
+        google_busy["on"] = False
+        if session is not None:
             try:
-                token = exchange_google_code(client_id, secret, code_box["code"], redirect)
-                refresh = token.get("refresh_token") or ""
-                store_google_refresh(cfg, refresh)
-                app.capture_cfg["google_calendar_refresh_token"] = cfg.get(
-                    "google_calendar_refresh_token"
-                )
-                messagebox.showinfo(t("capture_settings"), t("calendar_google_ok"), parent=dialog)
-            except Exception as e:
-                messagebox.showerror(t("capture_settings"), str(e), parent=dialog)
-            try:
-                server.server_close()
+                session.close()
             except Exception:
                 pass
-            return
-        if tries > 60:
-            return
-        dialog.after(1000, lambda: _wait_google(secret, client_id, redirect, code_box, server, tries + 1))
 
-    ttk.Button(cal_f, text=t("calendar_google_login"), command=do_google_login).pack(anchor="w", pady=4)
+    def do_google_login():
+        if google_busy["on"]:
+            return
+        client_id = resolve_google_client_id(gid.get())
+        if not client_id:
+            copy_text_to_clipboard("http://127.0.0.1")
+            open_url_in_browser(GOOGLE_CALENDAR_API_URL)
+            open_url_in_browser(GOOGLE_CLOUD_CREDENTIALS_URL)
+            messagebox.showinfo(
+                t("capture_settings"),
+                t("calendar_google_need_client", env=CLIENT_ID_ENV),
+                parent=dialog,
+            )
+            return
+        gid.set(client_id)
+        try:
+            session = GoogleLoopbackAuth(client_id, gsec.get().strip())
+            session.open_browser()
+        except Exception as e:
+            if "session" in locals():
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            messagebox.showerror(t("capture_settings"), str(e), parent=dialog)
+            return
+        google_busy["on"] = True
+        google_busy["session"] = session
+        login_btn.configure(state="disabled")
+        _refresh_google_status(t("calendar_google_waiting"))
+
+        def worker():
+            err = ""
+            token = None
+            try:
+                token = session.wait(180)
+            except Exception as e:
+                err = str(e)
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+            def done():
+                google_busy["session"] = None
+                google_busy["on"] = False
+                try:
+                    if login_btn.winfo_exists():
+                        login_btn.configure(state="normal")
+                except tk.TclError:
+                    return
+                if token:
+                    refresh = token.get("refresh_token") or unprotect_string(
+                        str(cfg.get("google_calendar_refresh_token") or "")
+                    )
+                    if not refresh:
+                        messagebox.showerror(
+                            t("capture_settings"), t("calendar_google_no_refresh"), parent=dialog
+                        )
+                        _refresh_google_status()
+                        return
+                    email = str(token.get("email") or "").strip()
+                    store_google_session(cfg, refresh, email)
+                    gmail.set(email)
+                    g_on.set(True)
+                    _persist_google_now()
+                    _refresh_google_status()
+                    messagebox.showinfo(
+                        t("capture_settings"),
+                        t("calendar_google_ok", email=email or "Google"),
+                        parent=dialog,
+                    )
+                    return
+                if err == "timeout":
+                    messagebox.showinfo(
+                        t("capture_settings"), t("calendar_google_timeout"), parent=dialog
+                    )
+                elif err:
+                    messagebox.showerror(t("capture_settings"), err, parent=dialog)
+                _refresh_google_status()
+
+            try:
+                dialog.after(0, done)
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def do_google_logout():
+        _close_google_session()
+        clear_google_session(cfg)
+        gmail.set("")
+        g_on.set(False)
+        _persist_google_now()
+        _refresh_google_status()
+
+    g_btns = ttk.Frame(cal_f)
+    g_btns.pack(fill="x", pady=4)
+    login_btn = ttk.Button(g_btns, text=t("calendar_google_login"), command=do_google_login)
+    login_btn.pack(side="left")
+    ttk.Button(g_btns, text=t("calendar_google_logout"), command=do_google_logout).pack(
+        side="left", padx=6
+    )
+    _refresh_google_status()
     ttk.Checkbutton(cal_f, text=t("calendar_outlook"), variable=o_on).pack(anchor="w", pady=(8, 0))
     ttk.Checkbutton(cal_f, text=t("calendar_ics"), variable=i_on).pack(anchor="w")
     ics = _str("calendar_ics_path", "")
@@ -316,6 +417,7 @@ def show_capture_settings_dialog(app):
     ).pack(anchor="w", pady=10)
 
     def apply_and_close():
+        _close_google_session()
         out = dict(getattr(app, "capture_cfg", None) or capture_defaults())
         for key, var in vars_map.items():
             if isinstance(var, tk.BooleanVar):
@@ -347,6 +449,12 @@ def show_capture_settings_dialog(app):
                 if lab == label or label.startswith(str(idx)):
                     out["capture_loopback_device"] = str(idx)
                     break
+        out["google_calendar_refresh_token"] = (
+            cfg.get("google_calendar_refresh_token")
+            or out.get("google_calendar_refresh_token")
+            or ""
+        )
+        out["google_calendar_email"] = (gmail.get() or "").strip()
         app.capture_cfg = out
         clip_var = getattr(app, "capture_clip_var", None)
         if clip_var is not None:
@@ -360,16 +468,18 @@ def show_capture_settings_dialog(app):
 
     btns = ttk.Frame(dialog)
     btns.pack(fill="x", padx=8, pady=(0, 8))
-    ttk.Button(btns, text=t("ok"), command=apply_and_close).pack(side="right")
-    ttk.Button(btns, text=t("cancel"), command=dialog.destroy).pack(side="right", padx=6)
 
     def _on_close():
+        _close_google_session()
         try:
             dialog.destroy()
         except tk.TclError:
             pass
         if getattr(app, "_capture_settings_window", None) is dialog:
             app._capture_settings_window = None
+
+    ttk.Button(btns, text=t("ok"), command=apply_and_close).pack(side="right")
+    ttk.Button(btns, text=t("cancel"), command=_on_close).pack(side="right", padx=6)
 
     dialog.protocol("WM_DELETE_WINDOW", _on_close)
     center_toplevel(app, dialog)

@@ -3386,15 +3386,25 @@
     "UK": "Google Календар",
     "RU": "Google Календарь"
   },
+  "calendar_google_hint": {
+    "EN": "Sign in opens the browser (your Google account is usually already there) and copies the auth URL, like Cursor Chat without an API key. Google does not allow shipping a third-party client ID — use a Desktop OAuth client of your own, or set FTW_GOOGLE_OAUTH_CLIENT_ID.",
+    "UK": "Увійти відкриває браузер (акаунт Google зазвичай уже там) і копіює URL авторизації, як Cursor Chat без API-ключа. Google не дозволяє вшивати чужий client ID — потрібен власний Desktop OAuth-клієнт або змінна FTW_GOOGLE_OAUTH_CLIENT_ID.",
+    "RU": "Вход открывает браузер (аккаунт Google обычно уже там) и копирует URL авторизации, как Cursor Chat без API-ключа. Google не позволяет вшивать чужой client ID — нужен свой Desktop OAuth-клиент или переменная FTW_GOOGLE_OAUTH_CLIENT_ID."
+  },
   "calendar_google_client_id": {
-    "EN": "OAuth client ID",
-    "UK": "OAuth client ID",
-    "RU": "OAuth client ID"
+    "EN": "OAuth client ID (Desktop app)",
+    "UK": "OAuth client ID (Desktop app)",
+    "RU": "OAuth client ID (Desktop app)"
   },
   "calendar_google_client_secret": {
     "EN": "OAuth client secret",
     "UK": "OAuth client secret",
     "RU": "OAuth client secret"
+  },
+  "calendar_google_secret_optional": {
+    "EN": "OAuth client secret (optional with PKCE)",
+    "UK": "OAuth client secret (необов’язковий з PKCE)",
+    "RU": "OAuth client secret (необязателен с PKCE)"
   },
   "calendar_google_ids": {
     "EN": "Calendar IDs (comma-separated, default primary)",
@@ -3407,14 +3417,39 @@
     "RU": "Войти в Google Календарь"
   },
   "calendar_google_need_client": {
-    "EN": "Enter a Google OAuth client ID and secret first.",
-    "UK": "Спочатку вкажіть Google OAuth client ID і secret.",
-    "RU": "Сначала укажите Google OAuth client ID и secret."
+    "EN": "Create a Desktop OAuth client in Google Cloud, enable Calendar API, paste the Client ID here, then Sign in again. Redirect http://127.0.0.1 is already copied. You can also set {env}.",
+    "UK": "Створіть Desktop OAuth-клієнт у Google Cloud, увімкніть Calendar API, вставте Client ID сюди й натисніть Увійти ще раз. Redirect http://127.0.0.1 уже в буфері. Або задайте {env}.",
+    "RU": "Создайте Desktop OAuth-клиент в Google Cloud, включите Calendar API, вставьте Client ID сюда и нажмите Войти ещё раз. Redirect http://127.0.0.1 уже в буфере. Или задайте {env}."
   },
   "calendar_google_ok": {
-    "EN": "Google Calendar connected.",
-    "UK": "Google Календар підключено.",
-    "RU": "Google Календарь подключён."
+    "EN": "Google Calendar connected as {email}.",
+    "UK": "Google Календар підключено як {email}.",
+    "RU": "Google Календарь подключён как {email}."
+  },
+  "calendar_google_waiting": {
+    "EN": "Waiting for Google in the browser… Auth URL copied to the clipboard.",
+    "UK": "Чекаємо Google у браузері… URL авторизації скопійовано.",
+    "RU": "Ждём Google в браузере… URL авторизации скопирован."
+  },
+  "calendar_google_signed_in": {
+    "EN": "Signed in as {email}.",
+    "UK": "Увійшли як {email}.",
+    "RU": "Вход выполнен: {email}."
+  },
+  "calendar_google_logout": {
+    "EN": "Sign out",
+    "UK": "Вийти",
+    "RU": "Выйти"
+  },
+  "calendar_google_timeout": {
+    "EN": "No reply from the browser. Allow access in the Google tab, or sign in again.",
+    "UK": "Браузер не відповів. Дозвольте доступ у вкладці Google або увійдіть ще раз.",
+    "RU": "Браузер не ответил. Разрешите доступ во вкладке Google или войдите ещё раз."
+  },
+  "calendar_google_no_refresh": {
+    "EN": "Google did not return a refresh token. Sign in again and click Allow.",
+    "UK": "Google не повернув refresh token. Увійдіть ще раз і натисніть Allow.",
+    "RU": "Google не вернул refresh token. Войдите ещё раз и нажмите Allow."
   },
   "calendar_outlook": {
     "EN": "Outlook (this PC)",
