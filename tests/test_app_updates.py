@@ -72,6 +72,18 @@ class TestReleaseHelpers(unittest.TestCase):
         self.assertEqual(picked["checksums"]["name"], "SHA256SUMS")
         self.assertEqual(picked["signature"]["name"], "SHA256SUMS.asc")
 
+    def test_pick_prefers_ftw_zip_over_legacy_name(self):
+        release = {
+            "assets": [
+                _asset("other.zip"),
+                _asset("WhisperFastGUI-1.2.12-src.zip"),
+                _asset("FTW-1.3.1-src.zip"),
+                _asset("SHA256SUMS"),
+            ]
+        }
+        picked = _pick_release_assets(release)
+        self.assertEqual(picked["zip"]["name"], "FTW-1.3.1-src.zip")
+
     def test_pick_missing_checksums(self):
         release = {"assets": [_asset("WhisperFastGUI-1.2.12-src.zip")]}
         picked = _pick_release_assets(release)

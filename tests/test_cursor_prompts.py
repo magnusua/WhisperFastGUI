@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from whisperfast.postprocess.cursor_postprocess import (
+    default_checked_prompt_nums,
     parse_redactor_prompts,
     sanitize_prompt_filename,
 )
@@ -71,6 +72,25 @@ class TestParseRedactorPrompts(unittest.TestCase):
         self.assertEqual(prompts[0][0], 1)
         self.assertEqual(prompts[0][1], "")
         self.assertEqual(prompts[0][2], "Body text.")
+
+
+class TestDefaultCheckedPromptNums(unittest.TestCase):
+    prompts = [(1, "a", "x"), (2, "b", "y"), (4, "c", "z")]
+
+    def test_none_uses_first(self):
+        self.assertEqual(default_checked_prompt_nums(self.prompts, None), {1})
+
+    def test_empty_means_none(self):
+        self.assertEqual(default_checked_prompt_nums(self.prompts, []), set())
+
+    def test_filters_to_existing(self):
+        self.assertEqual(default_checked_prompt_nums(self.prompts, [2, 4, 9]), {2, 4})
+
+    def test_unmatched_falls_back_to_first(self):
+        self.assertEqual(default_checked_prompt_nums(self.prompts, [99]), {1})
+
+    def test_empty_prompts(self):
+        self.assertEqual(default_checked_prompt_nums([], [1]), set())
 
 
 if __name__ == "__main__":

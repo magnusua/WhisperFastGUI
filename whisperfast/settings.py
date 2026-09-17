@@ -3,6 +3,10 @@ import json
 import os
 
 from whisperfast.config import BASE_DIR, DEFAULT_MODEL
+from whisperfast.postprocess.prompt_rules import normalize_prompt_rules
+from whisperfast.secrets_store import protect_settings, unprotect_settings
+
+SETTINGS_FILE = "settings.json"
 
 SETTINGS_FILE = "settings.json"
 
@@ -44,6 +48,7 @@ _DEFAULTS = {
     "gpu_model": "",
     "send_txt_to_ai": False,
     "send_txt_to_cursor": False,  # legacy alias → send_txt_to_ai
+    "ai_default_prompt_nums": [1],  # промпти, позначені за замовчуванням у вікні AI
     "export_md_to_docx": False,
     "ai_provider": "cursor",
     "cursor_api_key": "",
@@ -60,6 +65,22 @@ _DEFAULTS = {
     "python_path_chosen": False,
     "python_discovered": [],
     "skip_app_update_version": "",  # не пропонувати цю remote-версію при старті
+    "ai_prompt_rules": [],
+    "ai_month_budget": 0.0,
+    "ai_spend_month": "",
+    "ai_spend_usd": 0.0,
+    "ai_prompt_tokens": 0,
+    "ai_completion_tokens": 0,
+    "export_json": False,
+    "export_vtt": False,
+    "word_timestamps": False,
+    "diarization_enabled": False,
+    "ollama_base_url": "http://127.0.0.1:11434",
+    "ollama_model": "llama3.2",
+    "openai_compatible_base_url": "",
+    "openai_compatible_api_key": "",
+    "openai_compatible_model": "",
+    "capture_consent_shown": False,
 }
 
 
@@ -69,7 +90,28 @@ def settings_path():
 
 
 def default_settings():
-    return _DEFAULTS.copy()
+    data = _DEFAULTS.copy()
+    data["ai_default_prompt_nums"] = list(_DEFAULTS["ai_default_prompt_nums"])
+    data["python_discovered"] = list(_DEFAULTS["python_discovered"])
+    data["ai_prompt_rules"] = [dict(r) for r in _DEFAULTS["ai_prompt_rules"]]
+    return data
+
+
+def normalize_default_prompt_nums(value):
+    """Унікальні додатні номери промптів; не-список → [1]. Порожній список лишається порожнім."""
+    if not isinstance(value, list):
+        return [1]
+    nums = []
+    seen = set()
+    for item in value:
+        try:
+            n = int(item)
+        except (TypeError, ValueError):
+            continue
+        if n > 0 and n not in seen:
+            seen.add(n)
+            nums.append(n)
+    return nums
 
 
 def _types_match_default(value, default):
@@ -98,6 +140,26 @@ def _sanitize_loaded_settings(data, defaults):
     changed = False
     sanitized = {}
     for key, default in defaults.items():
+        if key == "ai_default_prompt_nums":
+            if key not in data:
+                sanitized[key] = list(default)
+                changed = True
+            else:
+                normalized = normalize_default_prompt_nums(data[key])
+                sanitized[key] = normalized
+                if data[key] != normalized:
+                    changed = True
+            continue
+        if key == "ai_prompt_rules":
+            if key not in data:
+                sanitized[key] = []
+                changed = True
+            else:
+                normalized = normalize_prompt_rules(data[key])
+                sanitized[key] = normalized
+                if data[key] != normalized:
+                    changed = True
+            continue
         if key not in data:
             sanitized[key] = default
             changed = True
@@ -150,10 +212,12 @@ def load_app_settings():
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         sanitized, changed = _sanitize_loaded_settings(data, defaults)
+        sanitized = unprotect_settings(sanitized)
         if changed:
             try:
+                to_write = protect_settings(sanitized)
                 with open(path, "w", encoding="utf-8") as f:
-                    json.dump(sanitized, f, ensure_ascii=False, indent=2)
+                    json.dump(to_write, f, ensure_ascii=False, indent=2)
                 _restrict_settings_file_permissions(path)
             except OSError:
                 pass
@@ -194,6 +258,7 @@ def save_app_settings(settings_dict):
                 settings = {}
         for k, v in settings_dict.items():
             settings[k] = v
+        settings = protect_settings(settings)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
         _restrict_settings_file_permissions(path)

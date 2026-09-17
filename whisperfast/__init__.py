@@ -1,3 +1,3 @@
-"""Whisper Fast GUI application package."""
+"""FTW application package."""
 
 __all__ = []

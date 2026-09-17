@@ -2,7 +2,7 @@
 
 ## Навіщо існує цей документ
 
-Практичний опис того, як застосунок потрапляє з нуля в робочий стан на конкретній машині: які версії ОС/Python підтримуються, як ставляться pip-залежності й системні утиліти (FFmpeg, Pandoc), і як увімкнути автозапуск. Якщо цікавить не «як встановити», а «як влаштований код інсталятора» — дивіться карту модулів `setup/` в [INTERNAL-ARCHITECTURE.uk.md](INTERNAL-ARCHITECTURE.uk.md).
+Практичний опис того, як **FTW** потрапляє з нуля в робочий стан на конкретній машині: які версії ОС/Python підтримуються, як ставляться pip-залежності й системні утиліти (FFmpeg, Pandoc), і як увімкнути автозапуск. Ліцензії компонентів — [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md); вихідний код FTW — MIT ([LICENSE](../LICENSE)). Якщо цікавить не «як встановити», а «як влаштований код інсталятора» — дивіться карту модулів `setup/` в [INTERNAL-ARCHITECTURE.uk.md](INTERNAL-ARCHITECTURE.uk.md).
 
 ## Технічні вимоги
 
@@ -29,7 +29,7 @@
 1. **Python 3.9–3.13** (рекомендовано 3.12), позначити «Add Python to PATH» при встановленні.
 2. **FFmpeg** у PATH: Windows — `winget install --id Gyan.FFmpeg -e` або `choco install ffmpeg`; macOS — `brew install ffmpeg`; Linux — `sudo apt install ffmpeg`.
 3. **(Опційно) Pandoc** — лише для «MD → Word»: `winget install --id JohnMacFarlane.Pandoc -e` / `choco install pandoc` / `brew install pandoc` / `sudo apt install pandoc`. Після ручного встановлення потрібен перезапуск термінала/програми, щоб підхопився оновлений PATH.
-4. **`install.bat`** (Windows) або кнопка **[Залежності]** у GUI — запускає `python -m whisperfast.setup.installer`, який: перевіряє Python і вже встановлені пакети → оновлює `pip`/`setuptools`/`wheel`/`packaging` → встановлює PyTorch (CUDA 12.1 за наявності NVIDIA), `faster-whisper`, `ctranslate2` → **пропускає** `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` при першому встановленні (ставляться окремо через [Оновлення]/[Залежності] у GUI) → встановлює `pygame`, `pydub`, `tkinterdnd2-universal`, `pystray`, `Pillow`, `cursor-sdk`, `markitdown[pdf,docx,pptx,xlsx,xls]` → за потреби ставить FFmpeg і Pandoc.
+4. **`install.bat`** (Windows) або кнопка **[Залежності]** у GUI — запускає `python -m whisperfast.setup.installer`, який: перевіряє Python і вже встановлені пакети → оновлює `pip`/`setuptools`/`wheel`/`packaging` → встановлює PyTorch (CUDA 12.1 за наявності NVIDIA), `faster-whisper`, `ctranslate2` → **пропускає** `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` при першому встановленні (ставляться окремо через [Оновлення]/[Залежності] у GUI) → встановлює `pygame`, `pydub`, `sounddevice`, `numpy`, `tkinterdnd2-universal`, `pystray`, `Pillow`, `cursor-sdk`, `markitdown[pdf,docx,pptx,xlsx,xls]` → за потреби ставить FFmpeg і Pandoc.
 5. Запуск: `run_whisper.vbs` (Windows, без вікна консолі) або `python main.py` / `python3 main.py` (Linux/macOS). Прапорець `--transcribe` запускає обробку всієї поточної черги одразу після старту.
 
 `install.bat` — тонка обгортка: PowerShell-командою читає `python_path` із `settings.json`, якщо він там уже збережений з попереднього запуску, інакше використовує `python` з PATH; на macOS/Linux скриптового еквівалента немає (тільки прямий виклик `python -m whisperfast.setup.installer`).
@@ -47,8 +47,9 @@
 | `faster-whisper` | Модель розпізнавання мовлення (обгортка над Whisper). |
 | `ctranslate2` | Інференс-ядро, яке використовує `faster-whisper`. |
 | `nvidia-cublas-cu12`, `nvidia-cudnn-cu12` | CUDA-бібліотеки для GPU-прискорення (ставляться лише з GUI, не при першому встановленні). |
-| `pydub` | Обробка аудіо: відрізки, експорт у MP3, тривалість файлу. |
-| `pygame` | Звук завершення обробки. |
+| `pydub` | Обробка аудіо: відрізки, експорт у MP3, тривалість файлу, стерео-спікери. |
+| `sounddevice`, `numpy` | Запис зустрічі: мікрофон + WASAPI loopback → стерео WAV. |
+| `pygame` | Звук завершення обробки (LGPL). |
 | `tkinterdnd2-universal` | Drag & Drop файлів у вікно й у таблиці черги. |
 | `pystray`, `Pillow` | Іконка й меню в системному треї. |
 | `cursor-sdk` | Постпроцесинг через Cursor SDK. |
@@ -64,7 +65,7 @@
 
 `setup/external_tools.py` реалізує ланцюжок фолбеків для встановлення системних (не-pip) утиліт: спершу пакетний менеджер ОС (winget → Chocolatey на Windows, Homebrew на macOS), якщо жодного немає — завантаження готового релізу з GitHub (з урахуванням архітектури: `arm64`/`x86_64`, і платформи) у локальний каталог `tools/` без встановлення в систему. Кнопка **[Система]** показує поточний статус (версії, чи знайдено в PATH) і, якщо чогось немає, — покрокові команди встановлення для поточної ОС.
 
-**Застереження:** завантажені з GitHub архіви FFmpeg/Pandoc **не** перевіряються за контрольною сумою перед розпакуванням і виконанням (на відміну від самооновлення застосунку, яке вимагає `SHA256SUMS` — [UPDATES.uk.md](UPDATES.uk.md)).
+**Застереження:** завантажені з GitHub архіви FFmpeg/Pandoc **не** перевіряються за контрольною сумою перед розпакуванням і виконанням (на відміну від самооновлення FTW, яке вимагає `SHA256SUMS` — [UPDATES.uk.md](UPDATES.uk.md)). Білди FFmpeg часто **LGPL або GPL**; Pandoc — **GPL-2.0+**. FTW не кладе їх у git — користувач ставить свій дистрибутив. Повний список — [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## GPU / CUDA
 
@@ -72,7 +73,7 @@
 
 ## Автозапуск з затримкою (Windows)
 
-- **Кнопка [Автозапуск]** у GUI — запускає `autorun_delayed.bat`, який створює ярлик у каталозі автозавантаження поточного користувача (`%APPDATA%\...\Startup`) із затримкою 25 секунд; прав адміністратора не потрібно.
+- **Кнопка [Автозапуск]** у GUI — запускає `autorun_delayed.bat`, який створює ярлик `FTW delayed.lnk` у каталозі автозавантаження поточного користувача (`%APPDATA%\...\Startup`) із затримкою 25 секунд; прав адміністратора не потрібно.
 - **Вручну:** `Win+R` → `shell:startup` → створити ярлик на `start_delayed.vbs` і перемістити його в цю папку; затримку можна змінити, відредагувавши `delaySec = 25` у самому файлі `start_delayed.vbs`.
 
 ## Встановлення вручну

@@ -1,4 +1,4 @@
-"""Перевірка та оновлення самої програми WhisperFastGUI з GitHub."""
+"""Перевірка та оновлення самої програми FTW з GitHub."""
 from __future__ import annotations
 
 import json
@@ -18,6 +18,7 @@ from whisperfast.config import (
     GITHUB_BRANCH,
     GITHUB_REPO,
     GITHUB_URL,
+    LEGACY_RELEASE_ZIP_PREFIXES,
     RESOURCES_DIR,
 )
 from whisperfast.archive_extract import UnsafeArchiveMember, safe_extract_zip
@@ -38,7 +39,7 @@ _UPDATE_STAGING_DIR = "_update_staging"
 _PRESERVE_FILES = frozenset({"settings.json", "request_queue.json", "redactor1.md"})
 _RELEASES_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 _RELEASE_SIGNING_KEY = os.path.join(RESOURCES_DIR, "release_signing_key.asc")
-_USER_AGENT = "WhisperFastGUI-Updater"
+_USER_AGENT = "FTW-Updater"
 _CHECKSUM_FILENAMES = frozenset({"sha256sums", "sha256sums.txt"})
 _SIG_FILENAMES = frozenset({"sha256sums.asc", "sha256sums.txt.asc", "sha256sums.sig"})
 
@@ -103,10 +104,16 @@ def _pick_release_assets(release: dict) -> dict:
         elif name.endswith(".zip"):
             zips.append(asset)
     zip_asset = None
+    preferred = None
+    legacy = None
     for asset in zips:
-        if _asset_name(asset).lower().startswith("whisperfastgui"):
-            zip_asset = asset
+        lower = _asset_name(asset).lower()
+        if lower.startswith("ftw"):
+            preferred = asset
             break
+        if legacy is None and any(lower.startswith(p) for p in LEGACY_RELEASE_ZIP_PREFIXES):
+            legacy = asset
+    zip_asset = preferred or legacy
     if zip_asset is None and zips:
         zip_asset = zips[0]
     return {"zip": zip_asset, "checksums": checksums, "signature": signature}
@@ -429,7 +436,7 @@ _APPLY_UPDATE_PY = os.path.join(BASE_DIR, "_apply_update.py")
 def _write_apply_update_py(source_dir: str) -> str:
     """Self-contained copier — no shell interpolation of archive filenames."""
     script = (
-        '"""Apply a staged WhisperFastGUI zip update. Generated; do not edit."""\n'
+        '"""Apply a staged FTW zip update. Generated; do not edit."""\n'
         "import os\n"
         "import shutil\n"
         "import sys\n"

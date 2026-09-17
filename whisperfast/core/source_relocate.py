@@ -21,13 +21,21 @@ def unique_dest_path(dest_dir: str, basename: str) -> str:
         n += 1
 
 
-def named_folder_output_dir(source_path: str, template: str, sanitize) -> str:
+def named_folder_output_dir(
+    source_path: str,
+    template: str,
+    sanitize,
+    base_dir: Optional[str] = None,
+) -> str:
     """
-    Output directory for named_folder save mode.
+    Output directory for named_folder / custom_named save modes.
 
     After the first processing the source is moved into this folder. A later
     run must reuse that folder instead of creating a nested child with the
     same name (e.g. talk/talk.mp4 must not become talk/talk/talk.mp4).
+
+    base_dir: parent for the named folder (selected catalog). Empty = next to
+    the source file (named_folder mode).
     """
     source_path = os.path.abspath(source_path)
     source_dir = os.path.dirname(source_path)
@@ -35,10 +43,17 @@ def named_folder_output_dir(source_path: str, template: str, sanitize) -> str:
     raw = (template or "").strip() or "{basename}"
     folder = raw.replace("{basename}", stem).replace("{name}", stem)
     safe_name = sanitize(folder) if sanitize else folder
+    parent = os.path.abspath(base_dir) if base_dir else source_dir
+    candidate = os.path.join(parent, safe_name)
     parent_name = os.path.basename(source_dir)
     if parent_name and os.path.normcase(parent_name) == os.path.normcase(safe_name):
-        return source_dir
-    return os.path.join(source_dir, safe_name)
+        if not base_dir:
+            return source_dir
+        if os.path.normcase(source_dir) == os.path.normcase(candidate):
+            return source_dir
+        if os.path.normcase(source_dir) == os.path.normcase(parent):
+            return parent
+    return candidate
 
 
 def move_source_to_output_dir(source_path: str, output_dir: str) -> Tuple[str, bool, Optional[str]]:

@@ -27,8 +27,12 @@ def process_txt_with_ai(
     delay_s: float = AI_POSTPROCESS_DELAY_S,
     resolve_output_path: Optional[Callable[[str], str]] = None,
     prompts: Optional[List[PromptTuple]] = None,
+    on_usage: Optional[Callable[..., None]] = None,
 ) -> List[str]:
     """Затримка → промпти → обраний AI-провайдер (API або browser/Chat fallback)."""
+    from whisperfast.postprocess.usage import set_usage_callback
+
+    set_usage_callback(on_usage)
     credentials = credentials or {}
     provider_id = normalize_provider_id(provider_id)
 
@@ -87,6 +91,7 @@ def start_ai_postprocess_async(
     delay_s: float = AI_POSTPROCESS_DELAY_S,
     resolve_output_path: Optional[Callable[[str], str]] = None,
     prompts: Optional[List[PromptTuple]] = None,
+    on_usage: Optional[Callable[..., None]] = None,
 ) -> None:
     """Запускає process_txt_with_ai у daemon-потоці."""
 
@@ -102,6 +107,7 @@ def start_ai_postprocess_async(
                 delay_s=delay_s,
                 resolve_output_path=resolve_output_path,
                 prompts=prompts,
+                on_usage=on_usage,
             ) or []
         except Exception as e:
             if log_func:

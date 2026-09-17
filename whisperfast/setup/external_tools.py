@@ -264,7 +264,7 @@ def _github_request(url: str, timeout: int = 20):
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "WhisperFastGUI-Updater",
+            "User-Agent": "FTW-Updater",
             "Accept": "application/vnd.github+json",
         },
     )
@@ -574,7 +574,7 @@ def _extract_tool_archive(archive_path: str, dest_dir: str, exe_name: str) -> Op
 def _download_url(url: str, dest: str, log_func: LogFunc) -> bool:
     log_func(t("external_tool_downloading", url=url))
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "WhisperFastGUI-Updater"})
+        request = urllib.request.Request(url, headers={"User-Agent": "FTW-Updater"})
         with urllib.request.urlopen(request, timeout=120) as response, open(dest, "wb") as out:
             shutil.copyfileobj(response, out)
         return True

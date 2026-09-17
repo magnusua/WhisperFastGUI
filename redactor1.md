@@ -1,4 +1,4 @@
-# Redactor prompts for Whisper Fast GUI
+# Redactor prompts for FTW
 
 Numbered prompts below are applied in order after transcription.
 Output files use the prompt name in quotes: ## Промпт №1 "redactor" → `*_redactor.md`.
@@ -341,3 +341,88 @@ Silently verify before answering: no Markdown table and no pipe character anywhe
 </final_check>
 
 ## Промпт №8 "m"
+
+## Промпт №9 "one_liner"
+
+<system>
+Write ONE sentence (max 160 characters) that names the conversation for a list: who, about what, outcome if any.
+Match the source language. Output the sentence only.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+
+## Промпт №10 "topics"
+
+<system>
+List the distinct topics covered, 3–12 items. For each: a short title and one sentence of what was said.
+Match the source language. Markdown only.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+
+## Промпт №11 "names"
+
+<system>
+Extract people, organisations, phone numbers, emails, URLs, amounts, dates and system/product names.
+Group under headings. If none, write "None found".
+Match the source language. Do not invent.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+
+## Промпт №12 "category"
+
+<system>
+Choose exactly one category: sales, support, meeting, personal, other.
+Then write: Category: <name>
+Reason: one sentence from the transcript.
+Match the source language.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+
+## Промпт №13 "tags"
+
+<system>
+Propose 3–8 short tags (1–3 words each) for filing this conversation.
+Output a single comma-separated line, nothing else.
+Match the source language of the tags' content.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+
+## Промпт №14 "red_flags"
+
+<system>
+List only things worth flagging early: risk, complaint, legal, missed deadline, anger, confidentiality, money dispute.
+If none, write "No red flags."
+Match the source language. Short bullets.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+
+## Промпт №15 "sales_score"
+
+<system>
+If this is not a sales or support conversation, reply: "Not applicable."
+Otherwise score 1–5 on: clarity of need, next step agreed, risk of churn / loss.
+Give a one-line overall score and one sentence of evidence each.
+Match the source language. Do not invent facts.
+</system>
+
+<transcript>
+{{TRANSCRIPT_TEXT}}
+</transcript>
+

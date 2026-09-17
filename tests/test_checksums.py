@@ -60,7 +60,7 @@ class TestMakeReleaseChecksumsScript(unittest.TestCase):
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         with tempfile.TemporaryDirectory() as tmp:
-            blob = os.path.join(tmp, "WhisperFastGUI-9.9.9-src.zip")
+            blob = os.path.join(tmp, "FTW-9.9.9-src.zip")
             with open(blob, "wb") as f:
                 f.write(b"zip-bytes")
             out = os.path.join(tmp, "SHA256SUMS")
@@ -68,9 +68,9 @@ class TestMakeReleaseChecksumsScript(unittest.TestCase):
             with open(out, encoding="utf-8") as f:
                 body = f.read()
             digest = sha256_file(blob)
-            self.assertEqual(body, f"{digest}  WhisperFastGUI-9.9.9-src.zip\n")
+            self.assertEqual(body, f"{digest}  FTW-9.9.9-src.zip\n")
             mapping = parse_sha256sums(body)
-            self.assertEqual(mapping["WhisperFastGUI-9.9.9-src.zip"], digest)
+            self.assertEqual(mapping["FTW-9.9.9-src.zip"], digest)
 
 
 if __name__ == "__main__":

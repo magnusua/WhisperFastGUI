@@ -8,6 +8,7 @@ from unittest.mock import patch
 from whisperfast.settings import (
     default_settings,
     load_app_settings,
+    normalize_default_prompt_nums,
     save_app_settings,
 )
 
@@ -102,6 +103,62 @@ class TestSaveLoadRoundTrip(SettingsTmpTestCase):
         self.assertTrue(data["send_txt_to_ai"])
         self.assertTrue(data["send_txt_to_cursor"])
         self.assertEqual(data["output_dir"], os.path.join("out", "folder"))
+
+
+class TestDefaultPromptNums(SettingsTmpTestCase):
+    def test_normalize_invalid_type_falls_back_to_first(self):
+        self.assertEqual(normalize_default_prompt_nums(None), [1])
+        self.assertEqual(normalize_default_prompt_nums("1"), [1])
+        self.assertEqual(normalize_default_prompt_nums(1), [1])
+
+    def test_normalize_keeps_empty_and_unique_positive(self):
+        self.assertEqual(normalize_default_prompt_nums([]), [])
+        self.assertEqual(
+            normalize_default_prompt_nums([1, 1, 2, 0, -3, "x", "4"]),
+            [1, 2, 4],
+        )
+
+    def test_load_fills_missing_default_prompt_nums(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"language": "EN"}, f)
+        data = load_app_settings()
+        self.assertEqual(data["ai_default_prompt_nums"], [1])
+
+    def test_load_sanitizes_prompt_nums(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"ai_default_prompt_nums": [1, "2", 2, 0]}, f)
+        data = load_app_settings()
+        self.assertEqual(data["ai_default_prompt_nums"], [1, 2])
+
+    def test_empty_list_is_kept(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"ai_default_prompt_nums": []}, f)
+        data = load_app_settings()
+        self.assertEqual(data["ai_default_prompt_nums"], [])
+
+
+class TestNewSoftphoneSettings(SettingsTmpTestCase):
+    def test_defaults_include_archive_flags(self):
+        data = load_app_settings()
+        self.assertFalse(data["export_json"])
+        self.assertFalse(data["diarization_enabled"])
+        self.assertEqual(data["ai_prompt_rules"], [])
+        self.assertEqual(data["ai_month_budget"], 0.0)
+        self.assertEqual(data["ollama_base_url"], "http://127.0.0.1:11434")
+
+    def test_prompt_rules_sanitized(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "ai_prompt_rules": [
+                        {"match": "filename", "pattern": "*.mp3", "prompt_nums": [2, 2, 0], "skip_dialog": 1}
+                    ]
+                },
+                f,
+            )
+        data = load_app_settings()
+        self.assertEqual(data["ai_prompt_rules"][0]["prompt_nums"], [2])
+        self.assertTrue(data["ai_prompt_rules"][0]["skip_dialog"])
 
 
 if __name__ == "__main__":

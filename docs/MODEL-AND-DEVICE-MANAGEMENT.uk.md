@@ -2,7 +2,7 @@
 
 ## Навіщо існує цей документ
 
-Опис того, як застосунок обирає пристрій (CPU/GPU), яку модель Whisper завантажує, де вона кешується на диску і як оновлюється. Якщо цікавить, звідки береться сам файл `settings.json` з полями `device_mode`/`whisper_model` — [CONFIGURATION.uk.md](CONFIGURATION.uk.md).
+Опис того, як **FTW** обирає пристрій (CPU/GPU), яку модель Whisper завантажує, де вона кешується на диску і як оновлюється. Запис зустрічі Whisper не використовує — WAV потрапляє в чергу і лише тоді викликається singleton. Якщо цікавить, звідки береться `settings.json` з полями `device_mode`/`whisper_model` — [CONFIGURATION.uk.md](CONFIGURATION.uk.md).
 
 ## Вибір пристрою (AUTO / GPU / CPU)
 

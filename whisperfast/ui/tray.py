@@ -1,4 +1,4 @@
-"""System tray helpers for WhisperGUI."""
+"""System tray helpers for FTW."""
 import os
 import threading
 
@@ -46,11 +46,29 @@ def setup_tray(app):
     def quit_app(icon, item):
         app.root.after(0, lambda: tray_quit(app))
 
+    def capture_label(item):
+        del item
+        from whisperfast.core.capture import get_capture_session
+
+        return t("capture_stop") if get_capture_session().running else t("capture_start")
+
+    def pause_label(item):
+        del item
+        from whisperfast.core.capture import get_capture_session
+
+        session = get_capture_session()
+        if session.paused:
+            return t("capture_resume")
+        return t("capture_pause")
+
     menu = pystray.Menu(
         TrayMenuItem(t("tray_show_window"), show_window, default=True),
+        TrayMenuItem(capture_label, lambda icon, item: app.root.after(0, lambda: _tray_capture(app))),
+        TrayMenuItem(pause_label, lambda icon, item: app.root.after(0, lambda: _tray_pause(app))),
+        TrayMenuItem(t("archive_button"), lambda icon, item: app.root.after(0, lambda: _tray_archive(app))),
         TrayMenuItem(t("exit"), quit_app),
     )
-    app._tray_icon = pystray.Icon("whisper_fast_gui", img, t("app_title"), menu)
+    app._tray_icon = pystray.Icon("ftw", img, t("app_title"), menu)
     threading.Thread(target=app._tray_icon.run, daemon=True).start()
 
 
@@ -88,3 +106,21 @@ def tray_quit(app):
     if app._on_close_request:
         app._on_close_request()
 
+
+def _tray_capture(app):
+    from whisperfast.ui import capture_ui
+
+    capture_ui.toggle_capture(app)
+
+
+def _tray_pause(app):
+    from whisperfast.ui import capture_ui
+
+    capture_ui.toggle_pause(app)
+
+
+def _tray_archive(app):
+    from whisperfast.ui.archive import show_archive_window
+
+    tray_show_window(app)
+    show_archive_window(app)

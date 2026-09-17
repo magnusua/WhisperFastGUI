@@ -81,7 +81,13 @@ from whisperfast.core.queue_manager import (
 from whisperfast.postprocess.cursor_postprocess import ensure_redactor_file
 from whisperfast.postprocess.providers import PROVIDER_CURSOR, normalize_provider_id
 from whisperfast.i18n import t, set_language
-from whisperfast.settings import load_app_settings, save_app_settings
+from whisperfast.library import get_library
+from whisperfast.settings import (
+    load_app_settings,
+    normalize_default_prompt_nums,
+    save_app_settings,
+)
+from whisperfast.postprocess.prompt_rules import normalize_prompt_rules
 from whisperfast.open_path import open_file_location
 from whisperfast.platform_util import win_no_window_kwargs
 from whisperfast.ui.widgets import (
@@ -92,8 +98,10 @@ from whisperfast.ui.widgets import (
 )
 from whisperfast.ui import tray as tray_ui
 from whisperfast.ui import dialogs as ui_dialogs
+from whisperfast.ui import capture_ui
 from whisperfast.ui.log_panel import LogPanel
 from whisperfast.ui.ai_jobs import AiJobQueue
+from whisperfast.ui.archive import show_archive_window
 
 
 
@@ -141,9 +149,11 @@ class WhisperGUI:
 
         self.log_panel = LogPanel(self.root)
         self.ai_jobs = AiJobQueue(self)
+        self.library = get_library()
         self._i18n_windows = []  # відкриті Toplevel з refresh при зміні мови
         self._help_window = None
         self._release_notes_window = None
+        self._archive_window = None
 
         # Состояние приложения: очередь — QueueController (request_queue.json + слідкування)
         self.queue_ctrl = QueueController(
@@ -159,7 +169,7 @@ class WhisperGUI:
         self.device_mode = tk.StringVar(value="AUTO")
         self.lang_mode = tk.StringVar(value=LANG_AUTO_VALUE)  # AUTO для языка транскрипции
         self.output_dir = tk.StringVar()
-        self.output_mode = tk.StringVar(value="beside")  # beside | custom | named_folder
+        self.output_mode = tk.StringVar(value="beside")  # beside | custom | named_folder | custom_named
         self.output_named_folder = tk.StringVar(value="{basename}")
         self.mp3_output_mode = tk.StringVar(value="inherit")  # inherit | beside | custom
         self.mp3_output_dir = tk.StringVar()
@@ -180,6 +190,17 @@ class WhisperGUI:
         self.azure_openai_api_key = tk.StringVar(value="")
         self.azure_openai_deployment = tk.StringVar(value="")
         self.azure_openai_api_version = tk.StringVar(value="2024-08-01-preview")
+        self.ollama_base_url = tk.StringVar(value="http://127.0.0.1:11434")
+        self.ollama_model = tk.StringVar(value="llama3.2")
+        self.openai_compatible_base_url = tk.StringVar(value="")
+        self.openai_compatible_api_key = tk.StringVar(value="")
+        self.openai_compatible_model = tk.StringVar(value="")
+        self.export_json = tk.BooleanVar(value=False)
+        self.export_vtt = tk.BooleanVar(value=False)
+        self.word_timestamps = tk.BooleanVar(value=False)
+        self.diarization_enabled = tk.BooleanVar(value=False)
+        self.capture_consent_shown = tk.BooleanVar(value=False)
+        self.ai_month_budget = tk.DoubleVar(value=0.0)
         self.tray_mode = tk.StringVar(value="panel")  # "panel" | "tray" | "panel_tray"
         self.whisper_model = tk.StringVar(value=DEFAULT_MODEL)
         
@@ -197,6 +218,9 @@ class WhisperGUI:
         if send_ai is None:
             send_ai = saved.get("send_txt_to_cursor", False)
         self.send_txt_to_ai.set(bool(send_ai))
+        self.ai_default_prompt_nums = normalize_default_prompt_nums(
+            saved.get("ai_default_prompt_nums")
+        )
         self.export_md_to_docx.set(bool(saved.get("export_md_to_docx", False)))
         self.ai_provider.set(normalize_provider_id(saved.get("ai_provider") or PROVIDER_CURSOR))
         self.cursor_api_key.set((saved.get("cursor_api_key") or "").strip())
@@ -217,6 +241,29 @@ class WhisperGUI:
             (saved.get("azure_openai_api_version") or "").strip()
             or "2024-08-01-preview"
         )
+        self.ollama_base_url.set(
+            (saved.get("ollama_base_url") or "").strip() or "http://127.0.0.1:11434"
+        )
+        self.ollama_model.set((saved.get("ollama_model") or "").strip() or "llama3.2")
+        self.openai_compatible_base_url.set(
+            (saved.get("openai_compatible_base_url") or "").strip()
+        )
+        self.openai_compatible_api_key.set(
+            (saved.get("openai_compatible_api_key") or "").strip()
+        )
+        self.openai_compatible_model.set(
+            (saved.get("openai_compatible_model") or "").strip()
+        )
+        self.export_json.set(bool(saved.get("export_json", False)))
+        self.export_vtt.set(bool(saved.get("export_vtt", False)))
+        self.word_timestamps.set(bool(saved.get("word_timestamps", False)))
+        self.diarization_enabled.set(bool(saved.get("diarization_enabled", False)))
+        self.capture_consent_shown.set(bool(saved.get("capture_consent_shown", False)))
+        try:
+            self.ai_month_budget.set(float(saved.get("ai_month_budget") or 0.0))
+        except (TypeError, ValueError, tk.TclError):
+            self.ai_month_budget.set(0.0)
+        self.ai_prompt_rules = normalize_prompt_rules(saved.get("ai_prompt_rules"))
         self.tray_mode.set(saved.get("tray_mode", "panel"))
         self.whisper_model.set(saved.get("whisper_model", DEFAULT_MODEL) or DEFAULT_MODEL)
         self.has_nvidia = bool(saved.get("has_nvidia", False))
@@ -248,6 +295,8 @@ class WhisperGUI:
             root_after=lambda ms, fn: self.root.after(ms, fn),
         )
         self.queue_ctrl.bind_treeview(self.queue_list)
+        capture_ui.bind_capture_hotkey(self)
+        self.root.after(400, lambda: capture_ui.recover_interrupted_captures(self))
 
         # Центрирование окна по экрану
         self.root.update_idletasks()
@@ -295,6 +344,25 @@ class WhisperGUI:
         tray_ui.tray_quit(self)
 
     TRAY_MODE_KEYS = ("panel", "tray", "panel_tray")
+    RECOG_LANG_LABELS = ("AUTO", "RU", "UK", "EN")
+
+    def _recog_lang_value(self, label):
+        return LANG_AUTO_VALUE if label == "AUTO" else (label or "").lower()
+
+    def _recog_lang_label(self, value):
+        if not value or value == LANG_AUTO_VALUE:
+            return "AUTO"
+        return str(value).upper()
+
+    def _on_ui_lang_combo(self, event=None):
+        val = (self.ui_lang_combo.get() or "").strip()
+        if val in SUPPORTED_LANGUAGES and val != self.ui_language.get():
+            self.ui_language.set(val)
+
+    def _on_recog_lang_combo(self, event=None):
+        label = (self.lang_mode_combo.get() or "").strip()
+        if label in self.RECOG_LANG_LABELS:
+            self.lang_mode.set(self._recog_lang_value(label))
 
     def _load_queue_from_file(self):
         self.queue_ctrl.load_from_file()
@@ -373,6 +441,17 @@ class WhisperGUI:
         self.add_directory_btn.pack(side="left", padx=5)
         self.clear_queue_btn = ttk.Button(header_f, text=t("clear_queue"), command=self.clear_queue)
         self.clear_queue_btn.pack(side="left", padx=5)
+        self.archive_btn = ttk.Button(header_f, text=t("archive_button"), command=self._open_archive)
+        self.archive_btn.pack(side="left", padx=5)
+        self.capture_btn = ttk.Button(header_f, text=t("capture_start"), command=self._toggle_capture)
+        self.capture_btn.pack(side="left", padx=5)
+        self.capture_pause_btn = ttk.Button(
+            header_f,
+            text=t("capture_pause"),
+            command=self._toggle_capture_pause,
+            state="disabled",
+        )
+        self.capture_pause_btn.pack(side="left", padx=(0, 5))
         # Чекбокс «Оповещение» (звук по завершении очереди)
         self.play_sound_check = ttk.Checkbutton(header_f, text=t("play_sound_finish"),
                        variable=self.play_sound_on_finish)
@@ -389,18 +468,25 @@ class WhisperGUI:
             command=self.show_release_notes,
         )
         self.version_btn.pack(side="right", padx=(0, 10))
-        # Переключатель языка слева от Help
+        # Выбор языка интерфейса слева от Help
         self.lang_selector_frame = ttk.Frame(header_f)
         self.lang_selector_frame.pack(side="right", padx=5)
-        ttk.Label(self.lang_selector_frame, text="🌐").pack(side="left", padx=2)
-        for lang_code in SUPPORTED_LANGUAGES:
-            ttk.Radiobutton(
-                self.lang_selector_frame,
-                text=lang_code,
-                variable=self.ui_language,
-                value=lang_code,
-                command=self.on_language_change
-            ).pack(side="left", padx=2)
+        ttk.Label(self.lang_selector_frame, text="🌐").pack(side="left", padx=(0, 2))
+        self.ui_lang_combo = ttk.Combobox(
+            self.lang_selector_frame,
+            state="readonly",
+            width=5,
+            values=list(SUPPORTED_LANGUAGES),
+        )
+        ui = self.ui_language.get()
+        try:
+            self.ui_lang_combo.current(
+                SUPPORTED_LANGUAGES.index(ui) if ui in SUPPORTED_LANGUAGES else 0
+            )
+        except (tk.TclError, ValueError):
+            self.ui_lang_combo.current(0)
+        self.ui_lang_combo.pack(side="left")
+        self.ui_lang_combo.bind("<<ComboboxSelected>>", self._on_ui_lang_combo)
 
         q_frame = ttk.Frame(main)
         q_frame.pack(fill="both", pady=5)
@@ -434,14 +520,24 @@ class WhisperGUI:
         self.queue_menu = tk.Menu(self.root, tearoff=0)
         self.queue_menu.add_command(label=t("delete_from_queue"), command=self.delete_selected_queue_items)
 
-        # === БЛОК 2: Переключатель языка слева + кнопка «Начать транскрибацию» ===
+        # === БЛОК 2: Выбор языка распознавания слева + кнопка «Начать транскрибацию» ===
         start_f = ttk.Frame(main)
         start_f.pack(fill="x", pady=10)
         self.lang_f = ttk.LabelFrame(start_f, text=t("language_switcher"))
         self.lang_f.pack(side="left", padx=5)
-        for l in ["AUTO", "RU", "UK", "EN"]:
-            val = l.lower() if l != "AUTO" else LANG_AUTO_VALUE
-            ttk.Radiobutton(self.lang_f, text=l, variable=self.lang_mode, value=val).pack(side="left", padx=5)
+        self.lang_mode_combo = ttk.Combobox(
+            self.lang_f,
+            state="readonly",
+            width=6,
+            values=self.RECOG_LANG_LABELS,
+        )
+        recog_label = self._recog_lang_label(self.lang_mode.get())
+        try:
+            self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
+        except ValueError:
+            self.lang_mode_combo.current(0)
+        self.lang_mode_combo.pack(side="left", padx=4, pady=2)
+        self.lang_mode_combo.bind("<<ComboboxSelected>>", self._on_recog_lang_combo)
         self.start_btn = ttk.Button(start_f, text=t("start_transcription"), command=self.handle_start_logic)
         self.start_btn.pack(side="left", fill="x", expand=True, padx=5, ipady=10)
 
@@ -503,7 +599,7 @@ class WhisperGUI:
         )
         self.send_txt_cursor_check.pack(side="left")
         self.edit_redactor_btn = ttk.Button(
-            cursor_frame, text=t("send_txt_to_ai"), command=self.ai_jobs.edit_redactor_file
+            cursor_frame, text=t("send_txt_to_ai"), command=self.ai_jobs.show_prompts_overview
         )
         self.edit_redactor_btn.pack(side="left", padx=(0, 0))
         self.cursor_api_key_btn = ttk.Button(
@@ -584,13 +680,18 @@ class WhisperGUI:
         tip(self.add_files_btn, "tooltip_add_files")
         tip(self.add_directory_btn, "tooltip_add_directory")
         tip(self.clear_queue_btn, "tooltip_clear_queue")
+        tip(self.archive_btn, "tooltip_archive")
+        tip(self.capture_btn, "tooltip_capture")
+        tip(self.capture_pause_btn, "tooltip_capture_pause")
         tip(self.play_sound_check, "tooltip_play_sound")
         tip(self.help_btn, "tooltip_help")
         tip(self.version_btn, "tooltip_version")
         tip(self.lang_selector_frame, "tooltip_ui_language")
+        tip(self.ui_lang_combo, "tooltip_ui_language")
         tip(self.start_btn, "tooltip_start")
         tip(self.dev_f, "tooltip_device")
         tip(self.lang_f, "tooltip_language_switcher")
+        tip(self.lang_mode_combo, "tooltip_language_switcher")
         tip(self.save_audio_check, "tooltip_save_mp3")
         tip(self.mp3_settings_btn, "tooltip_mp3_settings")
         tip(self.send_txt_cursor_check, "tooltip_send_txt_to_ai")
@@ -635,7 +736,7 @@ class WhisperGUI:
         font_size = max(6, int(UI_BASE_FONT_SIZE * scale))
         font = ("Segoe UI", font_size)
         style = ttk.Style()
-        for style_name in ("TButton", "TLabel", "TCheckbutton", "TRadiobutton", "TEntry"):
+        for style_name in ("TButton", "TLabel", "TCheckbutton", "TRadiobutton", "TEntry", "TCombobox"):
             try:
                 style.configure(style_name, font=font)
             except tk.TclError:
@@ -813,6 +914,22 @@ class WhisperGUI:
                 (self.azure_openai_api_version.get() or "").strip()
                 or "2024-08-01-preview"
             ),
+            "ollama_base_url": (self.ollama_base_url.get() or "").strip(),
+            "ollama_model": (self.ollama_model.get() or "").strip() or "llama3.2",
+            "openai_compatible_base_url": (
+                (self.openai_compatible_base_url.get() or "").strip()
+            ),
+            "openai_compatible_api_key": (
+                (self.openai_compatible_api_key.get() or "").strip()
+            ),
+            "openai_compatible_model": (
+                (self.openai_compatible_model.get() or "").strip()
+            ),
+            "export_json": bool(self.export_json.get()),
+            "export_vtt": bool(self.export_vtt.get()),
+            "word_timestamps": bool(self.word_timestamps.get()),
+            "diarization_enabled": bool(self.diarization_enabled.get()),
+            "watch_dirs": parse_watch_dirs(self.watch_dir.get()),
             "_from_watch": bool(from_watch),
         }
 
@@ -932,6 +1049,9 @@ class WhisperGUI:
 
     def _apply_app_update_interactive(self):
         """Запуск оновлення програми з логуванням і пропозицією перезапуску."""
+        if capture_ui.capture_blocks_shutdown():
+            messagebox.showinfo(t("capture_title"), t("capture_block_update"), parent=self.root)
+            return
 
         def worker():
             app_result = apply_app_update(log_func=self.log)
@@ -947,6 +1067,10 @@ class WhisperGUI:
         threading.Thread(target=worker, daemon=True).start()
 
     def run_updates_check(self):
+        if capture_ui.capture_blocks_shutdown():
+            messagebox.showinfo(t("capture_title"), t("capture_block_update"), parent=self.root)
+            return
+
         def worker():
             from whisperfast.setup.external_tools import install_external_tools
 
@@ -1064,7 +1188,49 @@ class WhisperGUI:
         self.log_panel.log_action(msg, callback)
 
     def begin_file_log(self, source, name=None, current=None, total=None):
-        return self.log_panel.begin_file(source, name=name, current=current, total=total)
+        file_id = self.log_panel.begin_file(source, name=name, current=current, total=total)
+        try:
+            from datetime import datetime
+
+            self.library.upsert_job(
+                {
+                    "id": file_id,
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "source": source,
+                    "name": name or os.path.basename(source or ""),
+                    "status": "running",
+                    "model": (self.whisper_model.get() if hasattr(self, "whisper_model") else "")
+                    or "",
+                    "language": (self.lang_mode.get() if hasattr(self, "lang_mode") else "") or "",
+                }
+            )
+        except Exception:
+            pass
+        return file_id
+
+    def add_file_output(self, role, path, label=None, file_id=None):
+        self.log_panel.add_file_output(role, path, label=label, file_id=file_id)
+        if file_id:
+            try:
+                self.library.add_output(file_id, role, path, label=label)
+            except Exception:
+                pass
+
+    def end_file_log(self, status="done", error=None, file_id=None):
+        self.log_panel.end_file(status=status, error=error, file_id=file_id)
+        if file_id:
+            try:
+                self.library.set_meta(file_id, status=status)
+            except Exception:
+                pass
+
+    def set_file_source(self, file_id, path):
+        self.log_panel.set_file_source(path, file_id=file_id)
+        if file_id:
+            try:
+                self.library.add_output(file_id, "source", path)
+            except Exception:
+                pass
 
     def log_file_event(self, msg, tag=None, file_id=None, callback=None):
         self.log_panel.log_file_event(msg, tag=tag, file_id=file_id, callback=callback)
@@ -1077,15 +1243,6 @@ class WhisperGUI:
 
     def log_file_segment(self, t_str, text, count=None, file_id=None):
         self.log_panel.log_file_segment(t_str, text, count=count, file_id=file_id)
-
-    def add_file_output(self, role, path, label=None, file_id=None):
-        self.log_panel.add_file_output(role, path, label=label, file_id=file_id)
-
-    def set_file_source(self, file_id, path):
-        self.log_panel.set_file_source(path, file_id=file_id)
-
-    def end_file_log(self, status="done", error=None, file_id=None):
-        self.log_panel.end_file(status=status, error=error, file_id=file_id)
 
     def find_file_log_id(self, path):
         return self.log_panel.find_file_id_for_path(path)
@@ -1213,7 +1370,7 @@ class WhisperGUI:
         mode = (saved.get("output_mode") or "").strip()
         named = (saved.get("output_named_folder") or "").strip()
         out_dir = normalize_display_path(saved.get("output_dir", "") or "")
-        if mode not in ("beside", "custom", "named_folder"):
+        if mode not in ("beside", "custom", "named_folder", "custom_named"):
             if not out_dir:
                 mode = "beside"
             elif os.path.isabs(out_dir):
@@ -1222,10 +1379,14 @@ class WhisperGUI:
                 mode = "named_folder"
                 named = named or out_dir
                 out_dir = ""
-        if mode == "named_folder" and not named:
+        if mode in ("named_folder", "custom_named") and not named:
             named = "{basename}"
         self.output_mode.set(mode or "beside")
-        self.output_dir.set(out_dir if (mode == "custom" or os.path.isabs(out_dir)) else "")
+        self.output_dir.set(
+            out_dir
+            if (mode in ("custom", "custom_named") or os.path.isabs(out_dir))
+            else ""
+        )
         self.output_named_folder.set(named or "{basename}")
 
         mp3_mode = (saved.get("mp3_output_mode") or "").strip()
@@ -1253,13 +1414,25 @@ class WhisperGUI:
             if raw and os.path.isabs(raw):
                 return self._ensure_dir(os.path.normpath(raw), source_dir)
             return source_dir
-        if mode == "named_folder":
+        if mode in ("named_folder", "custom_named"):
             template = (
                 opts.get("output_named_folder")
                 if opts.get("output_named_folder") is not None
                 else (self.output_named_folder.get() or "")
             ).strip() or "{basename}"
-            out = named_folder_output_dir(path, template, self._sanitize_folder_name)
+            base_dir = None
+            if mode == "custom_named":
+                raw = (
+                    opts.get("output_dir") if "output_dir" in opts else (self.output_dir.get() or "")
+                ).strip()
+                raw = normalize_display_path(raw)
+                if raw and os.path.isabs(raw):
+                    base_dir = os.path.normpath(raw)
+                else:
+                    return source_dir
+            out = named_folder_output_dir(
+                path, template, self._sanitize_folder_name, base_dir=base_dir
+            )
             if os.path.normcase(os.path.abspath(out)) == os.path.normcase(source_dir):
                 return source_dir
             return self._ensure_dir(out, source_dir)
@@ -1408,6 +1581,9 @@ class WhisperGUI:
             "save_audio_mp3": self.save_audio_mp3.get(),
             "send_txt_to_ai": self.send_txt_to_ai.get(),
             "send_txt_to_cursor": self.send_txt_to_ai.get(),
+            "ai_default_prompt_nums": normalize_default_prompt_nums(
+                getattr(self, "ai_default_prompt_nums", None)
+            ),
             "export_md_to_docx": self.export_md_to_docx.get(),
             "ai_provider": normalize_provider_id(self.ai_provider.get()),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
@@ -1422,6 +1598,27 @@ class WhisperGUI:
                 (self.azure_openai_api_version.get() or "").strip()
                 or "2024-08-01-preview"
             ),
+            "ollama_base_url": (self.ollama_base_url.get() or "").strip()
+            or "http://127.0.0.1:11434",
+            "ollama_model": (self.ollama_model.get() or "").strip() or "llama3.2",
+            "openai_compatible_base_url": (
+                (self.openai_compatible_base_url.get() or "").strip()
+            ),
+            "openai_compatible_api_key": (
+                (self.openai_compatible_api_key.get() or "").strip()
+            ),
+            "openai_compatible_model": (
+                (self.openai_compatible_model.get() or "").strip()
+            ),
+            "ai_month_budget": float(self.ai_month_budget.get() or 0.0),
+            "ai_prompt_rules": normalize_prompt_rules(
+                getattr(self, "ai_prompt_rules", None)
+            ),
+            "export_json": bool(self.export_json.get()),
+            "export_vtt": bool(self.export_vtt.get()),
+            "word_timestamps": bool(self.word_timestamps.get()),
+            "diarization_enabled": bool(self.diarization_enabled.get()),
+            "capture_consent_shown": bool(self.capture_consent_shown.get()),
             "tray_mode": self.tray_mode.get(),
             "whisper_model": self.whisper_model.get(),
             "has_nvidia": self.has_nvidia,
@@ -1430,6 +1627,15 @@ class WhisperGUI:
 
     def _on_send_txt_to_ai_toggled(self):
         self._persist_settings()
+
+    def _open_archive(self):
+        show_archive_window(self)
+
+    def _toggle_capture(self):
+        capture_ui.toggle_capture(self)
+
+    def _toggle_capture_pause(self):
+        capture_ui.toggle_pause(self)
 
     def _on_send_txt_to_cursor_toggled(self):
         self._on_send_txt_to_ai_toggled()
@@ -1514,7 +1720,7 @@ class WhisperGUI:
         return [created_path]
 
     def _edit_redactor_file(self):
-        self.ai_jobs.edit_redactor_file()
+        self.ai_jobs.show_prompts_overview()
 
     def _cursor_job_begin(self):
         self.ai_jobs._job_begin()
@@ -1698,10 +1904,26 @@ class WhisperGUI:
         self.add_files_btn.config(text=t("add_files"))
         self.add_directory_btn.config(text=t("add_directory"))
         self.clear_queue_btn.config(text=t("clear_queue"))
+        self.archive_btn.config(text=t("archive_button"))
+        try:
+            capture_ui.refresh_capture_buttons(self)
+        except Exception:
+            self.capture_btn.config(text=t("capture_start"))
         self.help_btn.config(text=t("help"))
         self.start_btn.config(text=t("start_transcription"))
         self.dev_f.config(text=t("device_label"))
         self.lang_f.config(text=t("language_switcher"))
+        try:
+            ui = self.ui_language.get()
+            if ui in SUPPORTED_LANGUAGES:
+                self.ui_lang_combo.current(SUPPORTED_LANGUAGES.index(ui))
+        except (tk.TclError, ValueError):
+            pass
+        try:
+            recog_label = self._recog_lang_label(self.lang_mode.get())
+            self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
+        except (tk.TclError, ValueError):
+            pass
         self.play_sound_check.config(text=t("play_sound_finish"))
         self.mp3_settings_btn.config(text=t("save_audio_mp3"))
         self.edit_redactor_btn.config(text=t("send_txt_to_ai"))

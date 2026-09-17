@@ -1,4 +1,4 @@
-' Запуск Whisper Fast GUI без окна CMD (рабочая папка = папка скрипта)
+' Запуск FTW без окна CMD (рабочая папка = папка скрипта)
 ' Якщо в settings.json є python_path — запускає саме його (pythonw), інакше pyw
 Option Explicit
 Dim fso, shell, scriptDir, settingsPath, pythonPath, launchCmd, ts, jsonText, re, m

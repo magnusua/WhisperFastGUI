@@ -16,6 +16,9 @@ from whisperfast.platform_util import win_no_window_kwargs
 
 REDACTOR_FILENAME = "redactor1.md"
 CURSOR_POSTPROCESS_DELAY_S = 5.0
+CURSOR_SDK_NETWORK_ATTEMPTS = 3
+CURSOR_SDK_NETWORK_RETRY_DELAY_S = 2.0
+CURSOR_SDK_BRIDGE_RETRY_DELAY_S = 0.5
 
 _PROMPT_HEADER_RE = re.compile(
     r'^##\s*(?:Промпт|Prompt)\s*[№#]?\s*(\d+)\s*(?:"([^"]*)"|\'([^\']*)\')?\s*$',
@@ -139,8 +142,12 @@ def _drain_bridge_stderr(process: subprocess.Popen) -> None:
         pass
 
 
+def _exception_text(exc: BaseException) -> str:
+    return f"{type(exc).__name__}: {exc}".lower()
+
+
 def _is_bridge_connection_error(exc: BaseException) -> bool:
-    text = f"{type(exc).__name__}: {exc}".lower()
+    text = _exception_text(exc)
     markers = (
         "10061",
         "connection refused",
@@ -151,6 +158,27 @@ def _is_bridge_connection_error(exc: BaseException) -> bool:
         "connection aborted",
     )
     return any(m in text for m in markers)
+
+
+def _is_network_request_failed(exc: BaseException) -> bool:
+    return "network request failed" in _exception_text(exc)
+
+
+def _sdk_retry_plan(
+    exc: BaseException,
+    attempt: int,
+    max_network_attempts: int = CURSOR_SDK_NETWORK_ATTEMPTS,
+) -> Optional[Tuple[str, float]]:
+    """attempt — 1-based номер невдалої спроби. None = більше не повторювати."""
+    if _is_network_request_failed(exc) and attempt < max_network_attempts:
+        return ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S)
+    if (
+        _is_bridge_connection_error(exc)
+        and not _is_network_request_failed(exc)
+        and attempt == 1
+    ):
+        return ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S)
+    return None
 
 
 def _prepare_cursor_sdk() -> None:
@@ -272,7 +300,7 @@ def ensure_redactor_file() -> str:
     path = redactor_path()
     if not os.path.exists(path):
         template = (
-            "# Redactor prompts for Whisper Fast GUI\n"
+            "# Redactor prompts for FTW\n"
             "\n"
             "Numbered prompts below are applied in order after transcription.\n"
             "Output files use the prompt name in quotes: ## Промпт №1 \"redactor\" → *_redactor.md\n"
@@ -291,6 +319,31 @@ def ensure_redactor_file() -> str:
         with open(path, "w", encoding="utf-8") as f:
             f.write(template)
     return path
+
+
+def default_checked_prompt_nums(
+    prompts: List[Tuple[int, str, str]],
+    stored_nums: Optional[List[int]] = None,
+) -> set:
+    """Номери промптів, які мають бути позначені за замовчуванням.
+
+    Збережений порожній список = жоден. Якщо збережені номери не збігаються
+    з наявними промптами — перший промпт (як раніше).
+    """
+    from whisperfast.settings import normalize_default_prompt_nums
+
+    stored = (
+        [1]
+        if stored_nums is None
+        else normalize_default_prompt_nums(stored_nums)
+    )
+    existing = {p[0] for p in prompts}
+    selected = {n for n in stored if n in existing}
+    if selected:
+        return selected
+    if stored:
+        return {prompts[0][0]} if prompts else set()
+    return set()
 
 
 def parse_redactor_prompts(path: Optional[str] = None) -> List[Tuple[int, str, str]]:
@@ -525,11 +578,39 @@ def _build_agent_prompt(input_path: str, output_path: str, prompt_text: str) -> 
     )
 
 
+def _log_sdk_retry(
+    log_func: Optional[LogFunc],
+    prompt_num: int,
+    err: BaseException,
+    next_attempt: int,
+    total: int,
+    delay_s: float,
+) -> None:
+    if not log_func:
+        return
+    try:
+        from whisperfast.i18n import t
+        log_func(
+            t(
+                "cursor_prompt_retry",
+                num=prompt_num,
+                error=str(err),
+                attempt=next_attempt,
+                total=total,
+                seconds=int(delay_s) if delay_s == int(delay_s) else delay_s,
+            )
+        )
+    except ImportError:
+        pass
+
+
 def _run_sdk_one(
     input_path: str,
     output_path: str,
     prompt_text: str,
     api_key: str,
+    log_func: Optional[LogFunc] = None,
+    prompt_num: int = 0,
 ) -> None:
     _prepare_cursor_sdk()
     from cursor_sdk import Agent, AgentOptions, Client, LocalAgentOptions
@@ -553,17 +634,38 @@ def _run_sdk_one(
         finally:
             client.close()
 
-    try:
-        result = _prompt_once()
-    except Exception as first_err:
-        if not _is_bridge_connection_error(first_err):
-            raise
+    result = None
+    last_err: Optional[BaseException] = None
+    for attempt in range(1, CURSOR_SDK_NETWORK_ATTEMPTS + 1):
         try:
-            close_default_client()
-        except Exception:
-            pass
-        time.sleep(0.5)
-        result = _prompt_once()
+            result = _prompt_once()
+            last_err = None
+            break
+        except Exception as err:
+            last_err = err
+            plan = _sdk_retry_plan(err, attempt)
+            if plan is None:
+                raise
+            kind, delay_s = plan
+            if kind == "bridge":
+                try:
+                    close_default_client()
+                except Exception:
+                    pass
+            else:
+                _log_sdk_retry(
+                    log_func,
+                    prompt_num,
+                    err,
+                    next_attempt=attempt + 1,
+                    total=CURSOR_SDK_NETWORK_ATTEMPTS,
+                    delay_s=delay_s,
+                )
+            time.sleep(delay_s)
+    if last_err is not None:
+        raise last_err
+    if result is None:
+        raise RuntimeError("Cursor SDK returned no result")
 
     status = getattr(result, "status", None)
     if status == "error":
@@ -632,7 +734,14 @@ def run_sdk_chain(
             except ImportError:
                 pass
         try:
-            _run_sdk_one(current_input, out_path, text, api_key)
+            _run_sdk_one(
+                current_input,
+                out_path,
+                text,
+                api_key,
+                log_func=log_func,
+                prompt_num=num,
+            )
         except Exception as e:
             if log_func:
                 try:

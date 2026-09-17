@@ -47,6 +47,33 @@ class AiJobQueue:
     def edit_redactor_file(self):
         open_redactor_file(log_func=self.app.log)
 
+    def show_prompts_overview(self):
+        """Вікно зі списком промптів і позначками «за замовчуванням»; кнопка редагує файл."""
+        dialog = getattr(self, "_overview_dialog", None)
+        if dialog is not None:
+            try:
+                if dialog.winfo_exists():
+                    refresh = getattr(dialog, "_wf_refresh_prompts", None)
+                    if callable(refresh):
+                        refresh()
+                    dialog.lift()
+                    dialog.focus_force()
+                    return
+            except tk.TclError:
+                self._overview_dialog = None
+        ensure_redactor_file()
+        dialog = ui_dialogs.show_ai_prompts_overview_dialog(self.app)
+
+        def _clear(event=None, dlg=dialog):
+            if event is not None and event.widget is not dlg:
+                return
+            if getattr(self, "_overview_dialog", None) is dlg:
+                self._overview_dialog = None
+
+        dialog.bind("<Destroy>", _clear, add="+")
+        self._overview_dialog = dialog
+        return dialog
+
     def has_open_prompt_dialog(self) -> bool:
         """True, якщо хоча б одне вікно «Промты» відкрите."""
         return bool(self._open_prompt_job_ids)
@@ -156,8 +183,56 @@ class AiJobQueue:
             app.log_panel.attach_file(job["log_file_id"])
         file_name = os.path.basename(txt_path)
         self.log_select_prompt_action(t("ai_handoff", name=file_name), job_id)
+        if self._maybe_autorun(job):
+            return
         # Одразу вікно для цього файлу (паралельно з іншими відкритими «Промты»)
         app.root.after(0, lambda jid=job_id: self.open_prompt_dialog(jid))
+
+    def _maybe_autorun(self, job) -> bool:
+        """Run matching prompt rules without a dialog. Returns True if handled."""
+        from whisperfast.postprocess.cursor_postprocess import parse_redactor_prompts
+        from whisperfast.postprocess.prompt_rules import first_matching_rule, select_prompts
+        from whisperfast.postprocess.usage import budget_exceeded
+        from whisperfast.settings import load_app_settings
+
+        app = self.app
+        settings = load_app_settings()
+        if budget_exceeded(settings):
+            fid = job.get("log_file_id")
+            msg = t("ai_budget_paused")
+            if fid:
+                app.log_file_event(msg, file_id=fid)
+            else:
+                app.log(msg)
+            job["status"] = "skipped"
+            self._job_end()
+            return True
+        rules = getattr(app, "ai_prompt_rules", None) or settings.get("ai_prompt_rules") or []
+        source = job.get("txt_path") or ""
+        watch_dirs = []
+        try:
+            from whisperfast.core.queue_manager import parse_watch_dirs
+
+            watch_dirs = parse_watch_dirs(app.watch_dir.get())
+        except Exception:
+            pass
+        rule = first_matching_rule(rules, source, watch_dirs=watch_dirs)
+        if not rule or not rule.get("skip_dialog"):
+            return False
+        nums = rule.get("prompt_nums") or []
+        if not nums:
+            return False
+        ensure_redactor_file()
+        selected = select_prompts(parse_redactor_prompts(), nums)
+        if not selected:
+            return False
+        job["status"] = "running"
+        provider_id = job.get("provider_id") or app.ai_provider.get()
+        app.root.after(
+            0,
+            lambda: self.start_after_prompt_choice(job, selected, provider_id),
+        )
+        return True
 
     def pump_prompt_queue(self):
         """Сумісність: відкрити вікна для всіх pending/skipped без діалогу."""
@@ -244,6 +319,7 @@ class AiJobQueue:
             on_result,
             provider_id=job.get("provider_id") or app.ai_provider.get(),
             cascade_offset=(offset_x, offset_y),
+            default_nums=getattr(app, "ai_default_prompt_nums", None),
         )
         job["dialog"] = dialog
 
@@ -262,6 +338,23 @@ class AiJobQueue:
                 (app.azure_openai_api_version.get() or "").strip()
                 or "2024-08-01-preview"
             ),
+            "ollama_base_url": (getattr(app, "ollama_base_url", None) and app.ollama_base_url.get() or "").strip(),
+            "ollama_model": (getattr(app, "ollama_model", None) and app.ollama_model.get() or "").strip(),
+            "openai_compatible_base_url": (
+                getattr(app, "openai_compatible_base_url", None)
+                and app.openai_compatible_base_url.get()
+                or ""
+            ).strip(),
+            "openai_compatible_api_key": (
+                getattr(app, "openai_compatible_api_key", None)
+                and app.openai_compatible_api_key.get()
+                or ""
+            ).strip(),
+            "openai_compatible_model": (
+                getattr(app, "openai_compatible_model", None)
+                and app.openai_compatible_model.get()
+                or ""
+            ).strip(),
         }
 
     def _clear_ai_retry(self, job):
@@ -328,14 +421,57 @@ class AiJobQueue:
         expected = len(prompts)
         self._clear_ai_retry(job)
 
+        from whisperfast.postprocess.usage import (
+            apply_usage,
+            budget_exceeded,
+        )
+        from whisperfast.settings import load_app_settings, save_app_settings
+
+        if budget_exceeded(load_app_settings()):
+            log_func(t("ai_budget_paused"))
+            job["status"] = "skipped"
+            self._job_end()
+            return
+
+        def on_usage(pid, prompt_tokens, completion_tokens, usd):
+            data = load_app_settings()
+            apply_usage(data, pid, prompt_tokens, completion_tokens, usd=usd)
+            save_app_settings(
+                {
+                    "ai_spend_month": data.get("ai_spend_month"),
+                    "ai_spend_usd": data.get("ai_spend_usd"),
+                    "ai_prompt_tokens": data.get("ai_prompt_tokens"),
+                    "ai_completion_tokens": data.get("ai_completion_tokens"),
+                }
+            )
+            try:
+                log_func(
+                    t(
+                        "ai_usage_line",
+                        prompt=prompt_tokens,
+                        completion=completion_tokens,
+                        usd=f"{usd:.4f}",
+                    )
+                )
+            except Exception:
+                pass
+
         def on_created(path):
             app.queue_ctrl.register_output_paths([path])
             label = os.path.splitext(os.path.basename(path))[0]
-            # Prefer short suffix after last underscore as prompt label
             if "_" in label:
                 label = label.rsplit("_", 1)[-1]
             if file_id:
                 app.add_file_output("ai", path, label=label, file_id=file_id)
+                if label.lower() in ("one_liner", "one-liner"):
+                    try:
+                        with open(path, "r", encoding="utf-8", errors="replace") as f:
+                            summary = f.read().strip().splitlines()[0][:200]
+                        lib = getattr(app, "library", None)
+                        if lib and summary:
+                            lib.set_meta(file_id, summary=summary)
+                    except Exception:
+                        pass
             if do_export and os.path.splitext(path)[1].lower() in (".md", ".markdown"):
                 app._export_markdown_to_docx(path, log_file_id=file_id)
 
@@ -361,6 +497,7 @@ class AiJobQueue:
                 on_complete=on_complete,
                 resolve_output_path=app.resolve_output_path,
                 prompts=prompts,
+                on_usage=on_usage,
                 **kwargs,
             )
 

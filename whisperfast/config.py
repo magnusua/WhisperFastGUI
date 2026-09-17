@@ -37,7 +37,10 @@ def load_app_metadata():
 
 
 APP_VERSION, APP_DATE = load_app_metadata()
-GITHUB_REPO = "magnusua/WhisperFastGUI"
+APP_NAME = "FTW"
+GITHUB_REPO = "magnusua/WhisperFastGUI"  # historical GitHub id; product name is FTW
+RELEASE_ZIP_PREFIX = "FTW"
+LEGACY_RELEASE_ZIP_PREFIXES = ("ftw", "whisperfastgui")
 GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
 CUDA_INDEX = "https://download.pytorch.org/whl/cu121"
@@ -70,6 +73,7 @@ UPDATE_PACKAGES = [
     "pip", "setuptools", "wheel", "packaging",
     "pygame", "pydub", "tkinterdnd2-universal", "pystray", "Pillow",
     "cursor-sdk", "markitdown",
+    "sounddevice",
     "torch", "faster-whisper", "ctranslate2",
     "audioop-lts",  # Python 3.13+: stdlib audioop removed; pyaudioop wheels often missing
 ]

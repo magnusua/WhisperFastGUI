@@ -572,22 +572,29 @@ def show_output_settings_dialog(app):
     dialog = tk.Toplevel(app.root)
     dialog.title(t("output_settings_title"))
     dialog.transient(app.root)
-    dialog.resizable(False, False)
+    dialog.resizable(True, False)
     dialog.grab_set()
 
     frame = ttk.Frame(dialog, padding=15)
     frame.pack(fill="both", expand=True)
-    ttk.Label(frame, text=t("output_settings_hint")).pack(anchor="w", pady=(0, 8))
+    hint_lbl = ttk.Label(frame, text=t("output_settings_hint"))
+    hint_lbl.pack(anchor="w", pady=(0, 8))
 
     mode_var = tk.StringVar(value=app.output_mode.get() or "beside")
     dir_var = tk.StringVar(value=app.output_dir.get() or "")
     named_var = tk.StringVar(value=app.output_named_folder.get() or "{basename}")
 
-    ttk.Radiobutton(frame, text=t("save_mode_beside"), variable=mode_var, value="beside").pack(anchor="w", pady=2)
+    beside_radio = ttk.Radiobutton(
+        frame, text=t("save_mode_beside"), variable=mode_var, value="beside"
+    )
+    beside_radio.pack(anchor="w", pady=2)
 
     custom_row = ttk.Frame(frame)
     custom_row.pack(fill="x", pady=2)
-    ttk.Radiobutton(custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom").pack(side="left")
+    custom_radio = ttk.Radiobutton(
+        custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom"
+    )
+    custom_radio.pack(side="left")
     dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
     dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
 
@@ -601,12 +608,66 @@ def show_output_settings_dialog(app):
 
     named_row = ttk.Frame(frame)
     named_row.pack(fill="x", pady=2)
-    ttk.Radiobutton(
+    named_radio = ttk.Radiobutton(
         named_row, text=t("save_mode_named_folder"), variable=mode_var, value="named_folder"
-    ).pack(side="left")
+    )
+    named_radio.pack(side="left")
     named_entry = ttk.Entry(named_row, textvariable=named_var, width=28)
     named_entry.pack(side="left", fill="x", expand=True, padx=(8, 0))
-    ttk.Label(frame, text=t("save_named_folder_hint"), wraplength=420).pack(anchor="w", pady=(4, 0))
+
+    custom_named_row = ttk.Frame(frame)
+    custom_named_row.pack(fill="x", pady=2)
+    custom_named_radio = ttk.Radiobutton(
+        custom_named_row,
+        text=t("save_mode_custom_named"),
+        variable=mode_var,
+        value="custom_named",
+    )
+    custom_named_radio.pack(side="left")
+    cn_dir_entry = ttk.Entry(custom_named_row, textvariable=dir_var, width=22)
+    cn_dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
+
+    def browse_custom_named():
+        d = filedialog.askdirectory(parent=dialog)
+        if d:
+            dir_var.set(normalize_display_path(d))
+            mode_var.set("custom_named")
+
+    ttk.Button(custom_named_row, text="…", width=3, command=browse_custom_named).pack(
+        side="left"
+    )
+    custom_named_with_lbl = ttk.Label(
+        custom_named_row, text=t("save_mode_custom_named_with")
+    )
+    custom_named_with_lbl.pack(side="left", padx=(8, 4))
+    cn_named_entry = ttk.Entry(custom_named_row, textvariable=named_var, width=16)
+    cn_named_entry.pack(side="left", fill="x", expand=True)
+    dir_entry.bind("<FocusIn>", lambda e: mode_var.set("custom"))
+    named_entry.bind("<FocusIn>", lambda e: mode_var.set("named_folder"))
+    cn_dir_entry.bind("<FocusIn>", lambda e: mode_var.set("custom_named"))
+    cn_named_entry.bind("<FocusIn>", lambda e: mode_var.set("custom_named"))
+
+    named_hint_lbl = ttk.Label(frame, text=t("save_named_folder_hint"), wraplength=520)
+    named_hint_lbl.pack(anchor="w", pady=(4, 0))
+
+    extra = ttk.LabelFrame(frame, text=t("export_extra_title"))
+    extra.pack(fill="x", pady=(10, 0))
+    json_var = tk.BooleanVar(value=bool(getattr(app, "export_json", tk.BooleanVar(value=False)).get()))
+    vtt_var = tk.BooleanVar(value=bool(getattr(app, "export_vtt", tk.BooleanVar(value=False)).get()))
+    words_var = tk.BooleanVar(
+        value=bool(getattr(app, "word_timestamps", tk.BooleanVar(value=False)).get())
+    )
+    diar_var = tk.BooleanVar(
+        value=bool(getattr(app, "diarization_enabled", tk.BooleanVar(value=False)).get())
+    )
+    json_chk = ttk.Checkbutton(extra, text=t("export_json"), variable=json_var)
+    json_chk.pack(anchor="w")
+    vtt_chk = ttk.Checkbutton(extra, text=t("export_vtt"), variable=vtt_var)
+    vtt_chk.pack(anchor="w")
+    words_chk = ttk.Checkbutton(extra, text=t("word_timestamps"), variable=words_var)
+    words_chk.pack(anchor="w")
+    diar_chk = ttk.Checkbutton(extra, text=t("diarization_enabled"), variable=diar_var)
+    diar_chk.pack(anchor="w")
 
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(12, 0))
@@ -618,23 +679,47 @@ def show_output_settings_dialog(app):
         mode = mode_var.get() or "beside"
         path = normalize_display_path((dir_var.get() or "").strip())
         named = (named_var.get() or "").strip() or "{basename}"
-        if mode == "custom":
+        if mode in ("custom", "custom_named"):
             if not path or not os.path.isdir(path):
                 messagebox.showerror(t("error"), t("save_dir_invalid"), parent=dialog)
                 return
-        if mode == "named_folder" and not app._sanitize_folder_name(
+        if mode in ("named_folder", "custom_named") and not app._sanitize_folder_name(
             named.replace("{basename}", "x").replace("{name}", "x")
         ):
             messagebox.showerror(t("error"), t("save_named_folder_invalid"), parent=dialog)
             return
         app.output_mode.set(mode)
-        app.output_dir.set(path if mode == "custom" else (path if os.path.isabs(path) else ""))
+        app.output_dir.set(
+            path if mode in ("custom", "custom_named") else (path if os.path.isabs(path) else "")
+        )
         app.output_named_folder.set(named)
+        if hasattr(app, "export_json"):
+            app.export_json.set(bool(json_var.get()))
+            app.export_vtt.set(bool(vtt_var.get()))
+            app.word_timestamps.set(bool(words_var.get()))
+            app.diarization_enabled.set(bool(diar_var.get()))
         app._persist_settings()
         dialog.destroy()
 
-    ttk.Button(buttons, text=t("cancel_btn"), command=close_cancel).pack(side="right", padx=(5, 0))
-    ttk.Button(buttons, text=t("save"), command=save_and_close).pack(side="right")
+    cancel_btn = ttk.Button(buttons, text=t("cancel_btn"), command=close_cancel)
+    cancel_btn.pack(side="right", padx=(5, 0))
+    save_btn = ttk.Button(buttons, text=t("save"), command=save_and_close)
+    save_btn.pack(side="right")
+
+    def apply_language():
+        dialog.title(t("output_settings_title"))
+        hint_lbl.config(text=t("output_settings_hint"))
+        beside_radio.config(text=t("save_mode_beside"))
+        custom_radio.config(text=t("save_mode_custom"))
+        named_radio.config(text=t("save_mode_named_folder"))
+        custom_named_radio.config(text=t("save_mode_custom_named"))
+        custom_named_with_lbl.config(text=t("save_mode_custom_named_with"))
+        named_hint_lbl.config(text=t("save_named_folder_hint"))
+        cancel_btn.config(text=t("cancel_btn"))
+        save_btn.config(text=t("save"))
+
+    apply_language()
+    track_i18n_window(app, dialog, apply_language)
     dialog.protocol("WM_DELETE_WINDOW", close_cancel)
     dialog.bind("<Escape>", lambda e: close_cancel())
     center_toplevel(app, dialog)
@@ -809,7 +894,8 @@ def show_ai_api_keys_dialog(app):
     dialog = tk.Toplevel(app.root)
     dialog.title(t("ai_api_keys_title"))
     dialog.transient(app.root)
-    dialog.resizable(False, False)
+    dialog.resizable(True, True)
+    dialog.minsize(480, 400)
     dialog.grab_set()
 
     frame = ttk.Frame(dialog, padding=15)
@@ -875,11 +961,92 @@ def show_ai_api_keys_dialog(app):
         side="left", fill="x", expand=True, padx=(8, 0)
     )
 
+    ollama_url = tk.StringVar(value=getattr(app, "ollama_base_url", tk.StringVar(value="")).get())
+    ollama_model = tk.StringVar(value=getattr(app, "ollama_model", tk.StringVar(value="")).get() or "llama3.2")
+    compat_url = tk.StringVar(
+        value=getattr(app, "openai_compatible_base_url", tk.StringVar(value="")).get()
+    )
+    compat_key = tk.StringVar(
+        value=getattr(app, "openai_compatible_api_key", tk.StringVar(value="")).get()
+    )
+    compat_model = tk.StringVar(
+        value=getattr(app, "openai_compatible_model", tk.StringVar(value="")).get()
+    )
+    budget_var = tk.StringVar(
+        value=str(getattr(app, "ai_month_budget", tk.DoubleVar(value=0.0)).get() or 0)
+    )
+
+    section("ai_api_keys_ollama")
+    ttk.Label(frame, text=t("ollama_url_label")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=ollama_url, width=56).pack(fill="x", pady=(2, 4))
+    om_row = ttk.Frame(frame)
+    om_row.pack(fill="x")
+    ttk.Label(om_row, text=t("ollama_model_label")).pack(side="left")
+    ttk.Entry(om_row, textvariable=ollama_model, width=28).pack(
+        side="left", fill="x", expand=True, padx=(8, 0)
+    )
+
+    section("ai_api_keys_openai_compat")
+    ttk.Label(frame, text=t("openai_compat_hint"), wraplength=420).pack(anchor="w", pady=(0, 4))
+    ttk.Entry(frame, textvariable=compat_url, width=56).pack(fill="x", pady=(2, 4))
+    ttk.Label(frame, text=t("openai_compat_key_label")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=compat_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    oc_row = ttk.Frame(frame)
+    oc_row.pack(fill="x")
+    ttk.Label(oc_row, text=t("openai_compat_model_label")).pack(side="left")
+    ttk.Entry(oc_row, textvariable=compat_model, width=28).pack(
+        side="left", fill="x", expand=True, padx=(8, 0)
+    )
+
+    section("ai_budget_section")
+    ttk.Label(frame, text=t("ai_month_budget_label"), wraplength=420).pack(anchor="w")
+    ttk.Entry(frame, textvariable=budget_var, width=16).pack(anchor="w", pady=(2, 4))
+
+    status_lbl = ttk.Label(frame, text="")
+    status_lbl.pack(anchor="w", pady=(8, 0))
+
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(14, 0))
 
     def close_without_saving():
         dialog.destroy()
+
+    def _creds():
+        return {
+            "cursor_api_key": (cursor_key.get() or "").strip(),
+            "gemini_api_key": (gemini_key.get() or "").strip(),
+            "gemini_model": (gemini_model.get() or "").strip(),
+            "anthropic_api_key": (anthropic_key.get() or "").strip(),
+            "claude_model": (claude_model.get() or "").strip(),
+            "azure_openai_endpoint": (azure_endpoint.get() or "").strip(),
+            "azure_openai_api_key": (azure_key.get() or "").strip(),
+            "azure_openai_deployment": (azure_deployment.get() or "").strip(),
+            "azure_openai_api_version": (azure_version.get() or "").strip(),
+            "ollama_base_url": (ollama_url.get() or "").strip(),
+            "ollama_model": (ollama_model.get() or "").strip(),
+            "openai_compatible_base_url": (compat_url.get() or "").strip(),
+            "openai_compatible_api_key": (compat_key.get() or "").strip(),
+            "openai_compatible_model": (compat_model.get() or "").strip(),
+        }
+
+    def test_conn():
+        from whisperfast.postprocess.connection_test import test_provider
+        from whisperfast.postprocess.providers import normalize_provider_id
+
+        pid = normalize_provider_id(app.ai_provider.get())
+        status_lbl.config(text=t("ai_test_running"))
+
+        def worker():
+            ok, msg = test_provider(pid, _creds())
+
+            def done():
+                status_lbl.config(text=(t("ai_test_ok") + ": " + msg) if ok else msg)
+
+            app.root.after(0, done)
+
+        import threading
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def save_keys():
         app.cursor_api_key.set((cursor_key.get() or "").strip())
@@ -893,6 +1060,18 @@ def show_ai_api_keys_dialog(app):
         app.azure_openai_api_version.set(
             (azure_version.get() or "").strip() or "2024-08-01-preview"
         )
+        if hasattr(app, "ollama_base_url"):
+            app.ollama_base_url.set(
+                (ollama_url.get() or "").strip() or "http://127.0.0.1:11434"
+            )
+            app.ollama_model.set((ollama_model.get() or "").strip() or "llama3.2")
+            app.openai_compatible_base_url.set((compat_url.get() or "").strip())
+            app.openai_compatible_api_key.set((compat_key.get() or "").strip())
+            app.openai_compatible_model.set((compat_model.get() or "").strip())
+            try:
+                app.ai_month_budget.set(float((budget_var.get() or "0").replace(",", ".")))
+            except (TypeError, ValueError, tk.TclError):
+                app.ai_month_budget.set(0.0)
         app._persist_settings()
         dialog.destroy()
 
@@ -900,6 +1079,7 @@ def show_ai_api_keys_dialog(app):
         side="right", padx=(5, 0)
     )
     ttk.Button(buttons, text=t("save"), command=save_keys).pack(side="right")
+    ttk.Button(buttons, text=t("ai_test_connection"), command=test_conn).pack(side="left")
 
     dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
     dialog.bind("<Escape>", lambda event: close_without_saving())
@@ -914,7 +1094,13 @@ def show_cursor_prompts_dialog(app, file_name, prompts, on_result, provider_id=N
 
 
 def show_ai_prompts_dialog(
-    app, file_name, prompts, on_result, provider_id=None, cascade_offset=None
+    app,
+    file_name,
+    prompts,
+    on_result,
+    provider_id=None,
+    cascade_offset=None,
+    default_nums=None,
 ):
     """Вікно вибору промптів і AI-провайдера (можна відкрити кілька одночасно).
 
@@ -922,7 +1108,9 @@ def show_ai_prompts_dialog(
       - selected None — скасовано
       - list of prompts + provider_id — запуск
     cascade_offset: (dx, dy) від центру батьківського вікна — щоб не накривали одне одне.
+    default_nums: номери промптів, позначені за замовчуванням.
     """
+    from whisperfast.postprocess.cursor_postprocess import default_checked_prompt_nums
     from whisperfast.postprocess.providers import (
         PROVIDER_CURSOR,
         normalize_provider_id,
@@ -997,8 +1185,9 @@ def show_ai_prompts_dialog(
 
     check_vars = []
     prompt_name_labels = []
-    for i, (num, name, _text) in enumerate(prompts):
-        var = tk.BooleanVar(value=(i == 0))
+    checked_nums = default_checked_prompt_nums(prompts, default_nums)
+    for num, name, _text in prompts:
+        var = tk.BooleanVar(value=(num in checked_nums))
         check_vars.append(var)
         label = name or f"#{num}"
         row = ttk.Frame(rows_frame)
@@ -1121,6 +1310,180 @@ def show_ai_prompts_dialog(
     return dialog
 
 
+def show_ai_prompts_overview_dialog(app):
+    """Огляд промптів: які є і які позначені на виконання за замовчуванням.
+
+    Кнопка внизу відкриває redactor1.md (колишній функціонал кнопки «В AI»).
+    """
+    from whisperfast.postprocess.cursor_postprocess import (
+        default_checked_prompt_nums,
+        ensure_redactor_file,
+        open_redactor_file,
+        parse_redactor_prompts,
+    )
+
+    ensure_redactor_file()
+
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("ai_prompts_overview_title"))
+    dialog.transient(app.root)
+    dialog.minsize(440, 360)
+    dialog.geometry("500x440")
+
+    frame = ttk.Frame(dialog, padding=15)
+    frame.pack(fill="both", expand=True)
+
+    hint_lbl = ttk.Label(frame, text=t("ai_prompts_overview_hint"), wraplength=460)
+    hint_lbl.pack(anchor="w", pady=(0, 8))
+
+    list_wrap = ttk.Frame(frame)
+    list_wrap.pack(fill="both", expand=True)
+
+    canvas = tk.Canvas(list_wrap, highlightthickness=0)
+    scrollbar = ttk.Scrollbar(list_wrap, orient="vertical", command=canvas.yview)
+    rows_frame = ttk.Frame(canvas)
+    rows_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+    )
+    canvas_window = canvas.create_window((0, 0), window=rows_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    def _on_canvas_configure(event):
+        canvas.itemconfigure(canvas_window, width=event.width)
+
+    canvas.bind("<Configure>", _on_canvas_configure)
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    state = {
+        "check_vars": [],
+        "status_labels": [],
+        "name_labels": [],
+        "empty_lbl": None,
+    }
+
+    def _status_text(enabled):
+        return t(
+            "ai_prompts_overview_default_on" if enabled else "ai_prompts_overview_default_off"
+        )
+
+    def _save_defaults():
+        nums = [num for num, var in state["check_vars"] if var.get()]
+        app.ai_default_prompt_nums = nums
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
+
+    def _on_toggle(var, status_lbl):
+        status_lbl.config(text=_status_text(var.get()))
+        _save_defaults()
+
+    def rebuild_rows():
+        for child in rows_frame.winfo_children():
+            child.destroy()
+        state["check_vars"] = []
+        state["status_labels"] = []
+        state["name_labels"] = []
+        state["empty_lbl"] = None
+
+        prompts = parse_redactor_prompts()
+        if not prompts:
+            empty_lbl = ttk.Label(
+                rows_frame,
+                text=t("ai_prompts_overview_empty"),
+                wraplength=420,
+            )
+            empty_lbl.pack(anchor="w", pady=4)
+            state["empty_lbl"] = empty_lbl
+            return
+
+        stored = getattr(app, "ai_default_prompt_nums", None)
+        checked_nums = default_checked_prompt_nums(prompts, stored)
+        for num, name, _text in prompts:
+            var = tk.BooleanVar(value=(num in checked_nums))
+            label = name or f"#{num}"
+            row = ttk.Frame(rows_frame)
+            row.pack(fill="x", pady=2)
+            status_lbl = ttk.Label(row, text=_status_text(var.get()))
+            cb = ttk.Checkbutton(
+                row,
+                variable=var,
+                command=lambda v=var, s=status_lbl: _on_toggle(v, s),
+            )
+            cb.pack(side="left")
+            name_lbl = ttk.Label(
+                row,
+                text=t("cursor_prompt_row", num=num, name=label),
+                cursor="hand2",
+            )
+            name_lbl.pack(side="left", fill="x", expand=True, padx=(4, 8))
+            status_lbl.pack(side="right")
+
+            def _click(_event=None, v=var, s=status_lbl):
+                v.set(not v.get())
+                _on_toggle(v, s)
+
+            name_lbl.bind("<Button-1>", _click)
+            state["check_vars"].append((num, var))
+            state["status_labels"].append(status_lbl)
+            state["name_labels"].append((name_lbl, num, label))
+
+    def _on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    canvas.bind("<MouseWheel>", _on_mousewheel)
+    rows_frame.bind("<MouseWheel>", _on_mousewheel)
+
+    buttons = ttk.Frame(frame)
+    buttons.pack(fill="x", pady=(12, 0))
+
+    def on_edit():
+        open_redactor_file(log_func=getattr(app, "log", None))
+
+    def on_rules():
+        show_prompt_rules_dialog(app)
+
+    edit_btn = ttk.Button(
+        buttons, text=t("ai_prompts_overview_edit"), command=on_edit
+    )
+    edit_btn.pack(side="left", fill="x", expand=True)
+    rules_btn = ttk.Button(buttons, text=t("ai_prompt_rules_button"), command=on_rules)
+    rules_btn.pack(side="left", padx=(6, 0))
+
+    def apply_language():
+        dialog.title(t("ai_prompts_overview_title"))
+        hint_lbl.config(text=t("ai_prompts_overview_hint"))
+        edit_btn.config(text=t("ai_prompts_overview_edit"))
+        rules_btn.config(text=t("ai_prompt_rules_button"))
+        empty_lbl = state.get("empty_lbl")
+        if empty_lbl is not None:
+            try:
+                empty_lbl.config(text=t("ai_prompts_overview_empty"))
+            except tk.TclError:
+                pass
+        for name_lbl, num, label in state["name_labels"]:
+            name_lbl.config(text=t("cursor_prompt_row", num=num, name=label))
+        for (_num, var), status_lbl in zip(state["check_vars"], state["status_labels"]):
+            status_lbl.config(text=_status_text(var.get()))
+
+    rebuild_rows()
+    track_i18n_window(app, dialog, apply_language)
+
+    def on_close():
+        try:
+            dialog.destroy()
+        except tk.TclError:
+            pass
+
+    dialog.protocol("WM_DELETE_WINDOW", on_close)
+    dialog.bind("<Escape>", lambda e: on_close())
+    dialog._wf_refresh_prompts = rebuild_rows
+    center_toplevel(app, dialog)
+    dialog.focus_set()
+    return dialog
+
+
 def show_startup_app_update_dialog(app, current, latest, remote_date=None, on_result=None):
     """Окремий діалог при старті: Оновити / Пізніше / Пропустити цю версію.
 
@@ -1195,5 +1558,49 @@ def show_startup_app_update_dialog(app, current, latest, remote_date=None, on_re
     dialog.bind("<Escape>", lambda e: finish("later"))
     center_toplevel(app, dialog)
     dialog.focus_set()
+    return dialog
+
+
+def show_prompt_rules_dialog(app):
+    """Edit auto-run prompt rules (always / watch_dir / filename)."""
+    from whisperfast.postprocess.prompt_rules import normalize_prompt_rules
+
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("ai_prompt_rules_title"))
+    dialog.transient(app.root)
+    dialog.minsize(520, 280)
+    dialog.geometry("580x340")
+
+    frame = ttk.Frame(dialog, padding=12)
+    frame.pack(fill="both", expand=True)
+    hint = ttk.Label(frame, text=t("ai_prompt_rules_hint"), wraplength=540)
+    hint.pack(anchor="w", pady=(0, 8))
+    text = tk.Text(frame, height=10, wrap="word", font=("Consolas", 10))
+    text.pack(fill="both", expand=True)
+    rules = normalize_prompt_rules(getattr(app, "ai_prompt_rules", None) or [])
+    import json as _json
+
+    text.insert("1.0", _json.dumps(rules, ensure_ascii=False, indent=2))
+    status = ttk.Label(frame, text="")
+    status.pack(anchor="w", pady=(6, 0))
+    buttons = ttk.Frame(frame)
+    buttons.pack(fill="x", pady=(8, 0))
+
+    def save():
+        raw = text.get("1.0", "end").strip() or "[]"
+        try:
+            data = _json.loads(raw)
+        except _json.JSONDecodeError as e:
+            status.config(text=str(e))
+            return
+        app.ai_prompt_rules = normalize_prompt_rules(data)
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
+        dialog.destroy()
+
+    ttk.Button(buttons, text=t("cancel_btn"), command=dialog.destroy).pack(side="right")
+    ttk.Button(buttons, text=t("save"), command=save).pack(side="right", padx=(0, 6))
+    center_toplevel(app, dialog)
     return dialog
 

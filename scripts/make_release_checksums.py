@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build WhisperFastGUI-{version}-src.zip and GNU SHA256SUMS for a GitHub Release.
+"""Build FTW-{version}-src.zip and GNU SHA256SUMS for a GitHub Release.
 
 Usage:
   python scripts/make_release_checksums.py --zip-repo [--version 1.2.11] [--out dist]
@@ -19,7 +19,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from whisperfast.config import README_PATH, parse_app_metadata  # noqa: E402
+from whisperfast.config import README_PATH, RELEASE_ZIP_PREFIX, parse_app_metadata  # noqa: E402
 from whisperfast.updates.checksums import sha256_file  # noqa: E402
 
 EXCLUDE_DIR_NAMES = frozenset(
@@ -83,7 +83,7 @@ def iter_repo_files(repo_root: str):
 
 
 def make_source_zip(repo_root: str, zip_path: str, version: str) -> None:
-    wrap = f"WhisperFastGUI-{version}"
+    wrap = f"{RELEASE_ZIP_PREFIX}-{version}"
     os.makedirs(os.path.dirname(os.path.abspath(zip_path)) or ".", exist_ok=True)
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for full, rel in iter_repo_files(repo_root):
@@ -117,7 +117,7 @@ def main(argv: list | None = None) -> int:
         version = (args.version or "").strip() or read_readme_version()
         if version.lower().startswith("v") and version[1:2].isdigit():
             version = version[1:]
-        zip_path = os.path.join(out_dir, f"WhisperFastGUI-{version}-src.zip")
+        zip_path = os.path.join(out_dir, f"{RELEASE_ZIP_PREFIX}-{version}-src.zip")
         make_source_zip(args.repo, zip_path, version)
         hashed.append(zip_path)
 

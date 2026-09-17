@@ -5,7 +5,7 @@ set "SCRIPT_DIR=%~dp0"
 set "VBS_NAME=start_delayed.vbs"
 set "VBS_PATH=%SCRIPT_DIR%%VBS_NAME%"
 set "STARTUP_FOLDER=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "LNK_NAME=Whisper Fast GUI delayed.lnk"
+set "LNK_NAME=FTW delayed.lnk"
 set "LNK_PATH=%STARTUP_FOLDER%\%LNK_NAME%"
 
 if not exist "%VBS_PATH%" (
@@ -15,7 +15,7 @@ if not exist "%VBS_PATH%" (
     exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut($env:LNK_PATH);$s.TargetPath=$env:VBS_PATH;$dir=$env:SCRIPT_DIR.TrimEnd([char]92);$s.WorkingDirectory=$dir;$s.Description='Whisper Fast GUI - start with 25s delay';$s.Save();Write-Host 'Готово. Програму додано в автозавантаження (з затримкою 25 сек).';Write-Host ('Ярлик: '+$env:LNK_PATH)"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell;$s=$w.CreateShortcut($env:LNK_PATH);$s.TargetPath=$env:VBS_PATH;$dir=$env:SCRIPT_DIR.TrimEnd([char]92);$s.WorkingDirectory=$dir;$s.Description='FTW - start with 25s delay';$s.Save();Write-Host 'Готово. Програму додано в автозавантаження (з затримкою 25 сек).';Write-Host ('Ярлик: '+$env:LNK_PATH)"
 
 echo.
 pause

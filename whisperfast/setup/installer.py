@@ -280,6 +280,7 @@ MULTIMEDIA_REQUIRED = (
     "pystray",
     "Pillow",
     "packaging",
+    "sounddevice",
 )
 MULTIMEDIA_OPTIONAL = (
     "cursor-sdk",
@@ -658,6 +659,7 @@ def check_system(log_func):
         ("cursor-sdk", "cursor_sdk"),
         ("markitdown", "markitdown"),
         ("packaging", "packaging"),
+        ("sounddevice", "sounddevice"),
     ):
         try:
             ver = importlib.metadata.version(pkg)
@@ -713,6 +715,7 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("cursor-sdk", "cursor_sdk")
     _check_package_verbose("markitdown")
     _check_package_verbose("packaging")
+    _check_package_verbose("sounddevice")
     if needs_pyaudioop() and not audioop_available():
         print(t("pyaudioop_not_installed"))
     print()
@@ -776,6 +779,7 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("cursor-sdk", "cursor_sdk")
     _check_package_verbose("markitdown")
     _check_package_verbose("packaging")
+    _check_package_verbose("sounddevice")
     try:
         import tkinter
         print(t("install_tkinter_ok"))

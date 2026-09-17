@@ -1,8 +1,8 @@
 {
   "app_title": {
-    "EN": "Whisper Fast GUI 2026",
-    "UK": "Whisper Fast GUI 2026",
-    "RU": "Whisper Fast GUI 2026"
+    "EN": "FTW",
+    "UK": "FTW",
+    "RU": "FTW"
   },
   "queue_header": {
     "EN": "Queue",
@@ -159,6 +159,16 @@
     "UK": "У каталог поруч із відео (параметризована назва)",
     "RU": "В каталог рядом с видео с параметризованным названием"
   },
+  "save_mode_custom_named": {
+    "EN": "In selected folder",
+    "UK": "У вибраний каталог",
+    "RU": "В выбранный каталог"
+  },
+  "save_mode_custom_named_with": {
+    "EN": "with parameterized name",
+    "UK": "з параметризованою назвою",
+    "RU": "с параметризованным названием"
+  },
   "save_named_folder_hint": {
     "EN": "Folder name template. Use {basename} for the source file name without extension.",
     "UK": "Шаблон назви каталогу. {basename} — ім'я вихідного файлу без розширення.",
@@ -285,9 +295,9 @@
     "RU": "   Linux: sudo apt install ffmpeg   (или: sudo dnf install ffmpeg / sudo pacman -S ffmpeg)"
   },
   "external_tool_path_hint": {
-    "EN": "   Make sure the program folder is on PATH, then restart Whisper Fast GUI.",
-    "UK": "   Переконайтеся, що каталог програми в PATH, потім перезапустіть Whisper Fast GUI.",
-    "RU": "   Убедитесь, что каталог программы в PATH, затем перезапустите Whisper Fast GUI."
+    "EN": "   Make sure the program folder is on PATH, then restart FTW.",
+    "UK": "   Переконайтеся, що каталог програми в PATH, потім перезапустіть FTW.",
+    "RU": "   Убедитесь, что каталог программы в PATH, затем перезапустите FTW."
   },
   "install_external_tools_check": {
     "EN": "▶ Checking system tools (FFmpeg, Pandoc)…",
@@ -455,9 +465,9 @@
     "RU": "После обработки открыть «Промты» и выполнить через Cursor / Gemini / Copilot (API или браузерный fallback)."
   },
   "tooltip_edit_redactor": {
-    "EN": "Open redactor1.md to edit numbered prompts (## Prompt #1 \"name\"). Output files use the prompt name. To AI checkbox enables post-processing.",
-    "UK": "Відкрити redactor1.md для редагування промптів (## Промпт №1 \"name\"). Ім'я файлу = назва промпта. Чекбокс «В AI» вмикає постпроцесинг.",
-    "RU": "Открыть redactor1.md для редактирования промптов (## Промпт №1 \"name\"). Имя файла = название промпта. Чекбокс «В AI» включает постпроцессинг."
+    "EN": "Show prompts from redactor1.md and which ones are selected by default. The button in that window opens the file for editing.",
+    "UK": "Показати промпти з redactor1.md і які з них позначені за замовчуванням. Кнопка в тому вікні відкриває файл для редагування.",
+    "RU": "Показать промты из redactor1.md и какие из них отмечены по умолчанию. Кнопка в том окне открывает файл для редактирования."
   },
   "tooltip_cursor_api_key": {
     "EN": "Open AI API keys (Cursor, Gemini, Azure OpenAI / Copilot). Empty credentials → browser/Chat fallback.",
@@ -538,6 +548,36 @@
     "EN": "Select at least one prompt, or press All.",
     "UK": "Оберіть хоча б один промпт або натисніть «Всі».",
     "RU": "Выберите хотя бы один промт или нажмите «Все»."
+  },
+  "ai_prompts_overview_title": {
+    "EN": "Prompts",
+    "UK": "Промпти",
+    "RU": "Промты"
+  },
+  "ai_prompts_overview_hint": {
+    "EN": "Prompts from redactor1.md. A check mark means the prompt is selected by default when AI runs. The button below opens the file for editing.",
+    "UK": "Промпти з redactor1.md. Галочка — промпт позначено за замовчуванням при запуску AI. Кнопка внизу відкриває файл для редагування.",
+    "RU": "Промты из redactor1.md. Галочка — промт отмечен по умолчанию при запуске AI. Кнопка внизу открывает файл для редактирования."
+  },
+  "ai_prompts_overview_edit": {
+    "EN": "Edit prompts",
+    "UK": "Редагувати промпти",
+    "RU": "Редактировать промты"
+  },
+  "ai_prompts_overview_empty": {
+    "EN": "No numbered prompts found. Edit the file to add them (## Prompt #1 \"name\" / ## Промпт №1 \"name\").",
+    "UK": "Нумерованих промптів не знайдено. Відредагуйте файл, щоб додати їх (## Промпт №1 \"name\" / ## Prompt #1 \"name\").",
+    "RU": "Нумерованные промты не найдены. Отредактируйте файл, чтобы добавить их (## Промпт №1 \"name\" / ## Prompt #1 \"name\")."
+  },
+  "ai_prompts_overview_default_on": {
+    "EN": "On by default",
+    "UK": "Увімкнено за замовчуванням",
+    "RU": "Включен по умолчанию"
+  },
+  "ai_prompts_overview_default_off": {
+    "EN": "Off",
+    "UK": "Вимкнено",
+    "RU": "Выключен"
   },
   "ai_skipped": {
     "EN": "⚠ AI post-process was not run: {name}",
@@ -728,6 +768,11 @@
     "EN": "❌ Cursor prompt #{num} failed: {error}",
     "UK": "❌ Помилка Cursor (промпт №{num}): {error}",
     "RU": "❌ Ошибка Cursor (промпт №{num}): {error}"
+  },
+  "cursor_prompt_retry": {
+    "EN": "⚠ Cursor prompt #{num}: {error} — retry {attempt}/{total} in {seconds}s…",
+    "UK": "⚠ Cursor (промпт №{num}): {error} — повтор {attempt}/{total} через {seconds} с…",
+    "RU": "⚠ Cursor (промпт №{num}): {error} — повтор {attempt}/{total} через {seconds} с…"
   },
   "cursor_output_missing": {
     "EN": "❌ Cursor did not create the output file: {path}",
@@ -1095,9 +1140,9 @@
     "RU": "⛔ Ожидание завершения текущего сегмента..."
   },
   "help_title": {
-    "EN": "Help - Whisper Fast GUI",
-    "UK": "Довідка - Whisper Fast GUI",
-    "RU": "Справка - Whisper Fast GUI"
+    "EN": "Help - FTW",
+    "UK": "Довідка - FTW",
+    "RU": "Справка - FTW"
   },
   "help_doc_label": {
     "EN": "Document",
@@ -1265,9 +1310,9 @@
     "RU": "Выбор Python"
   },
   "python_select_msg": {
-    "EN": "Several Python installations were found.\nSelect which version Whisper Fast GUI should use by default (saved in settings.json):",
-    "UK": "Знайдено кілька встановлених версій Python.\nОберіть, з якою версією Whisper Fast GUI має запускатися за замовчуванням (зберігається в settings.json):",
-    "RU": "Найдено несколько установленных версий Python.\nВыберите, с какой версией Whisper Fast GUI должна запускаться по умолчанию (сохраняется в settings.json):"
+    "EN": "Several Python installations were found.\nSelect which version FTW should use by default (saved in settings.json):",
+    "UK": "Знайдено кілька встановлених версій Python.\nОберіть, з якою версією FTW має запускатися за замовчуванням (зберігається в settings.json):",
+    "RU": "Найдено несколько установленных версий Python.\nВыберите, с какой версией FTW должна запускаться по умолчанию (сохраняется в settings.json):"
   },
   "python_select_ok": {
     "EN": "OK",
@@ -1290,9 +1335,9 @@
     "RU": "Нет подходящей версии Python"
   },
   "python_no_suitable_msg": {
-    "EN": "No Python version suitable for Whisper Fast GUI was found.\nSupported range: {min_ver}–{max_ver}.\n\nFunctionality on Python {version} has not been tested.",
-    "UK": "Для Whisper Fast GUI не знайдено підходящої версії Python.\nРобочий діапазон: {min_ver}–{max_ver}.\n\nПрацездатність на Python {version} не тестувалась.",
-    "RU": "Для Whisper Fast GUI не найдена подходящая версия Python.\nРабочий диапазон: {min_ver}–{max_ver}.\n\nРаботоспособность на Python {version} не тестировалась."
+    "EN": "No Python version suitable for FTW was found.\nSupported range: {min_ver}–{max_ver}.\n\nFunctionality on Python {version} has not been tested.",
+    "UK": "Для FTW не знайдено підходящої версії Python.\nРобочий діапазон: {min_ver}–{max_ver}.\n\nПрацездатність на Python {version} не тестувалась.",
+    "RU": "Для FTW не найдена подходящая версия Python.\nРабочий диапазон: {min_ver}–{max_ver}.\n\nРаботоспособность на Python {version} не тестировалась."
   },
   "python_reexec_failed": {
     "EN": "Could not restart with the selected Python:\n{error}",
@@ -1485,19 +1530,19 @@
     "RU": "▶ Проверка версии программы на {url}..."
   },
   "app_update_ok": {
-    "EN": "✓ WhisperFastGUI: up to date (v{version})",
-    "UK": "✓ WhisperFastGUI: актуальна версія (v{version})",
-    "RU": "✓ WhisperFastGUI: актуальная версия (v{version})"
+    "EN": "✓ FTW: up to date (v{version})",
+    "UK": "✓ FTW: актуальна версія (v{version})",
+    "RU": "✓ FTW: актуальная версия (v{version})"
   },
   "app_update_available": {
-    "EN": "⚠ WhisperFastGUI: {current} -> {latest}",
-    "UK": "⚠ WhisperFastGUI: {current} -> {latest}",
-    "RU": "⚠ WhisperFastGUI: {current} -> {latest}"
+    "EN": "⚠ FTW: {current} -> {latest}",
+    "UK": "⚠ FTW: {current} -> {latest}",
+    "RU": "⚠ FTW: {current} -> {latest}"
   },
   "app_update_line": {
-    "EN": "WhisperFastGUI: {current} -> {latest}",
-    "UK": "WhisperFastGUI: {current} -> {latest}",
-    "RU": "WhisperFastGUI: {current} -> {latest}"
+    "EN": "FTW: {current} -> {latest}",
+    "UK": "FTW: {current} -> {latest}",
+    "RU": "FTW: {current} -> {latest}"
   },
   "app_update_check_failed": {
     "EN": "⚠ Could not check app version on GitHub (no network or repo unavailable)",
@@ -1545,9 +1590,9 @@
     "RU": "⚠ Локальную версию программы не удалось прочитать из README.md — обновление предлагаться не будет."
   },
   "app_updating": {
-    "EN": "📥 Updating WhisperFastGUI...",
-    "UK": "📥 Оновлення WhisperFastGUI...",
-    "RU": "📥 Обновление WhisperFastGUI..."
+    "EN": "📥 Updating FTW...",
+    "UK": "📥 Оновлення FTW...",
+    "RU": "📥 Обновление FTW..."
   },
   "app_updating_git": {
     "EN": "📥 git pull from GitHub...",
@@ -1560,9 +1605,9 @@
     "RU": "📥 Загрузка последнего GitHub Release (требуется контрольная сумма)..."
   },
   "app_update_done": {
-    "EN": "✅ WhisperFastGUI updated successfully",
-    "UK": "✅ WhisperFastGUI успішно оновлено",
-    "RU": "✅ WhisperFastGUI успешно обновлено"
+    "EN": "✅ FTW updated successfully",
+    "UK": "✅ FTW успішно оновлено",
+    "RU": "✅ FTW успешно обновлено"
   },
   "app_update_error": {
     "EN": "❌ App update failed: {error}",
@@ -1595,9 +1640,9 @@
     "RU": "Доступно обновление"
   },
   "startup_update_msg": {
-    "EN": "A newer version of Whisper Fast GUI is available on GitHub.\n\nInstalled: v{current}\nLatest: v{latest}{date_part}\n\nUpdate now, remind on next launch, or skip this version?",
-    "UK": "На GitHub доступна новіша версія Whisper Fast GUI.\n\nВстановлено: v{current}\nАктуальна: v{latest}{date_part}\n\nОновити зараз, нагадати при наступному запуску чи пропустити цю версію?",
-    "RU": "На GitHub доступна более новая версия Whisper Fast GUI.\n\nУстановлено: v{current}\nАктуальная: v{latest}{date_part}\n\nОбновить сейчас, напомнить при следующем запуске или пропустить эту версию?"
+    "EN": "A newer version of FTW is available on GitHub.\n\nInstalled: v{current}\nLatest: v{latest}{date_part}\n\nUpdate now, remind on next launch, or skip this version?",
+    "UK": "На GitHub доступна новіша версія FTW.\n\nВстановлено: v{current}\nАктуальна: v{latest}{date_part}\n\nОновити зараз, нагадати при наступному запуску чи пропустити цю версію?",
+    "RU": "На GitHub доступна более новая версия FTW.\n\nУстановлено: v{current}\nАктуальная: v{latest}{date_part}\n\nОбновить сейчас, напомнить при следующем запуске или пропустить эту версию?"
   },
   "startup_update_date_part": {
     "EN": " ({date})",
@@ -1985,9 +2030,9 @@
     "RU": "Копировать"
   },
   "install_title": {
-    "EN": "Whisper Fast GUI — dependency installation",
-    "UK": "Whisper Fast GUI — встановлення залежностей",
-    "RU": "Whisper Fast GUI — установка зависимостей"
+    "EN": "FTW — dependency installation",
+    "UK": "FTW — встановлення залежностей",
+    "RU": "FTW — установка зависимостей"
   },
   "install_step_check": {
     "EN": "[2/10] Checking installed packages...",
@@ -2190,9 +2235,9 @@
     "RU": "✅ Установка зависимостей завершена"
   },
   "install_run_hint": {
-    "EN": "Start Whisper Fast GUI by double-clicking run_whisper.vbs in this folder.\nDo not launch pythonw.exe or main.py directly.",
-    "UK": "Запускайте Whisper Fast GUI подвійним кліком по run_whisper.vbs у цій папці.\nНе відкривайте pythonw.exe і не запускайте main.py напряму.",
-    "RU": "Запускайте Whisper Fast GUI двойным щелчком по run_whisper.vbs в этой папке.\nНе открывайте pythonw.exe и не запускайте main.py напрямую."
+    "EN": "Start FTW by double-clicking run_whisper.vbs in this folder.\nDo not launch pythonw.exe or main.py directly.",
+    "UK": "Запускайте FTW подвійним кліком по run_whisper.vbs у цій папці.\nНе відкривайте pythonw.exe і не запускайте main.py напряму.",
+    "RU": "Запускайте FTW двойным щелчком по run_whisper.vbs в этой папке.\nНе открывайте pythonw.exe и не запускайте main.py напрямую."
   },
   "install_cpu_note": {
     "EN": "Note: Without NVIDIA GPU the app runs on CPU (slower but functional).",
@@ -2285,7 +2330,7 @@
     "RU": "Проверить GPU (CUDA), FFmpeg, Pandoc и ключевые Python-пакеты."
   },
   "tooltip_updates": {
-    "EN": "Check updates: pip packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, Pandoc/FFmpeg (winget/GitHub), and WhisperFastGUI on GitHub.",
+    "EN": "Check updates: pip packages, Torch (CUDA 12.1 if NVIDIA), Whisper models, Pandoc/FFmpeg (winget/GitHub), and FTW on GitHub.",
     "UK": "Перевірити оновлення: pip-пакети, Torch (CUDA 12.1 при NVIDIA), моделі Whisper, Pandoc/FFmpeg (winget/GitHub) та саму програму на GitHub.",
     "RU": "Проверить обновления: pip-пакеты, Torch (CUDA 12.1 при NVIDIA), модели Whisper, Pandoc/FFmpeg (winget/GitHub) и саму программу на GitHub."
   },
@@ -2693,5 +2738,440 @@
     "EN": "Cursor agent run failed: {run_id}",
     "UK": "Помилка запуску Cursor agent: {run_id}",
     "RU": "Ошибка запуска Cursor agent: {run_id}"
+  },
+  "archive_button": {
+    "EN": "Archive",
+    "UK": "Архів",
+    "RU": "Архив"
+  },
+  "archive_title": {
+    "EN": "Conversation archive",
+    "UK": "Архів розмов",
+    "RU": "Архив разговоров"
+  },
+  "archive_search": {
+    "EN": "Search",
+    "UK": "Пошук",
+    "RU": "Поиск"
+  },
+  "archive_col_when": {
+    "EN": "When",
+    "UK": "Коли",
+    "RU": "Когда"
+  },
+  "archive_col_name": {
+    "EN": "Name",
+    "UK": "Назва",
+    "RU": "Название"
+  },
+  "archive_col_summary": {
+    "EN": "Summary",
+    "UK": "Коротко",
+    "RU": "Кратко"
+  },
+  "archive_open_txt": {
+    "EN": "Open text",
+    "UK": "Відкрити текст",
+    "RU": "Открыть текст"
+  },
+  "archive_show_folder": {
+    "EN": "Show folder",
+    "UK": "Показати папку",
+    "RU": "Показать папку"
+  },
+  "archive_delete": {
+    "EN": "Delete all files",
+    "UK": "Видалити всі файли",
+    "RU": "Удалить все файлы"
+  },
+  "archive_delete_confirm": {
+    "EN": "Delete this conversation and every file made from it?",
+    "UK": "Видалити цю розмову і всі файли, зроблені з неї?",
+    "RU": "Удалить этот разговор и все файлы, сделанные из него?"
+  },
+  "archive_ask": {
+    "EN": "Ask…",
+    "UK": "Запитати…",
+    "RU": "Спросить…"
+  },
+  "archive_click_hint": {
+    "EN": "Double-click a line to hear that moment.",
+    "UK": "Подвійний клік по рядку — почути цей момент.",
+    "RU": "Двойной клик по строке — услышать этот момент."
+  },
+  "archive_no_audio": {
+    "EN": "No audio file to play. Enable Save MP3 next time, or keep the source next to the transcript.",
+    "UK": "Немає аудіо для відтворення. Увімкніть Save MP3 наступного разу або залиште джерело поруч із розшифровкою.",
+    "RU": "Нет аудио для воспроизведения. Включите Save MP3 в следующий раз или оставьте исходник рядом с расшифровкой."
+  },
+  "archive_play_failed": {
+    "EN": "Could not play this fragment (need FFmpeg/ffplay).",
+    "UK": "Не вдалося відтворити фрагмент (потрібен FFmpeg/ffplay).",
+    "RU": "Не удалось воспроизвести фрагмент (нужен FFmpeg/ffplay)."
+  },
+  "archive_qa_title": {
+    "EN": "Ask this conversation",
+    "UK": "Запитати цю розмову",
+    "RU": "Спросить этот разговор"
+  },
+  "archive_qa_send": {
+    "EN": "Ask",
+    "UK": "Запитати",
+    "RU": "Спросить"
+  },
+  "archive_qa_save": {
+    "EN": "Save answer as *_qa.md",
+    "UK": "Зберегти відповідь як *_qa.md",
+    "RU": "Сохранить ответ как *_qa.md"
+  },
+  "archive_qa_no_text": {
+    "EN": "This job has no transcript text.",
+    "UK": "У цього завдання немає тексту розшифровки.",
+    "RU": "У этого задания нет текста расшифровки."
+  },
+  "archive_qa_working": {
+    "EN": "Asking…",
+    "UK": "Запитую…",
+    "RU": "Спрашиваю…"
+  },
+  "archive_qa_need_api": {
+    "EN": "Q&A needs an API provider (Gemini, Claude, Copilot, Ollama, or OpenAI-compatible). Cursor Chat fallback is not used here.",
+    "UK": "Q&A потребує API-провайдера (Gemini, Claude, Copilot, Ollama або OpenAI-compatible). Cursor Chat тут не використовується.",
+    "RU": "Q&A нужен API-провайдер (Gemini, Claude, Copilot, Ollama или OpenAI-compatible). Cursor Chat здесь не используется."
+  },
+  "tooltip_archive": {
+    "EN": "Search past transcripts, click a subtitle line to hear it, delete a job and all its files.",
+    "UK": "Пошук минулих розшифровок, клік по рядку субтитрів щоб почути, видалення завдання з усіма файлами.",
+    "RU": "Поиск прошлых расшифровок, клик по строке субтитров чтобы услышать, удаление задания со всеми файлами."
+  },
+  "tooltip_capture": {
+    "EN": "Record microphone + system audio (Ctrl+Shift+R). The file is added to the queue.",
+    "UK": "Запис мікрофона + системного звуку (Ctrl+Shift+R). Файл додається в чергу.",
+    "RU": "Запись микрофона + системного звука (Ctrl+Shift+R). Файл добавляется в очередь."
+  },
+  "capture_title": {
+    "EN": "Meeting capture",
+    "UK": "Запис зустрічі",
+    "RU": "Запись встречи"
+  },
+  "capture_start": {
+    "EN": "Record",
+    "UK": "Запис",
+    "RU": "Запись"
+  },
+  "capture_stop": {
+    "EN": "Stop recording",
+    "UK": "Зупинити запис",
+    "RU": "Остановить запись"
+  },
+  "capture_consent": {
+    "EN": "Recording will capture this computer's microphone and what it is playing. Tell the people in the room. Continue?",
+    "UK": "Запис захопить мікрофон цього комп'ютера і те, що він відтворює. Попередьте людей у кімнаті. Продовжити?",
+    "RU": "Запись захватит микрофон этого компьютера и то, что он воспроизводит. Предупредите людей в комнате. Продолжить?"
+  },
+  "capture_need_sounddevice": {
+    "EN": "Meeting capture needs the sounddevice package. Use Dependencies to install it.",
+    "UK": "Для запису зустрічі потрібен пакет sounddevice. Встановіть його кнопкою «Залежності».",
+    "RU": "Для записи встречи нужен пакет sounddevice. Установите его кнопкой «Зависимости»."
+  },
+  "capture_started": {
+    "EN": "Recording started: {path}",
+    "UK": "Запис почато: {path}",
+    "RU": "Запись начата: {path}"
+  },
+  "capture_saved": {
+    "EN": "Recording saved: {path}",
+    "UK": "Запис збережено: {path}",
+    "RU": "Запись сохранена: {path}"
+  },
+  "capture_error": {
+    "EN": "Recording error: {error}",
+    "UK": "Помилка запису: {error}",
+    "RU": "Ошибка записи: {error}"
+  },
+  "capture_pause": {
+    "EN": "Pause",
+    "UK": "Пауза",
+    "RU": "Пауза"
+  },
+  "capture_resume": {
+    "EN": "Resume",
+    "UK": "Продовжити",
+    "RU": "Продолжить"
+  },
+  "capture_paused": {
+    "EN": "Recording paused",
+    "UK": "Запис на паузі",
+    "RU": "Запись на паузе"
+  },
+  "capture_block_exit": {
+    "EN": "A meeting is still being recorded. Stop the recording before quitting FTW.",
+    "UK": "Запис зустрічі ще триває. Зупиніть запис, перш ніж виходити з FTW.",
+    "RU": "Запись встречи ещё идёт. Остановите запись, прежде чем выходить из FTW."
+  },
+  "capture_block_update": {
+    "EN": "A meeting is still being recorded. Stop the recording before installing updates.",
+    "UK": "Запис зустрічі ще триває. Зупиніть запис перед встановленням оновлень.",
+    "RU": "Запись встречи ещё идёт. Остановите запись перед установкой обновлений."
+  },
+  "capture_recovered": {
+    "EN": "Recovered interrupted recording: {path}",
+    "UK": "Відновлено перерваний запис: {path}",
+    "RU": "Восстановлена прерванная запись: {path}"
+  },
+  "tooltip_capture_pause": {
+    "EN": "Pause or resume the current recording (Ctrl+Shift+P). Audio stays on disk.",
+    "UK": "Пауза або продовження поточного запису (Ctrl+Shift+P). Аудіо лишається на диску.",
+    "RU": "Пауза или продолжение текущей записи (Ctrl+Shift+P). Аудио остаётся на диске."
+  },
+  "export_extra_title": {
+    "EN": "Extra transcript files",
+    "UK": "Додаткові файли розшифровки",
+    "RU": "Дополнительные файлы расшифровки"
+  },
+  "export_json": {
+    "EN": "JSON segments",
+    "UK": "JSON-сегменти",
+    "RU": "JSON-сегменты"
+  },
+  "export_vtt": {
+    "EN": "WebVTT subtitles",
+    "UK": "Субтитри WebVTT",
+    "RU": "Субтитры WebVTT"
+  },
+  "word_timestamps": {
+    "EN": "Word timestamps (slower)",
+    "UK": "Таймкоди слів (повільніше)",
+    "RU": "Таймкоды слов (медленнее)"
+  },
+  "diarization_enabled": {
+    "EN": "Speaker labels (stereo: left/right; optional pyannote)",
+    "UK": "Мітки спікерів (стерео: ліво/право; опційно pyannote)",
+    "RU": "Метки спикеров (стерео: лево/право; опционально pyannote)"
+  },
+  "ai_provider_ollama": {
+    "EN": "Ollama (local)",
+    "UK": "Ollama (локально)",
+    "RU": "Ollama (локально)"
+  },
+  "ai_provider_openai_compat": {
+    "EN": "OpenAI-compatible",
+    "UK": "OpenAI-compatible",
+    "RU": "OpenAI-compatible"
+  },
+  "ai_api_keys_ollama": {
+    "EN": "Ollama",
+    "UK": "Ollama",
+    "RU": "Ollama"
+  },
+  "ai_api_keys_openai_compat": {
+    "EN": "OpenAI-compatible (LM Studio, Groq, DeepSeek…)",
+    "UK": "OpenAI-compatible (LM Studio, Groq, DeepSeek…)",
+    "RU": "OpenAI-compatible (LM Studio, Groq, DeepSeek…)"
+  },
+  "ollama_url_label": {
+    "EN": "Ollama URL",
+    "UK": "URL Ollama",
+    "RU": "URL Ollama"
+  },
+  "ollama_model_label": {
+    "EN": "Model",
+    "UK": "Модель",
+    "RU": "Модель"
+  },
+  "openai_compat_hint": {
+    "EN": "Base URL ending in /v1, optional API key, and model name.",
+    "UK": "Базовий URL з /v1 в кінці, опційний API-ключ і назва моделі.",
+    "RU": "Базовый URL с /v1 в конце, опциональный API-ключ и имя модели."
+  },
+  "openai_compat_key_label": {
+    "EN": "API key (optional for local servers)",
+    "UK": "API-ключ (не обов'язковий для локальних серверів)",
+    "RU": "API-ключ (не обязателен для локальных серверов)"
+  },
+  "openai_compat_model_label": {
+    "EN": "Model",
+    "UK": "Модель",
+    "RU": "Модель"
+  },
+  "ai_budget_section": {
+    "EN": "Monthly AI ceiling",
+    "UK": "Місячна стеля AI",
+    "RU": "Месячный потолок AI"
+  },
+  "ai_month_budget_label": {
+    "EN": "Pause AI (not transcription) when estimated spend this month reaches this USD amount. 0 = no limit.",
+    "UK": "Призупинити AI (не транскрибацію), коли оцінка витрат за місяць сягне цієї суми в USD. 0 = без ліміту.",
+    "RU": "Приостановить AI (не транскрибацию), когда оценка расходов за месяц достигнет этой суммы в USD. 0 = без лимита."
+  },
+  "ai_test_connection": {
+    "EN": "Test connection",
+    "UK": "Перевірити з'єднання",
+    "RU": "Проверить соединение"
+  },
+  "ai_test_running": {
+    "EN": "Testing…",
+    "UK": "Перевіряю…",
+    "RU": "Проверяю…"
+  },
+  "ai_test_ok": {
+    "EN": "Service answered",
+    "UK": "Сервіс відповів",
+    "RU": "Сервис ответил"
+  },
+  "ai_test_ok_models": {
+    "EN": "Ollama is up. Models: {models}",
+    "UK": "Ollama працює. Моделі: {models}",
+    "RU": "Ollama работает. Модели: {models}"
+  },
+  "ai_test_missing_key": {
+    "EN": "API key / endpoint is missing.",
+    "UK": "Немає API-ключа / endpoint.",
+    "RU": "Нет API-ключа / endpoint."
+  },
+  "ai_test_missing_url": {
+    "EN": "Base URL is missing.",
+    "UK": "Немає базового URL.",
+    "RU": "Нет базового URL."
+  },
+  "ai_test_key_present": {
+    "EN": "A Cursor API key is set (SDK is not pinged).",
+    "UK": "Ключ Cursor API задано (SDK не пінгується).",
+    "RU": "Ключ Cursor API задан (SDK не пингуется)."
+  },
+  "ai_test_unknown_provider": {
+    "EN": "Unknown provider.",
+    "UK": "Невідомий провайдер.",
+    "RU": "Неизвестный провайдер."
+  },
+  "ai_budget_paused": {
+    "EN": "Monthly AI budget reached. Transcription continues; AI is paused until next month or you raise the ceiling.",
+    "UK": "Місячний бюджет AI вичерпано. Транскрибація триває; AI призупинено до наступного місяця або поки не піднімете стелю.",
+    "RU": "Месячный бюджет AI исчерпан. Транскрибация продолжается; AI приостановлен до следующего месяца или пока не поднимете потолок."
+  },
+  "ai_usage_line": {
+    "EN": "AI usage: {prompt} in / {completion} out tokens (~${usd})",
+    "UK": "AI: {prompt} вхід / {completion} вихід токенів (~${usd})",
+    "RU": "AI: {prompt} вход / {completion} выход токенов (~${usd})"
+  },
+  "ai_prompt_rules_button": {
+    "EN": "Auto-run rules",
+    "UK": "Правила автозапуску",
+    "RU": "Правила автозапуска"
+  },
+  "ai_prompt_rules_title": {
+    "EN": "Prompt auto-run rules",
+    "UK": "Правила автозапуску промптів",
+    "RU": "Правила автозапуска промптов"
+  },
+  "ai_prompt_rules_hint": {
+    "EN": "JSON list. match: always | watch_dir | filename | never. pattern: glob or folder. prompt_nums: [2, 9]. skip_dialog: true runs without the picker.",
+    "UK": "JSON-список. match: always | watch_dir | filename | never. pattern: glob або папка. prompt_nums: [2, 9]. skip_dialog: true — без вікна вибору.",
+    "RU": "JSON-список. match: always | watch_dir | filename | never. pattern: glob или папка. prompt_nums: [2, 9]. skip_dialog: true — без окна выбора."
+  },
+  "ollama_empty_text": {
+    "EN": "Ollama returned empty text.",
+    "UK": "Ollama повернув порожній текст.",
+    "RU": "Ollama вернул пустой текст."
+  },
+  "openai_compat_no_choices": {
+    "EN": "OpenAI-compatible API returned no choices: {detail}",
+    "UK": "OpenAI-compatible API не повернув choices: {detail}",
+    "RU": "OpenAI-compatible API не вернул choices: {detail}"
+  },
+  "openai_compat_empty_text": {
+    "EN": "OpenAI-compatible API returned empty text.",
+    "UK": "OpenAI-compatible API повернув порожній текст.",
+    "RU": "OpenAI-compatible API вернул пустой текст."
+  },
+  "ollama_no_api_key_fallback": {
+    "EN": "No Ollama credentials — opening the fallback page.",
+    "UK": "Немає облікових даних Ollama — відкриваю запасну сторінку.",
+    "RU": "Нет учётных данных Ollama — открываю запасную страницу."
+  },
+  "ollama_browser_opened": {
+    "EN": "Ollama opened in the browser for: {name}",
+    "UK": "Ollama відкрито в браузері для: {name}",
+    "RU": "Ollama открыт в браузере для: {name}"
+  },
+  "ollama_browser_prompt_copied": {
+    "EN": "Prompt copied to clipboard.",
+    "UK": "Промпт скопійовано в буфер.",
+    "RU": "Промпт скопирован в буфер."
+  },
+  "ollama_browser_manual_hint": {
+    "EN": "Paste the prompt into the chat and confirm.",
+    "UK": "Вставте промпт у чат і підтвердіть.",
+    "RU": "Вставьте промпт в чат и подтвердите."
+  },
+  "ollama_processing_prompt": {
+    "EN": "Ollama: processing prompt #{num} ({name})…",
+    "UK": "Ollama: обробка промпту №{num} ({name})…",
+    "RU": "Ollama: обработка промпта №{num} ({name})…"
+  },
+  "ollama_prompt_error": {
+    "EN": "Ollama prompt #{num} failed: {error}",
+    "UK": "Ollama промпт №{num} помилка: {error}",
+    "RU": "Ollama промпт №{num} ошибка: {error}"
+  },
+  "ollama_file_created": {
+    "EN": "Ollama wrote {name}",
+    "UK": "Ollama записав {name}",
+    "RU": "Ollama записал {name}"
+  },
+  "ollama_chain_done": {
+    "EN": "Ollama: {count} file(s) for {name}",
+    "UK": "Ollama: {count} файл(ів) для {name}",
+    "RU": "Ollama: {count} файл(ов) для {name}"
+  },
+  "ollama_chain_no_output": {
+    "EN": "Ollama: no output for {name}",
+    "UK": "Ollama: немає виходу для {name}",
+    "RU": "Ollama: нет выхода для {name}"
+  },
+  "openai_compat_no_api_key_fallback": {
+    "EN": "No OpenAI-compatible credentials — opening the fallback page.",
+    "UK": "Немає облікових даних OpenAI-compatible — відкриваю запасну сторінку.",
+    "RU": "Нет учётных данных OpenAI-compatible — открываю запасную страницу."
+  },
+  "openai_compat_browser_opened": {
+    "EN": "OpenAI-compatible opened in the browser for: {name}",
+    "UK": "OpenAI-compatible відкрито в браузері для: {name}",
+    "RU": "OpenAI-compatible открыт в браузере для: {name}"
+  },
+  "openai_compat_browser_prompt_copied": {
+    "EN": "Prompt copied to clipboard.",
+    "UK": "Промпт скопійовано в буфер.",
+    "RU": "Промпт скопирован в буфер."
+  },
+  "openai_compat_browser_manual_hint": {
+    "EN": "Paste the prompt into the chat and confirm.",
+    "UK": "Вставте промпт у чат і підтвердіть.",
+    "RU": "Вставьте промпт в чат и подтвердите."
+  },
+  "openai_compat_processing_prompt": {
+    "EN": "OpenAI-compatible: processing prompt #{num} ({name})…",
+    "UK": "OpenAI-compatible: обробка промпту №{num} ({name})…",
+    "RU": "OpenAI-compatible: обработка промпта №{num} ({name})…"
+  },
+  "openai_compat_prompt_error": {
+    "EN": "OpenAI-compatible prompt #{num} failed: {error}",
+    "UK": "OpenAI-compatible промпт №{num} помилка: {error}",
+    "RU": "OpenAI-compatible промпт №{num} ошибка: {error}"
+  },
+  "openai_compat_file_created": {
+    "EN": "OpenAI-compatible wrote {name}",
+    "UK": "OpenAI-compatible записав {name}",
+    "RU": "OpenAI-compatible записал {name}"
+  },
+  "openai_compat_chain_done": {
+    "EN": "OpenAI-compatible: {count} file(s) for {name}",
+    "UK": "OpenAI-compatible: {count} файл(ів) для {name}",
+    "RU": "OpenAI-compatible: {count} файл(ов) для {name}"
+  },
+  "openai_compat_chain_no_output": {
+    "EN": "OpenAI-compatible: no output for {name}",
+    "UK": "OpenAI-compatible: немає виходу для {name}",
+    "RU": "OpenAI-compatible: нет выхода для {name}"
   }
 }

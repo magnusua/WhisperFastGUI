@@ -1,6 +1,6 @@
-# Whisper Fast GUI — Help
+# FTW — Help
 
-Whisper Fast GUI converts speech in audio and video files into text and subtitles. You can also add text and office documents to the queue (convert to Markdown, then optionally AI post-processing and Word).
+FTW converts speech in audio and video files into text and subtitles. You can also add text and office documents to the queue (convert to Markdown, then optionally AI post-processing and Word).
 
 ## Quick start
 
@@ -72,7 +72,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 - **Play sound** notifies you when the queue finishes (including after AI post-processing, if enabled).
 - **Save MP3** extracts the processed audio to a separate file.
 - **MD → Word** exports Markdown to `.docx` via Pandoc.
-- **Save directory** selects where results are written. An empty field means “next to the source file.”
+- **Save directory** — **Save** settings: next to the source, a selected folder, a named folder next to the video, or a selected folder plus a parameterized subfolder name (`{basename}`).
 - Click a file link in the log to open it.
 - **Shift+click** a log link to show the file in its folder.
 
@@ -86,13 +86,13 @@ If another task is running, new files wait in the queue and start automatically 
 
 Enable **To AI** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from `redactor1.md`.
 
-- The **To AI** label opens the prompt file.
-- **API keys** opens one dialog for Cursor, Gemini, Claude, and Azure OpenAI (Copilot). Closing with X discards changes. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`.
+- The **To AI** label opens a window with the prompt list and which ones run by default; the button at the bottom opens `redactor1.md` for editing.
+- **API keys** opens one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
 
-After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens:
+After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens (unless an auto-run rule matches):
 
 - Choose integration: **Cursor** | **Gemini** | **Claude** | **Copilot**.
-- Checkboxes / click a name to select prompts (the first is checked by default).
+- Checkboxes / click a name to select prompts (pre-checked from the **To AI** overview).
 - **Run** (or **Space**) — only checked prompts; **All** — select all and run.
 - Closing the dialog skips AI; you can reopen the picker from the log link.
 
@@ -102,6 +102,14 @@ After Whisper or document conversion, the log shows a clickable **Send to AI** l
 | **Gemini** | Google Generative Language API | Browser gemini.google.com + clipboard |
 | **Claude** | Anthropic Messages API | Browser claude.ai + clipboard |
 | **Copilot** | Azure OpenAI (endpoint + key + deployment) | Browser copilot.microsoft.com + clipboard |
+| **Ollama** | Local daemon, no key | Needs Ollama running |
+| **OpenAI-compatible** | `/v1/chat/completions` | Browser fallback |
+
+## Archive, capture, extra exports
+
+- **Archive** lists processed jobs (`library.sqlite`). Search by transcript text. Double-click an SRT line to hear that moment (needs the source or a saved MP3). **Delete all files** removes the source and every derivative. **Ask** sends a question about that transcript to the current API provider.
+- **Record** (also tray / **Ctrl+Shift+R**) captures microphone + system audio to a stereo WAV written to disk as you go, then adds it to the queue. **Pause** / **Ctrl+Shift+P** skips audio until you resume. You are asked to tell the room the first time. An interrupted recording is repaired on the next launch.
+- **Save settings** can also write **JSON** segments, **WebVTT**, word timestamps, and stereo speaker labels (left/right).
 
 Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`). Empty sections are skipped.
 
@@ -117,6 +125,8 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 - **Start** — start processing the queue.
 - **Cancel** — stop the current task.
 - **Add files / Add directory** — add media or documents.
+- **Archive** — search past transcripts; click a line to hear it.
+- **Record** — capture microphone + system audio into the queue (Ctrl+Shift+R). Pause with Ctrl+Shift+P.
 - **Clear queue** — remove all queue items.
 - **System** — check Python, FFmpeg, Pandoc, GPU, CUDA, and installed components.
 - **Dependencies** — install or reinstall pip packages (including `markitdown`) and system tools (FFmpeg, Pandoc).
@@ -124,8 +134,8 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 - **Model name** — select and manage the Whisper model.
 - **Clear log** — clear the log window and `app_log.json`.
 - **Autostart** — add delayed startup on Windows.
-- **To AI** — enable AI post-processing; the label opens `redactor1.md`.
-- **API keys** — Cursor / Gemini / Claude / Azure OpenAI keys.
+- **To AI** — enable AI post-processing; the label opens a prompt list (defaults + edit file).
+- **API keys** — Cursor / Gemini / Claude / Azure OpenAI / Ollama / OpenAI-compatible keys.
 - **Help** — open this file in the interface language. Use the document list at the top to also read architecture, setup, and other docs from `docs/`.
 
 ## Display modes
@@ -146,7 +156,7 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 
 ## Interface language
 
-Use **EN / UK / RU** at the top of the window. The interface language does not change the speech recognition language.
+Use the **EN / UK / RU** dropdown at the top of the window. The interface language does not change the speech recognition language.
 
 ## If processing does not start
 

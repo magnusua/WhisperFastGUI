@@ -46,11 +46,13 @@ from whisperfast.utils import (
 
 class SegmentOffset:
     """Сегмент с полями start, end, text (для смещения времени при обработке куска файла)."""
-    __slots__ = ("start", "end", "text")
-    def __init__(self, start, end, text):
+    __slots__ = ("start", "end", "text", "speaker", "words")
+    def __init__(self, start, end, text, speaker="", words=None):
         self.start = start
         self.end = end
         self.text = text
+        self.speaker = speaker or ""
+        self.words = list(words or [])
 
 
 def segment_file_suffix(start_sec, end_sec):
@@ -239,6 +241,14 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                 lang_val = opts.get("lang_mode", LANG_AUTO_VALUE)
                 lang_param = None if lang_val == LANG_AUTO_VALUE else lang_val
                 model = get_model()
+                want_words = bool(
+                    opts.get("word_timestamps")
+                    or opts.get("export_json")
+                    or opts.get("diarization_enabled")
+                )
+                transcribe_kw = {"language": lang_param, "vad_filter": True}
+                if want_words:
+                    transcribe_kw["word_timestamps"] = True
 
                 if start_sec > 0 or end_sec < duration:
                     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -246,14 +256,14 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                     try:
                         seg_audio = AudioSegment.from_file(path)[int(start_sec * 1000):int(end_sec * 1000)]
                         seg_audio.export(tmp_path, format="wav")
-                        segments_iter, _ = model.transcribe(tmp_path, language=lang_param, vad_filter=True)
+                        segments_iter, _ = model.transcribe(tmp_path, **transcribe_kw)
                     finally:
                         try:
                             os.unlink(tmp_path)
                         except OSError:
                             pass
                 else:
-                    segments_iter, _ = model.transcribe(path, language=lang_param, vad_filter=True)
+                    segments_iter, _ = model.transcribe(path, **transcribe_kw)
 
                 res = []
                 last_progress_update = [0.0]
@@ -290,7 +300,20 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                         )
                     app.root.after(0, lambda: app._set_progress_value(100))
                     if start_sec > 0 or end_sec < duration:
-                        res = [SegmentOffset(s.start + start_sec, s.end + start_sec, s.text or "") for s in res]
+                        res = [
+                            SegmentOffset(
+                                s.start + start_sec,
+                                s.end + start_sec,
+                                s.text or "",
+                                speaker=getattr(s, "speaker", "") or "",
+                                words=list(getattr(s, "words", None) or []),
+                            )
+                            for s in res
+                        ]
+                    if opts.get("diarization_enabled"):
+                        from whisperfast.core.diarize import apply_speakers
+
+                        apply_speakers(path, res, enabled=True)
                     is_segment = start_sec >= FULL_VIDEO_SEGMENT_EPS_S or (duration - end_sec) >= FULL_VIDEO_SEGMENT_EPS_S
                     # Через app.save_files — единая точка (GUI-обёртка → этот модуль)
                     saved = app.save_files(
@@ -364,6 +387,8 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
         base = base + segment_file_suffix(segment_start_sec, segment_end_sec)
     txt_p = os.path.abspath(os.path.join(out, base + ".txt"))
     srt_p = os.path.abspath(os.path.join(out, base + ".srt"))
+    json_p = os.path.abspath(os.path.join(out, base + ".json")) if opts.get("export_json") else None
+    vtt_p = os.path.abspath(os.path.join(out, base + ".vtt")) if opts.get("export_vtt") else None
     mp3_out = None
     mp3_p = None
     if audio_segment is not None:
@@ -373,6 +398,10 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
     resolve = getattr(app, "resolve_output_paths", None)
     if resolve:
         group = [txt_p, srt_p]
+        if json_p:
+            group.append(json_p)
+        if vtt_p:
+            group.append(vtt_p)
         if mp3_p:
             group.append(mp3_p)
         resolved = resolve(group)
@@ -385,21 +414,45 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
                 app.end_file_log("skipped", file_id=log_file_id)
             return None
         txt_p, srt_p = resolved[0], resolved[1]
+        idx = 2
+        if json_p:
+            json_p = resolved[idx]
+            idx += 1
+        if vtt_p:
+            vtt_p = resolved[idx]
+            idx += 1
         if mp3_p:
-            mp3_p = resolved[2]
+            mp3_p = resolved[idx]
 
     out_paths = [txt_p, srt_p]
+    if json_p:
+        out_paths.append(json_p)
+    if vtt_p:
+        out_paths.append(vtt_p)
     if mp3_p:
         out_paths.append(mp3_p)
     app.queue_ctrl.register_output_paths(out_paths)
 
+    from whisperfast.core.export_transcript import format_segment_line, write_segments_json, write_vtt
+
     with open(txt_p, "w", encoding="utf-8") as f:
-        f.write("\n".join([(s.text or "").strip() for s in segments]))
+        f.write("\n".join([format_segment_line(s) for s in segments]))
 
     with open(srt_p, "w", encoding="utf-8") as f:
         for i, s in enumerate(segments, 1):
             timestamp = f"{format_timestamp_srt(s.start)} --> {format_timestamp_srt(s.end)}"
-            f.write(f"{i}\n{timestamp}\n{(s.text or '').strip()}\n\n")
+            f.write(f"{i}\n{timestamp}\n{format_segment_line(s)}\n\n")
+
+    if json_p:
+        write_segments_json(
+            json_p,
+            segments,
+            extra={"source": os.path.abspath(path), "model": opts.get("whisper_model") or ""},
+        )
+        app.add_file_output("json", json_p, file_id=log_file_id)
+    if vtt_p:
+        write_vtt(vtt_p, segments)
+        app.add_file_output("vtt", vtt_p, file_id=log_file_id)
 
     file_id = log_file_id
     ai_job_id = None

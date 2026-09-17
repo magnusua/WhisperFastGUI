@@ -1,6 +1,51 @@
 {
   "releases": [
     {
+      "version": "1.3.1",
+      "date": "17.09.2026",
+      "notes": {
+        "EN": [
+          "The app is now called FTW (formerly Whisper Fast GUI). It is free software under the MIT license.",
+          "Meeting capture writes PCM to disk as it records, can be paused (Ctrl+Shift+P), and blocks quit/updates until you stop.",
+          "Interrupted recordings are repaired on the next launch."
+        ],
+        "UK": [
+          "Застосунок тепер називається FTW (раніше Whisper Fast GUI). Це вільне ПЗ за ліцензією MIT.",
+          "Запис зустрічі пише PCM на диск під час запису, має паузу (Ctrl+Shift+P) і блокує вихід/оновлення, доки запис не зупинено.",
+          "Перервані записи відновлюються при наступному запуску."
+        ],
+        "RU": [
+          "Приложение теперь называется FTW (ранее Whisper Fast GUI). Это свободное ПО по лицензии MIT.",
+          "Запись встречи пишет PCM на диск по ходу, ставится на паузу (Ctrl+Shift+P) и блокирует выход/обновление, пока запись не остановлена.",
+          "Прерванные записи восстанавливаются при следующем запуске."
+        ]
+      }
+    },
+    {
+      "version": "1.3.0",
+      "date": "17.09.2026",
+      "notes": {
+        "EN": [
+          "Archive: search past transcripts, click a subtitle line to hear it, delete a job and every file made from it.",
+          "Prompt auto-run rules, Q&A on one conversation, and extra write-up prompts (one-liner, topics, names, tags, red flags).",
+          "Ollama and OpenAI-compatible providers, token/cost ceiling, Test connection. API keys on Windows are stored via DPAPI.",
+          "Optional JSON/VTT export, stereo speaker labels, and meeting capture (mic + system audio) into the same queue."
+        ],
+        "UK": [
+          "Архів: пошук розшифровок, клік по рядку субтитрів щоб почути, видалення завдання з усіма файлами.",
+          "Правила автозапуску промптів, Q&A по одній розмові, додаткові write-up промпти (one-liner, topics, names, tags, red flags).",
+          "Провайдери Ollama і OpenAI-compatible, стеля витрат, «Перевірити з'єднання». Ключі API на Windows — через DPAPI.",
+          "Опційний JSON/VTT, мітки спікерів для стерео, запис зустрічі (мікрофон + системний звук) у ту саму чергу."
+        ],
+        "RU": [
+          "Архив: поиск расшифровок, клик по строке субтитров чтобы услышать, удаление задания со всеми файлами.",
+          "Правила автозапуска промптов, Q&A по одному разговору, дополнительные write-up промпты (one-liner, topics, names, tags, red flags).",
+          "Провайдеры Ollama и OpenAI-compatible, потолок расходов, «Проверить соединение». Ключи API на Windows — через DPAPI.",
+          "Опциональный JSON/VTT, метки спикеров для стерео, запись встречи (микрофон + системный звук) в ту же очередь."
+        ]
+      }
+    },
+    {
       "version": "1.2.17",
       "date": "14.09.2026",
       "notes": {

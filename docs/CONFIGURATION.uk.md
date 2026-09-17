@@ -1,4 +1,4 @@
-# Конфігурація Whisper Fast GUI
+# Конфігурація FTW
 
 ## Навіщо існує цей документ
 
@@ -13,9 +13,12 @@
 | `settings.json` | Налаштування користувача (мова, пристрій, модель, шляхи збереження, ключі API…) | `whisperfast/settings.py` |
 | `request_queue.json` | Збережена черга файлів (шлях + діапазон часу + прапорець «оброблено») | `whisperfast/core/queue_manager.py` |
 | `app_log.json` | Лог програми по днях (у `.gitignore`) | `whisperfast/log_store.py` |
+| `library.sqlite` | Архів розмов (FTS-пошук, шляхи txt/srt/mp3/AI) | `whisperfast/library.py` |
+| `captures/` | Каталог стерео WAV запису зустрічі (`capture_YYYYMMDD_HHMMSS.wav`); поруч може бути `.inprogress` | `whisperfast/core/capture.py` |
 | `redactor1.md` | Бібліотека AI-промптів, редагується користувачем із GUI | `whisperfast/postprocess/cursor_postprocess.py` (парсинг) |
 | `whisperfast/i18n/lang.json` | Тексти інтерфейсу EN/UK/RU | `whisperfast/i18n/lang_manager.py` |
-| `README.md` | **Єдине джерело версії застосунку** (`**Версія:**` / `**Дата публікації:**`) | `whisperfast/config.py: parse_app_metadata` |
+| `README.md` | **Єдине джерело версії застосунку** (`**Версія:**` / `**Дата публікації:**`); продуктова назва **FTW** | `whisperfast/config.py: parse_app_metadata`, `APP_NAME` |
+| `LICENSE` / `THIRD-PARTY-NOTICES.md` | MIT на вихідний код FTW і ліцензії залежностей | не runtime-стан |
 
 Обробка помилок скрізь однакова: якщо файл відсутній або пошкоджений (`json.JSONDecodeError`), модуль тихо повертається до значень за замовчуванням замість падіння — це свідомий вибір заради стійкості десктопного застосунку, хоча й означає, що биті/вручну відредаговані файли не завжди помітні користувачу.
 
@@ -27,7 +30,7 @@
 |---|---|---|
 | `language` | `"EN"` | Мова інтерфейсу: `EN` / `UK` / `RU`. |
 | `output_dir` | `""` | Каталог збереження результатів (порожньо = поруч із вихідним файлом). |
-| `output_mode` | `"beside"` | Режим збереження: `beside` (поруч), `custom` (вибраний каталог) або підкаталог за шаблоном. |
+| `output_mode` | `"beside"` | Режим збереження: `beside` (поруч), `custom` (вибраний каталог), `named_folder` (підкаталог поруч із відео за шаблоном) або `custom_named` (підкаталог за шаблоном у вибраному каталозі). |
 | `output_named_folder` | `"{basename}"` | Шаблон підкаталогу збереження (`{basename}` → ім'я вихідного файлу без розширення). |
 | `mp3_output_mode` | `"inherit"` | Куди зберігати витягнуте MP3: успадкувати від `output_mode`, поруч із відео, або окремий каталог. |
 | `mp3_output_dir` | `""` | Окремий каталог для MP3, якщо `mp3_output_mode` це передбачає. |
@@ -42,9 +45,10 @@
 | `gpu_model` | `""` | Назва відеокарти (для показу і для логіки cu121-індексу). |
 | `send_txt_to_ai` | `false` | Прапорець «В AI». |
 | `send_txt_to_cursor` | `false` | **Legacy-псевдонім** `send_txt_to_ai` — синхронізується автоматично при завантаженні й збереженні (див. нижче). |
+| `ai_default_prompt_nums` | `[1]` | Номери промптів, позначені за замовчуванням у вікні «В AI» і в діалозі запуску. Порожній список = жоден. |
 | `export_md_to_docx` | `false` | Прапорець «MD → Word». |
-| `ai_provider` | `"cursor"` | Обраний провайдер: `cursor` / `gemini` / `claude` / `copilot`. |
-| `cursor_api_key` | `""` | Ключ Cursor SDK (пріоритет має env `CURSOR_API_KEY`). |
+| `ai_provider` | `"cursor"` | Обраний провайдер: `cursor` / `gemini` / `claude` / `copilot` / `ollama` / `openai_compat`. |
+| `cursor_api_key` | `""` | Ключ Cursor SDK (пріоритет має env `CURSOR_API_KEY`). На Windows при записі шифрується DPAPI (`dpapi:…`). |
 | `gemini_api_key` | `""` | Ключ Gemini (пріоритет має env `GEMINI_API_KEY` / `GOOGLE_API_KEY`). |
 | `gemini_model` | `"gemini-2.0-flash"` | Модель Gemini. |
 | `anthropic_api_key` | `""` | Ключ Claude/Anthropic (пріоритет має env `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`). |
@@ -53,11 +57,23 @@
 | `azure_openai_api_key` | `""` | Ключ Azure OpenAI (пріоритет має env `AZURE_OPENAI_API_KEY` / `OPENAI_API_KEY`). |
 | `azure_openai_deployment` | `""` | Назва deployment в Azure OpenAI. |
 | `azure_openai_api_version` | `"2024-08-01-preview"` | Версія Azure OpenAI API. |
+| `ollama_base_url` | `"http://127.0.0.1:11434"` | Локальний Ollama. Env: `OLLAMA_HOST` / `OLLAMA_BASE_URL`. |
+| `ollama_model` | `"llama3.2"` | Модель Ollama. Env: `OLLAMA_MODEL`. |
+| `openai_compatible_base_url` | `""` | Базовий URL OpenAI-compatible API (`…/v1`). Env: `OPENAI_BASE_URL`. |
+| `openai_compatible_api_key` | `""` | Ключ для сумісного API (опційно для LM Studio). Env: `OPENAI_API_KEY`. |
+| `openai_compatible_model` | `""` | Назва моделі. Env: `OPENAI_MODEL`. |
+| `ai_prompt_rules` | `[]` | Правила автозапуску промптів (`match` / `pattern` / `prompt_nums` / `skip_dialog`). |
+| `ai_month_budget` | `0.0` | Місячна стеля витрат AI в USD; `0` = без ліміту. Транскрибація не зупиняється. |
+| `ai_spend_month` / `ai_spend_usd` / `ai_prompt_tokens` / `ai_completion_tokens` | порожньо / 0 | Лічильник витрат поточного місяця. |
+| `export_json` / `export_vtt` / `word_timestamps` / `diarization_enabled` | `false` | Додаткові виходи транскрипту і мітки спікерів. |
+| `capture_consent_shown` | `false` | Користувач уже бачив попередження перед записом зустрічі. |
 | `python_path` | `""` | Шлях до обраного інтерпретатора Python (перший запуск, `setup/python_selector.py`). |
 | `python_version` | `""` | Версія обраного інтерпретатора (для показу і для `install.bat`). |
+| `python_path_chosen` | `false` | Чи користувач уже підтвердив вибір інтерпретатора. |
+| `python_discovered` | `[]` | Раніше знайдені інтерпретатори. |
 | `skip_app_update_version` | `""` | Версія на GitHub, яку користувач попросив не пропонувати повторно. |
 
-**⚠️ Ключі API зберігаються тут у відкритому вигляді** (простий `json.dump`, без шифрування чи інтеграції з keychain/Credential Manager ОС). Після кожного запису файлу тепер викликається обмеження прав доступу (`chmod 0600`), але це працює лише на POSIX (Linux/macOS) — на Windows, для якого це застосунок насамперед і призначений, `os.chmod` реальний ACL файлу не змінює. Якщо ключ заданий і через змінну середовища, і в `settings.json` — виграє змінна середовища (див. розділ «Змінні середовища» нижче та `POSTPROCESSING-PROVIDERS.uk.md`). Повноцінне рішення (`keyring`/Windows Credential Manager) поки не реалізоване.
+**⚠️ Ключі API.** На Windows значення шифруються DPAPI (`dpapi:` + base64) при записі в `settings.json` (`whisperfast/secrets_store.py`) і розшифровуються лише в пам'яті. На POSIX лишається `chmod 0600`. Якщо ключ заданий і через змінну середовища, і в `settings.json` — виграє змінна середовища.
 
 **Legacy-псевдонім `send_txt_to_cursor`.** Історично прапорець «В AI» називався «В Cursor». При завантаженні `settings.json`, якщо є старий `send_txt_to_cursor`, але немає `send_txt_to_ai` — значення копіюється (`load_app_settings`), після чого обидва ключі завжди тримаються синхронізованими. Це працює, але означає, що будь-яка майбутня зміна цього прапорця в коді має враховувати обидва ключі одразу.
 
@@ -131,14 +147,19 @@
 | `AZURE_OPENAI_ENDPOINT` | `postprocess/providers/copilot.py` | Так |
 | `AZURE_OPENAI_DEPLOYMENT` | `postprocess/providers/copilot.py` | Так |
 | `AZURE_OPENAI_API_VERSION` | `postprocess/providers/copilot.py` | Так |
+| `OLLAMA_HOST`, `OLLAMA_BASE_URL` | `postprocess/providers/ollama.py` | Так |
+| `OLLAMA_MODEL` | `postprocess/providers/ollama.py` | Так |
+| `OPENAI_BASE_URL` | `postprocess/providers/openai_compat.py` | Так |
+| `OPENAI_API_KEY` | `openai_compat.py` (і Copilot, якщо немає Azure-ключа) | Так |
+| `OPENAI_MODEL` | `postprocess/providers/openai_compat.py` | Так |
 | `DEBUG` | `core/transcription.py` | — (якщо `=1`, у лог виводиться повний traceback при помилці обробки) |
 | `WHISPER_PYTHON_REEXEC` | `setup/python_selector.py` | — (внутрішній прапорець при повторному запуску під іншим інтерпретатором) |
 | `HF_HUB_CACHE`, `HF_HOME` | `config.get_whisper_cache_dir()` | — (визначає, де Hugging Face Hub кешує ваги моделей) |
 
-Правило пріоритету для ключів API у всіх чотирьох провайдерів однакове: спочатку перевіряється змінна середовища, і лише якщо вона порожня — значення з `settings.json`. Це дозволяє тримати ключ поза `settings.json` узагалі (наприклад, через системне середовище користувача), не втрачаючи можливості налаштувати його через GUI для тих, кому це зручніше.
+Правило пріоритету для ключів API однакове для всіх провайдерів: спочатку змінна середовища, і лише якщо вона порожня — значення з `settings.json`. Це дозволяє тримати ключ поза файлом (системне середовище), не втрачаючи GUI-діалог для інших.
 
 ## Куди дивитися далі
 
-- Як саме `ai_provider` і ключі з цієї таблиці використовуються під час запиту до Cursor/Gemini/Claude/Copilot — [POSTPROCESSING-PROVIDERS.uk.md](POSTPROCESSING-PROVIDERS.uk.md)
+- Як саме `ai_provider` і ключі з цієї таблиці використовуються під час запиту до Cursor/Gemini/Claude/Copilot/Ollama — [POSTPROCESSING-PROVIDERS.uk.md](POSTPROCESSING-PROVIDERS.uk.md)
 - Як `whisper_model` і `device_mode` перетворюються на реальний вибір пристрою/точності — [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md)
 - Загальна картина потоку даних — [ARCHITECTURE.uk.md](ARCHITECTURE.uk.md)

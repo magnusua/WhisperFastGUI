@@ -117,6 +117,14 @@ def run_provider_chain(
             user_msg = build_transform_user_message(text, content)
             result = call_llm(user_msg)
             write_text_file(out_path, result)
+            try:
+                from whisperfast.postprocess.usage import estimate_tokens, notify_usage_estimated
+
+                notify_usage_estimated(
+                    provider_id, estimate_tokens(user_msg), estimate_tokens(result)
+                )
+            except Exception:
+                pass
         except Exception as e:
             _log(log_func, f"{provider_id}_prompt_error", num=num, error=str(e))
             break

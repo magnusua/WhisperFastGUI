@@ -1,4 +1,4 @@
-"""Entry point for Whisper Fast GUI."""
+"""Entry point for FTW."""
 import warnings
 import sys
 
@@ -14,6 +14,14 @@ from whisperfast.i18n import t, set_language
 
 def on_app_closing(root, app=None, WhisperModelSingleton=None):
     """Логика безопасного завершения работы приложения."""
+    try:
+        from whisperfast.ui.capture_ui import capture_blocks_shutdown
+
+        if capture_blocks_shutdown():
+            messagebox.showwarning(t("capture_title"), t("capture_block_exit"))
+            return
+    except Exception:
+        pass
     if messagebox.askokcancel(t("exit"), t("exit_message")):
         if app:
             app.prepare_close()
@@ -43,7 +51,7 @@ def main():
     if sys.platform == "win32":
         try:
             import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("WhisperFastGUI.2026")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("FTW.2026")
         except Exception:
             pass
 

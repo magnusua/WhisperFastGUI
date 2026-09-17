@@ -13,6 +13,10 @@ settings.json
 request_queue.json
 app_log.json
 app_log.json.tmp
+library.sqlite
+library.sqlite-wal
+library.sqlite-shm
+captures/
 .whisperfastgui.pid
 .whisperfastgui.pid.tmp
 

@@ -2,22 +2,26 @@
 
 ## Навіщо існує цей документ
 
-Whisper Fast GUI вміє передавати вже готовий текст (`.txt` після транскрибації або `.md` після конвертації документа) у одного з чотирьох AI-провайдерів для додаткової обробки за промптами користувача. Цей документ — контракт цієї підсистеми: як влаштовані промпти, як кожен провайдер отримує ключ API і що відбувається за його відсутності. Формати `ai_provider` / ключів у `settings.json` — [CONFIGURATION.uk.md](CONFIGURATION.uk.md).
+FTW вміє передавати вже готовий текст (`.txt` після транскрибації або `.md` після конвертації документа) у обраного AI-провайдера для додаткової обробки за промптами користувача. Цей документ — контракт цієї підсистеми: як влаштовані промпти, як кожен провайдер отримує ключ API і що відбувається за його відсутності. Формати `ai_provider` / ключів у `settings.json` — [CONFIGURATION.uk.md](CONFIGURATION.uk.md).
 
 ## Огляд
 
-| Провайдер | З ключем API | Без ключа (fallback) |
+| Провайдер | З ключем / URL | Без ключа (fallback) |
 |---|---|---|
 | **Cursor** | Cursor SDK, ланцюжок промптів послідовно | Cursor Chat + промпт у буфері обміну |
 | **Gemini** | Google Generative Language API | Браузер `gemini.google.com` + буфер обміну |
 | **Claude** | Anthropic Messages API | Браузер `claude.ai` + буфер обміну |
 | **Copilot** | Azure OpenAI (endpoint + ключ + deployment) | Браузер `copilot.microsoft.com` + буфер обміну |
+| **Ollama** | Локальний `http://127.0.0.1:11434/api/chat` | Немає: потрібен запущений Ollama |
+| **OpenAI-compatible** | `…/v1/chat/completions` (LM Studio, Groq, DeepSeek) | Браузер platform.openai.com |
 
-Спільний принцип для всіх чотирьох: якщо ключ/endpoint не налаштовано (ні через змінну середовища, ні через `settings.json`), програма не блокує користувача — вона копіює промпт у буфер обміну і відкриває відповідний сайт у браузері, щоб можна було вставити текст вручну. Робочий (API-driven) режим — це прискорення, а не єдиний спосіб працювати.
+Хмарні провайдери без ключа відкривають браузер. Ollama ключа не потребує. У діалозі ключів є **Test connection** і місячна стеля витрат (`ai_month_budget`) — при перевищенні AI-черга паузиться, транскрибація ні.
+
+Правила автозапуску (`ai_prompt_rules`): після TXT можна прогнати промпти без модалки (`match`: always / watch_dir / filename). Q&A по одній розмові — з вікна **Архів**.
 
 ## redactor1.md як бібліотека промптів
 
-`redactor1.md` — не документація про застосунок, а **дані**: набір користувацьких промптів, який відкривається і редагується прямо з GUI (кнопка **«В AI»**). Формат — Markdown-секції виду:
+`redactor1.md` — не документація про застосунок, а **дані**: набір користувацьких промптів. Кнопка **«В AI»** відкриває вікно зі списком промптів і позначками «за замовчуванням»; кнопка внизу того вікна відкриває файл для редагування. Формат — Markdown-секції виду:
 
 ```
 ## Промпт №2 "TW_core"
@@ -30,11 +34,11 @@ Whisper Fast GUI вміє передавати вже готовий текст 
 - Ім'я в лапках заголовка (`"TW_core"`) стає суфіксом вихідного файлу: результат обробки промптом №2 збережеться як `<ім'я>_TW_core.md`.
 - Плейсхолдери на кшталт `{{TRANSCRIPT_TEXT}}` / `{{INPUT_DATA}}` підставляються перед відправкою в AI.
 - Порожні секції (без тексту після заголовка) пропускаються — не показуються у вікні вибору промптів.
-- У вікні **«Промти»**, яке з'являється після готовності `.txt`/`.md`: чекбокси вибору промптів (за замовчуванням позначено перший), кнопки **«Виконати»** (або клавіша Пробіл — лише позначені) і **«Всі»** (усі одразу); закриття вікна пропускає AI-обробку, залишаючи в лозі посилання відкрити вибір знову.
+- У вікні **«Промти»**, яке з'являється після готовності `.txt`/`.md`: чекбокси вибору промптів (за замовчуванням — номери з `ai_default_prompt_nums`, типово перший), кнопки **«Виконати»** (або клавіша Пробіл — лише позначені) і **«Всі»** (усі одразу); закриття вікна пропускає AI-обробку, залишаючи в лозі посилання відкрити вибір знову.
 
 ## Спільний контракт провайдера
 
-`postprocess/providers/base.py` визначає `Protocol AIProvider` — структурний інтерфейс, якому відповідають `claude.py`, `gemini.py`, `copilot.py` (і, окремим більшим модулем, `cursor_postprocess.py`). Кожен провайдер реалізує по суті один і той самий цикл: якщо є ключ — викликати API-функцію ланцюжком по всіх позначених промптах, записуючи результат кожного кроку у файл і викликаючи `on_file_created`; якщо ключа немає — скопіювати перший промпт у буфер обміну й відкрити браузер. Цей спільний цикл тепер винесено в `base.py` (`run_provider_chain()`, `run_browser_fallback()`) — `claude.py`, `gemini.py`, `copilot.py` викликають ці спільні функції, параметризуючи їх лише функцією виклику конкретного API, замість того, щоб дублювати ~90-рядкову логіку кожен. `cursor_postprocess.py` влаштований інакше (SDK-bridge-процес) і в цю уніфікацію не входив.
+`postprocess/providers/base.py` визначає `Protocol AIProvider`. Хмарні HTTP-провайдери (`claude.py`, `gemini.py`, `copilot.py`, `openai_compat.py`) і локальний `ollama.py` використовують спільний цикл `run_provider_chain()` / `run_browser_fallback()`. `cursor_postprocess.py` влаштований інакше (SDK-bridge-процес) і в цю уніфікацію не входив.
 
 ## Провайдер Cursor
 
@@ -50,11 +54,21 @@ Whisper Fast GUI вміє передавати вже готовий текст 
 
 ## Провайдер Copilot (Azure OpenAI)
 
-`postprocess/providers/copilot.py`. На відміну від інших трьох, тут потрібні **три** значення одразу: endpoint (env `AZURE_OPENAI_ENDPOINT`, інакше `settings.json: azure_openai_endpoint`), ключ (env `AZURE_OPENAI_API_KEY`/`OPENAI_API_KEY`, інакше `settings.json: azure_openai_api_key`) і deployment (env `AZURE_OPENAI_DEPLOYMENT`, інакше `settings.json: azure_openai_deployment`); версія API — env `AZURE_OPENAI_API_VERSION`, інакше `settings.json` (за замовчуванням `2024-08-01-preview`). Без повного набору цих трьох значень — фолбек на буфер обміну + браузер `copilot.microsoft.com`.
+`postprocess/providers/copilot.py`. Потрібні **три** значення одразу: endpoint (env `AZURE_OPENAI_ENDPOINT`, інакше `settings.json: azure_openai_endpoint`), ключ (env `AZURE_OPENAI_API_KEY`/`OPENAI_API_KEY`, інакше `settings.json: azure_openai_api_key`) і deployment (env `AZURE_OPENAI_DEPLOYMENT`, інакше `settings.json: azure_openai_deployment`); версія API — env `AZURE_OPENAI_API_VERSION`, інакше `settings.json` (за замовчуванням `2024-08-01-preview`). Без повного набору — фолбек на буфер обміну + браузер `copilot.microsoft.com`.
+
+## Провайдер Ollama
+
+`postprocess/providers/ollama.py`. Базовий URL: env `OLLAMA_HOST` / `OLLAMA_BASE_URL`, інакше `settings.json: ollama_base_url` (типово `http://127.0.0.1:11434`). Модель: env `OLLAMA_MODEL` або `ollama_model`. Немає ключа API; якщо демон не запущений — помилка в лог, без браузерного фолбеку. Транскрипт лишається на цій машині, поки URL — loopback.
+
+## Провайдер OpenAI-compatible
+
+`postprocess/providers/openai_compat.py`. Для LM Studio, Groq, DeepSeek та інших сумісних з `/v1/chat/completions`. URL / ключ / модель: env `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL` або відповідні ключі `openai_compatible_*` у `settings.json`. Без URL — фолбек на браузер `platform.openai.com`.
 
 ## Ключі API: діалог і безпека
 
-Усі чотири ключі налаштовуються в одному вікні — кнопка **[API keys]**; закриття вікна через × не зберігає зміни (тільки явне «Зберегти»). Жоден із чотирьох модулів провайдерів не пише значення ключа в лог. Водночас самі ключі зберігаються в `settings.json` у відкритому вигляді, якщо введені через цей діалог (права доступу до файлу тепер обмежуються — `chmod 0600` — але лише на POSIX, не на Windows) — див. [CONFIGURATION.uk.md](CONFIGURATION.uk.md#settingsjson).
+Усі провайдери налаштовуються в одному вікні — кнопка **[API keys]** (включно з Ollama URL і OpenAI-compatible). Закриття через × не зберігає зміни (тільки явне «Зберегти»). Модулі провайдерів не пишуть значення ключа в лог.
+
+На **Windows** ключі в `settings.json` шифруються DPAPI (`whisperfast/secrets_store.py`, префікс `dpapi:`). На POSIX — відкритий текст і `chmod 0600`. Якщо той самий ключ заданий і в середовищі, і в файлі — виграє середовище. Деталі — [CONFIGURATION.uk.md](CONFIGURATION.uk.md#settingsjson).
 
 ## Межа цього документа
 

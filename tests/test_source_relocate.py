@@ -47,6 +47,24 @@ class TestNamedFolderOutputDir(unittest.TestCase):
         out = named_folder_output_dir(src, "processed_{basename}", _identity)
         self.assertEqual(os.path.basename(out), "processed_talk")
 
+    def test_custom_named_uses_selected_parent(self):
+        src = os.path.join("videos", "talk.mp4")
+        base = os.path.abspath(os.path.join("out", "batch"))
+        out = named_folder_output_dir(src, "{basename}", _identity, base_dir=base)
+        self.assertEqual(os.path.normcase(out), os.path.normcase(os.path.join(base, "talk")))
+
+    def test_custom_named_does_not_nest_after_move(self):
+        base = os.path.abspath(os.path.join("out", "batch"))
+        src = os.path.join(base, "talk", "talk.mp4")
+        out = named_folder_output_dir(src, "{basename}", _identity, base_dir=base)
+        self.assertEqual(os.path.normcase(out), os.path.normcase(os.path.join(base, "talk")))
+
+    def test_custom_named_reuses_selected_dir_if_already_named(self):
+        base = os.path.abspath(os.path.join("out", "talk"))
+        src = os.path.join(base, "talk.mp4")
+        out = named_folder_output_dir(src, "{basename}", _identity, base_dir=base)
+        self.assertEqual(os.path.normcase(out), os.path.normcase(base))
+
 
 class TestMoveSourceToOutputDir(unittest.TestCase):
     def test_same_directory_is_noop(self):

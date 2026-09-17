@@ -112,6 +112,37 @@ def build_clipboard_fallback_text(prompt_text: str, input_path: str) -> str:
     )
 
 
+def http_json_get(
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    timeout_s: float = 15.0,
+) -> Dict[str, Any]:
+    """GET JSON → dict."""
+    req_headers = {"Accept": "application/json"}
+    if headers:
+        req_headers.update(headers)
+    req = urllib.request.Request(url, headers=req_headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            body = resp.read().decode("utf-8", errors="replace")
+            return json.loads(body) if body else {}
+    except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            pass
+        from whisperfast.i18n import t
+
+        raise RuntimeError(
+            t("http_request_error", code=e.code, detail=err_body or e.reason)
+        ) from e
+    except urllib.error.URLError as e:
+        from whisperfast.i18n import t
+
+        raise RuntimeError(t("http_request_error", code="?", detail=str(e.reason or e))) from e
+
+
 def http_json_request(
     url: str,
     payload: Dict[str, Any],

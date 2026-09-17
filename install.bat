@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 chcp 65001 >nul
 
 echo ==========================================
-echo   Whisper Fast GUI — установка зависимостей
+echo   FTW — установка зависимостей
 echo ==========================================
 echo.
 
@@ -113,7 +113,7 @@ if !ERR! neq 0 (
 )
 
 echo ----------------------------------------
-echo   Запускайте Whisper Fast GUI файлом:
+echo   Запускайте FTW файлом:
 echo     run_whisper.vbs
 echo   Не используйте pythonw.exe и не открывайте main.py напрямую.
 echo ----------------------------------------

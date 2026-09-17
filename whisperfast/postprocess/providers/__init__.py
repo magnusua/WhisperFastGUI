@@ -8,17 +8,23 @@ from whisperfast.postprocess.providers.claude import ClaudeProvider
 from whisperfast.postprocess.providers.copilot import CopilotProvider
 from whisperfast.postprocess.providers.cursor_provider import CursorProvider
 from whisperfast.postprocess.providers.gemini import GeminiProvider
+from whisperfast.postprocess.providers.ollama import OllamaProvider
+from whisperfast.postprocess.providers.openai_compat import OpenAICompatProvider
 
 PROVIDER_CURSOR = "cursor"
 PROVIDER_GEMINI = "gemini"
 PROVIDER_CLAUDE = "claude"
 PROVIDER_COPILOT = "copilot"
+PROVIDER_OLLAMA = "ollama"
+PROVIDER_OPENAI_COMPAT = "openai_compat"
 
 PROVIDERS: Dict[str, AIProvider] = {
     PROVIDER_CURSOR: CursorProvider(),
     PROVIDER_GEMINI: GeminiProvider(),
     PROVIDER_CLAUDE: ClaudeProvider(),
     PROVIDER_COPILOT: CopilotProvider(),
+    PROVIDER_OLLAMA: OllamaProvider(),
+    PROVIDER_OPENAI_COMPAT: OpenAICompatProvider(),
 }
 
 PROVIDER_ORDER: List[str] = list(PROVIDERS)

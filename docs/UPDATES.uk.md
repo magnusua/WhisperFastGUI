@@ -2,26 +2,28 @@
 
 ## Навіщо існує цей документ
 
-Whisper Fast GUI сам себе оновлює з GitHub, а окремо — оновлює ваги моделі Whisper з Hugging Face Hub. Це два різні механізми з різними ризиками; цей документ описує обидва. Встановлення pip-залежностей і зовнішніх утиліт при першому запуску — інша тема, див. [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md).
+FTW сам себе оновлює з GitHub, а окремо — оновлює ваги моделі Whisper з Hugging Face Hub. Це два різні механізми з різними ризиками; цей документ описує обидва. Встановлення pip-залежностей і зовнішніх утиліт при першому запуску — інша тема, див. [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md).
 
 ## Перевірка версії
 
 Локальна версія як і раніше читається з `README.md` (`**Версія:** X.Y.Z` / `**Дата публікації:** DD.MM.YYYY` → `parse_app_metadata()` у `whisperfast/config.py`). Якщо рядок не парситься, версія стає `"unknown"` і оновлення **не пропонується**.
 
-Кнопка **[Оновлення]** і перевірка при старті звертаються до `check_app_update()`: версія й дата беруться з **GitHub Releases** (`GET /repos/{repo}/releases/latest`, `tag_name` без провідного `v`, `published_at` як `DD.MM.YYYY`), а не з `README.md` на гілці `main`. Порівняння — `packaging.version.Version` (`_version_is_newer`). Оновлення пропонується лише якщо remote новіший **і** у релізі є асет `SHA256SUMS` / `SHA256SUMS.txt`. Немає релізу або немає контрольної суми — діалог не показується (fail closed; ZIP з мутабельної гілки `main` більше не використовується).
+Кнопка **[Оновлення]** і перевірка при старті звертаються до `check_app_update()`: версія й дата беруться з **GitHub Releases** (`GET /repos/{repo}/releases/latest`, `tag_name` без провідного `v`, `published_at` як `DD.MM.YYYY`), а не з `README.md` на гілці `main`. User-Agent запитів — `FTW-Updater`. Порівняння — `packaging.version.Version` (`_version_is_newer`). Оновлення пропонується лише якщо remote новіший **і** у релізі є асет `SHA256SUMS` / `SHA256SUMS.txt`. Немає релізу або немає контрольної суми — діалог не показується (fail closed; ZIP з мутабельної гілки `main` більше не використовується).
+
+Поки йде запис зустрічі (`CaptureSession.running`), GUI **не** запускає оновлення застосунку: треба спочатку Stop.
 
 ## Оновлення застосунку
 
 `updates/app_updates.py: apply_app_update()` обирає один із двох шляхів:
 
 - **Якщо в каталозі є `.git`** (`is_git_repo()`) — `git fetch` + `git pull --ff-only` з гілки `main`. Шлях розробника: історія комітів tamper-evident (без перевірки підписів git). Оновлення застосовується одразу, без ZIP.
-- **Інакше (інсталяція з ZIP)** — завантажується асет `WhisperFastGUI-*.zip` **останнього GitHub Release** (іммутабельний тег), разом із `SHA256SUMS`. Перед розпакуванням обов’язково звіряється SHA-256 файлу з рядком у `SHA256SUMS` (GNU або BSD формат). Невідповідність або відсутність суми — оновлення зупиняється, архів не розпаковується.
+- **Інакше (інсталяція з ZIP)** — завантажується асет `FTW-*.zip` **останнього GitHub Release** (іммутабельний тег), разом із `SHA256SUMS`. Для сумісності також приймається історичне ім'я `WhisperFastGUI-*.zip`. Перед розпакуванням обов’язково звіряється SHA-256 файлу з рядком у `SHA256SUMS` (GNU або BSD формат). Невідповідність або відсутність суми — оновлення зупиняється, архів не розпаковується.
 
 **GPG не потрібен для нормальної роботи.** Код уміє перевірити від’єднаний підпис `SHA256SUMS.asc`, але лише якщо в `resources/release_signing_key.asc` лежить непустий публічний ключ. Зараз цього файлу немає — достатньо SHA-256. Приватний ключ у репозиторій не кладеться.
 
 Файли копіюються поверх поточної інсталяції (`_copy_update_files`), крім захищених (`_PRESERVE_FILES = {"settings.json", "request_queue.json", "redactor1.md"}`). На Windows копіювання відкладається до перезапуску через `_apply_update.py` (запускається з `_apply_update.bat`); на macOS/Linux застосовується одразу. Розпакування ZIP — через `archive_extract.safe_extract_zip` (відсікання zip-slip).
 
-**Публікація релізу:** workflow `.github/workflows/release-checksums.yml` на подію `release: published` збирає `WhisperFastGUI-{version}-src.zip` і `SHA256SUMS` (`scripts/make_release_checksums.py`) і завантажує їх як асети. Підпис `SHA256SUMS.asc` з’явиться лише якщо в GitHub Secrets задано `GPG_PRIVATE_KEY` — це свідомо не налаштовано.
+**Публікація релізу:** workflow `.github/workflows/release-checksums.yml` на подію `release: published` збирає `FTW-{version}-src.zip` і `SHA256SUMS` (`scripts/make_release_checksums.py`) і завантажує їх як асети. Підпис `SHA256SUMS.asc` з’явиться лише якщо в GitHub Secrets задано `GPG_PRIVATE_KEY` — це свідомо не налаштовано.
 
 FFmpeg/Pandoc з GitHub Releases усе ще ставляться без перевірки контрольної суми — див. [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md).
 
