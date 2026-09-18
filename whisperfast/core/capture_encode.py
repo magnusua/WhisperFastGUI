@@ -2,11 +2,20 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from typing import Optional, Tuple
 
 from whisperfast.core.capture_prefs import codec_extension
+from whisperfast.platform_util import win_no_window_kwargs
 
 BITRATE_CHOICES = (16, 24, 32, 48, 64, 96, 128)
+
+_FFMPEG_CODECS = {
+    "opus": "libopus",
+    "aac": "aac",
+    "mp3": "libmp3lame",
+    "wav": "pcm_s16le",
+}
 
 
 def normalize_codec(codec: str) -> str:
@@ -24,6 +33,21 @@ def mix_to_mono(audio):
     return audio.set_channels(1)
 
 
+def _norm_channels(channels: str) -> str:
+    c = (channels or "mono").strip().lower()
+    return c if c in ("mono", "stereo") else "mono"
+
+
+def _norm_bitrate(bitrate_kbit) -> int:
+    try:
+        bitrate = int(bitrate_kbit)
+    except (TypeError, ValueError):
+        bitrate = 24
+    if bitrate not in BITRATE_CHOICES:
+        bitrate = min(BITRATE_CHOICES, key=lambda b: abs(b - bitrate))
+    return bitrate
+
+
 def encode_capture(
     src_wav: str,
     dest_path: str,
@@ -34,62 +58,79 @@ def encode_capture(
 ) -> Tuple[str, Optional[str]]:
     """Encode src_wav → dest_path. Returns (final_path, error_or_None).
 
-    On codec failure falls back to WAV (mono mix still applied).
+    Tries pydub, then FFmpeg CLI. On codec failure falls back to WAV.
     """
     codec = normalize_codec(codec)
-    channels = (channels or "mono").strip().lower()
-    if channels not in ("mono", "stereo"):
-        channels = "mono"
-    try:
-        bitrate = int(bitrate_kbit)
-    except (TypeError, ValueError):
-        bitrate = 24
-    if bitrate not in BITRATE_CHOICES:
-        bitrate = min(BITRATE_CHOICES, key=lambda b: abs(b - bitrate))
+    channels = _norm_channels(channels)
+    bitrate = _norm_bitrate(bitrate_kbit)
 
     if not src_wav or not os.path.isfile(src_wav):
         return dest_path, "missing source wav"
-
-    try:
-        from pydub import AudioSegment
-    except ImportError as e:
-        return _copy_wav_fallback(src_wav, dest_path, channels), str(e)
-
-    try:
-        audio = AudioSegment.from_file(src_wav)
-    except Exception as e:
-        return _copy_wav_fallback(src_wav, dest_path, channels), str(e)
-
-    if channels == "mono":
-        audio = mix_to_mono(audio)
-    elif audio.channels < 2:
-        audio = audio.set_channels(2)
 
     parent = os.path.dirname(dest_path)
     if parent:
         os.makedirs(parent, exist_ok=True)
 
-    params = _export_params(codec, bitrate)
+    pydub_err = None
     try:
-        audio.export(dest_path, **params)
+        from pydub import AudioSegment
+
+        audio = AudioSegment.from_file(src_wav)
+        if channels == "mono":
+            audio = mix_to_mono(audio)
+        elif audio.channels < 2:
+            audio = audio.set_channels(2)
+        audio.export(dest_path, **_export_params(codec, bitrate))
         if os.path.isfile(dest_path) and os.path.getsize(dest_path) > 0:
             return dest_path, None
+        pydub_err = "empty encode"
     except Exception as e:
+        pydub_err = str(e)
         if log_func:
             try:
                 log_func(str(e))
             except Exception:
                 pass
-        fallback = os.path.splitext(dest_path)[0] + ".wav"
-        try:
-            audio.export(fallback, format="wav")
-            return fallback, str(e)
-        except Exception as e2:
-            copied = _copy_wav_fallback(src_wav, fallback, channels)
-            return copied, str(e2)
+
+    ff_err = _ffmpeg_export(src_wav, dest_path, codec, bitrate, channels)
+    if ff_err is None and os.path.isfile(dest_path) and os.path.getsize(dest_path) > 0:
+        return dest_path, None
+
     fallback = os.path.splitext(dest_path)[0] + ".wav"
+    err = ff_err or pydub_err or "empty encode"
     copied = _copy_wav_fallback(src_wav, fallback, channels)
-    return copied, "empty encode"
+    return copied, err
+
+
+def _ffmpeg_export(src: str, dest: str, codec: str, bitrate: int, channels: str) -> Optional[str]:
+    """Return None on success, error string otherwise."""
+    try:
+        from whisperfast.setup.external_tools import find_tool_exe
+    except Exception as e:
+        return str(e)
+    exe = find_tool_exe("ffmpeg")
+    if not exe:
+        return "ffmpeg not found"
+    ac = _FFMPEG_CODECS.get(codec, "libopus")
+    cmd = [exe, "-y", "-i", src]
+    cmd += ["-ac", "1" if channels == "mono" else "2"]
+    if codec != "wav":
+        cmd += ["-b:a", f"{int(bitrate)}k"]
+    cmd += ["-c:a", ac, dest]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            **win_no_window_kwargs(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return str(e)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip().splitlines()
+        return err[-1] if err else f"ffmpeg exit {result.returncode}"
+    return None
 
 
 def _export_params(codec: str, bitrate: int) -> dict:

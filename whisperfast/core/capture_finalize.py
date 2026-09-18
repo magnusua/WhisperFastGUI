@@ -55,6 +55,12 @@ def finalize_wav(
 ) -> Optional[str]:
     if not wav_path or not os.path.isfile(wav_path):
         return None
+    try:
+        from whisperfast.core.capture import repair_wav_header
+
+        repair_wav_header(wav_path)
+    except Exception:
+        pass
     codec = normalize_codec(str(settings.get("capture_codec") or "opus"))
     bitrate = settings.get("capture_bitrate_kbit") or 24
     channels = str(settings.get("capture_channels") or "mono")
@@ -86,23 +92,16 @@ def finalize_wav(
             pass
     if not encoded or not os.path.isfile(encoded):
         return wav_path
-    unique = unique_dest_path(os.path.dirname(encoded), os.path.basename(encoded))
-    if os.path.normcase(unique) != os.path.normcase(encoded):
+    # keep_audio is "keep after transcription", not "keep the PCM draft".
+    # After a successful encode to another file, drop capture_*.wav.
+    if os.path.normcase(os.path.abspath(wav_path)) != os.path.normcase(
+        os.path.abspath(encoded)
+    ):
         try:
-            os.replace(encoded, unique)
-            encoded = unique
+            os.remove(wav_path)
         except OSError:
             pass
-    keep = settings.get("keep_audio") if keep_draft is None else keep_draft
-    if not keep:
-        try:
-            if os.path.normcase(os.path.abspath(wav_path)) != os.path.normcase(
-                os.path.abspath(encoded)
-            ):
-                os.remove(wav_path)
-        except OSError:
-            pass
-    del is_clip
+    del is_clip, keep_draft
     return encoded
 
 

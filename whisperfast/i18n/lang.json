@@ -24,6 +24,11 @@
     "UK": "Назва файлу",
     "RU": "Название файла"
   },
+  "col_note": {
+    "EN": "Brief",
+    "UK": "Коротко",
+    "RU": "Кратко"
+  },
   "col_start": {
     "EN": "Start",
     "UK": "Початок",
@@ -950,14 +955,19 @@
     "RU": "▶ Перезапуск задания AI: {name}"
   },
   "log_file_header": {
-    "EN": "{mark} {name}  [{status}]",
-    "UK": "{mark} {name}  [{status}]",
-    "RU": "{mark} {name}  [{status}]"
+    "EN": "{mark} {name}{note}  [{status}]",
+    "UK": "{mark} {name}{note}  [{status}]",
+    "RU": "{mark} {name}{note}  [{status}]"
   },
   "log_file_header_indexed": {
-    "EN": "{mark} ({current}/{total}) {name}  [{status}]",
-    "UK": "{mark} ({current}/{total}) {name}  [{status}]",
-    "RU": "{mark} ({current}/{total}) {name}  [{status}]"
+    "EN": "{mark} ({current}/{total}) {name}{note}  [{status}]",
+    "UK": "{mark} ({current}/{total}) {name}{note}  [{status}]",
+    "RU": "{mark} ({current}/{total}) {name}{note}  [{status}]"
+  },
+  "log_file_note": {
+    "EN": "Brief: {note}",
+    "UK": "Коротко: {note}",
+    "RU": "Кратко: {note}"
   },
   "log_file_status_running": {
     "EN": "running",
@@ -2974,6 +2984,11 @@
     "UK": "Помилка запису: {error}",
     "RU": "Ошибка записи: {error}"
   },
+  "capture_loopback_failed": {
+    "EN": "System audio (loopback) failed ({error}); recording microphone only.",
+    "UK": "Системний звук (loopback) не вдався ({error}); пишеться лише мікрофон.",
+    "RU": "Системный звук (loopback) не удался ({error}); пишется только микрофон."
+  },
   "capture_pause": {
     "EN": "Pause",
     "UK": "Пауза",
@@ -3270,9 +3285,19 @@
     "RU": "Уривок"
   },
   "capture_clip_saved": {
-    "EN": "Clip saved: {path}",
-    "UK": "Уривок збережено: {path}",
-    "RU": "Уривок сохранён: {path}"
+    "EN": "Clip saved ({duration}): {path}",
+    "UK": "Уривок збережено ({duration}): {path}",
+    "RU": "Уривок сохранён ({duration}): {path}"
+  },
+  "capture_clip_saving": {
+    "EN": "Saving last {duration}…",
+    "UK": "Зберігаю останні {duration}…",
+    "RU": "Сохраняю последние {duration}…"
+  },
+  "capture_clip_failed": {
+    "EN": "Could not save the clip.",
+    "UK": "Не вдалося зберегти уривок.",
+    "RU": "Не удалось сохранить уривок."
   },
   "capture_clip_duration": {
     "EN": "Clip length (m:ss)",

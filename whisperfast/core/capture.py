@@ -52,6 +52,14 @@ def _wasapi_loopback_device(sd) -> Optional[int]:
     return int(default_out)
 
 
+def _wasapi_loopback_settings(sd):
+    """Loopback extra_settings; auto_convert avoids 48 kHz vs device-rate failures."""
+    try:
+        return sd.WasapiSettings(loopback=True, auto_convert=True)
+    except TypeError:
+        return sd.WasapiSettings(loopback=True)
+
+
 def repair_wav_header(path: str) -> bool:
     """Fix RIFF/data sizes when the process died before wave.close().
 
@@ -186,6 +194,8 @@ class CaptureSession:
         self.calendar_title = ""
         self.calendar_attendees: List[str] = []
         self.log_file_id = ""
+        self._log: Optional[LogFunc] = None
+        self._warnings: List[str] = []
 
     @property
     def running(self) -> bool:
@@ -220,6 +230,32 @@ class CaptureSession:
         if not self._running or self._last_sound_at <= 0:
             return 0.0
         return max(0.0, time.time() - self._last_sound_at)
+
+    def set_log(self, log_func: Optional[LogFunc]) -> None:
+        self._log = log_func
+        if not log_func:
+            return
+        for msg in self.take_warnings():
+            try:
+                log_func(msg)
+            except Exception:
+                pass
+
+    def take_warnings(self) -> List[str]:
+        out = list(self._warnings)
+        self._warnings.clear()
+        return out
+
+    def _note(self, msg: str) -> None:
+        if not msg:
+            return
+        self._warnings.append(msg)
+        log = self._log
+        if log:
+            try:
+                log(msg)
+            except Exception:
+                pass
 
     def start(
         self,
@@ -256,6 +292,8 @@ class CaptureSession:
             self.calendar_title = calendar_title or ""
             self.calendar_attendees = list(calendar_attendees or [])
             self.log_file_id = ""
+            self._log = log_func
+            self._warnings = []
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
         if log_func:
@@ -405,19 +443,29 @@ class CaptureSession:
         import numpy as np
         import sounddevice as sd
 
+        from whisperfast.i18n import t
+
         samplerate = int(self._samplerate)
         blocksize = 2048
         extra = None
         loopback_dev = None
+        loopback_err = ""
         if self._include_system and hasattr(sd, "WasapiSettings"):
             try:
-                extra = sd.WasapiSettings(loopback=True)
+                extra = _wasapi_loopback_settings(sd)
                 if self._loopback_device is not None:
                     loopback_dev = int(self._loopback_device)
                 else:
                     loopback_dev = _wasapi_loopback_device(sd)
-            except Exception:
+                if loopback_dev is None:
+                    loopback_err = "no WASAPI output device"
+                    extra = None
+            except Exception as e:
                 extra = None
+                loopback_dev = None
+                loopback_err = str(e) or e.__class__.__name__
+        elif self._include_system:
+            loopback_err = "WASAPI unavailable"
         mic_dev = None
         if self._include_mic:
             try:
@@ -439,8 +487,9 @@ class CaptureSession:
             except RuntimeError as e:
                 if str(e) == "no audio captured":
                     raise
-            except Exception:
-                pass
+                loopback_err = str(e)
+            except Exception as e:
+                loopback_err = str(e) or e.__class__.__name__
         if extra is not None and loopback_dev is not None and not self._include_mic:
             try:
                 self._record_system_only(
@@ -450,8 +499,11 @@ class CaptureSession:
             except RuntimeError as e:
                 if str(e) == "no audio captured":
                     raise
-            except Exception:
-                pass
+                loopback_err = str(e)
+            except Exception as e:
+                loopback_err = str(e) or e.__class__.__name__
+        if self._include_system:
+            self._note(t("capture_loopback_failed", error=loopback_err or "unknown"))
         self._record_mic_only(sd, np, mic_dev, samplerate, blocksize)
 
     def _record_mic_only(self, sd, np, mic_dev, samplerate, blocksize) -> None:

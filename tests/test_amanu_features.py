@@ -324,6 +324,16 @@ class TestEchoAndCodec(unittest.TestCase):
         mono = mix_to_mono(stereo)
         self.assertEqual(mono.channels, 1)
 
+    def test_rendering_names_hold_display_attr(self):
+        from whisperfast.core.auto_detect import RenderingNames
+
+        names = RenderingNames({"zoom.exe"}, {"zoom meeting"})
+        self.assertIn("zoom.exe", names)
+        self.assertIn("zoom meeting", names.display_names)
+        plain = set()
+        with self.assertRaises(AttributeError):
+            setattr(plain, "display_names", {"x"})
+
 
 class TestCaptureClipCopy(unittest.TestCase):
     def test_copy_last_seconds(self):

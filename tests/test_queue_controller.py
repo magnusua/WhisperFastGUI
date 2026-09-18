@@ -111,6 +111,21 @@ class TestQueueController(unittest.TestCase):
             self.assertEqual(os.path.normcase(other.queue[0]["path"]), os.path.normcase(path))
             self.assertTrue(other.queue[0]["processed"])
 
+    def test_persist_note_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "clip.wav")
+            _touch(path)
+            ctrl = self._controller(tmp)
+            ctrl.add_files([path])
+            ctrl.update_row(0, note="  weekly sync ")
+            self.assertEqual(ctrl.queue[0]["note"], "weekly sync")
+            self.assertEqual(ctrl.queue_list.rows["0"][2], "weekly sync")
+
+            other = self._controller(tmp)
+            other.load_from_file()
+            self.assertEqual(other.queue[0]["note"], "weekly sync")
+            self.assertEqual(other.queue_list.rows["0"][2], "weekly sync")
+
     def test_mark_done_and_remove_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             a = os.path.join(tmp, "a.mp3")

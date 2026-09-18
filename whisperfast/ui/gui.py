@@ -61,7 +61,7 @@ from whisperfast.config import (
     DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
     get_whisper_cache_dir,
 )
-from whisperfast.utils import normalize_display_path
+from whisperfast.utils import normalize_display_path, normalize_queue_note
 from whisperfast.core.model_manager import WhisperModelSingleton
 from whisperfast.core.transcription import run_queue, save_files as save_transcription_files
 from whisperfast.setup.installer import install_dependencies, check_system, check_updates
@@ -97,6 +97,7 @@ from whisperfast.ui.widgets import (
 from whisperfast.ui import tray as tray_ui
 from whisperfast.ui import dialogs as ui_dialogs
 from whisperfast.ui import capture_ui
+from whisperfast.ui import toolbar_icons
 from whisperfast.ui.capture_settings import show_capture_settings_dialog
 from whisperfast.ui.log_panel import LogPanel
 from whisperfast.ui.ai_jobs import AiJobQueue
@@ -393,7 +394,7 @@ class WhisperGUI:
         self.queue_ctrl.refresh_treeview()
 
     def _on_queue_row_double_click(self, event):
-        """Редактирование диапазона времени по двойному клику по строке."""
+        """Редактирование диапазона времени по двойному клику; колонка «Кратко» — прямо в ячейке."""
         iid = self.queue_list.identify_row(event.y)
         if not iid:
             return
@@ -403,41 +404,140 @@ class WhisperGUI:
             return
         if idx < 0 or idx >= len(self.queue):
             return
+        col = self.queue_list.identify_column(event.x)
+        if col == "#3":
+            self._edit_queue_note_cell(iid, idx)
+            return
         row = self.queue[idx]
         d = tk.Toplevel(self.root)
         d.title(t("edit_row_title"))
         d.transient(self.root)
         d.grab_set()
-        ttk.Label(d, text=t("col_start")).grid(row=0, column=0, padx=5, pady=3)
+        ttk.Label(d, text=t("col_note")).grid(row=0, column=0, padx=5, pady=3, sticky="w")
+        e_note = ttk.Entry(d, width=42)
+        e_note.insert(0, row.get("note") or "")
+        e_note.grid(row=0, column=1, padx=5, pady=3, sticky="we")
+        ttk.Label(d, text=t("col_start")).grid(row=1, column=0, padx=5, pady=3, sticky="w")
         e_start = ttk.Entry(d, width=14)
         e_start.insert(0, row["start"])
-        e_start.grid(row=0, column=1, padx=5, pady=3)
-        ttk.Label(d, text=t("col_end_seg1")).grid(row=1, column=0, padx=5, pady=3)
+        e_start.grid(row=1, column=1, padx=5, pady=3, sticky="w")
+        ttk.Label(d, text=t("col_end_seg1")).grid(row=2, column=0, padx=5, pady=3, sticky="w")
         e_seg1 = ttk.Entry(d, width=14)
         e_seg1.insert(0, row.get("end_segment_1", ""))
-        e_seg1.grid(row=1, column=1, padx=5, pady=3)
-        ttk.Label(d, text=t("col_end_seg2")).grid(row=2, column=0, padx=5, pady=3)
+        e_seg1.grid(row=2, column=1, padx=5, pady=3, sticky="w")
+        ttk.Label(d, text=t("col_end_seg2")).grid(row=3, column=0, padx=5, pady=3, sticky="w")
         e_seg2 = ttk.Entry(d, width=14)
         e_seg2.insert(0, row.get("end_segment_2", ""))
-        e_seg2.grid(row=2, column=1, padx=5, pady=3)
-        ttk.Label(d, text=t("col_end")).grid(row=3, column=0, padx=5, pady=3)
+        e_seg2.grid(row=3, column=1, padx=5, pady=3, sticky="w")
+        ttk.Label(d, text=t("col_end")).grid(row=4, column=0, padx=5, pady=3, sticky="w")
         e_end = ttk.Entry(d, width=14)
         e_end.insert(0, row["end"])
-        e_end.grid(row=3, column=1, padx=5, pady=3)
+        e_end.grid(row=4, column=1, padx=5, pady=3, sticky="w")
+        d.grid_columnconfigure(1, weight=1)
 
         def apply_and_close():
+            note = normalize_queue_note(e_note.get())
             self.queue_ctrl.update_row(
                 idx,
+                note=note,
                 start=e_start.get().strip() or DEFAULT_START_TIMESTAMP,
                 end_segment_1=e_seg1.get().strip(),
                 end_segment_2=e_seg2.get().strip(),
                 end=e_end.get().strip() or row["end"],
             )
+            self._sync_queue_note(idx, note)
             d.destroy()
 
-        ttk.Button(d, text=t("close"), command=d.destroy).grid(row=4, column=0, padx=5, pady=8)
-        ttk.Button(d, text=t("ok"), command=apply_and_close).grid(row=4, column=1, padx=5, pady=8)
+        ttk.Button(d, text=t("close"), command=d.destroy).grid(row=5, column=0, padx=5, pady=8)
+        ttk.Button(d, text=t("ok"), command=apply_and_close).grid(row=5, column=1, padx=5, pady=8, sticky="e")
         self._center_toplevel(d)
+        e_note.focus_set()
+
+    def _edit_queue_note_cell(self, iid, idx):
+        prev = getattr(self, "_queue_note_editor", None)
+        if prev is not None:
+            try:
+                prev.destroy()
+            except tk.TclError:
+                pass
+            self._queue_note_editor = None
+        bbox = self.queue_list.bbox(iid, "note")
+        if not bbox:
+            return
+        x, y, w, h = bbox
+        row = self.queue[idx]
+        editor = ttk.Entry(self.queue_list)
+        editor.place(x=x, y=y, width=max(w, 80), height=h)
+        editor.insert(0, row.get("note") or "")
+        editor.select_range(0, tk.END)
+        editor.focus_set()
+        self._queue_note_editor = editor
+        committed = {"done": False}
+
+        def commit(event=None):
+            del event
+            if committed["done"]:
+                return
+            committed["done"] = True
+            text = normalize_queue_note(editor.get())
+            try:
+                editor.destroy()
+            except tk.TclError:
+                pass
+            if getattr(self, "_queue_note_editor", None) is editor:
+                self._queue_note_editor = None
+            self.queue_ctrl.update_row(idx, note=text)
+            self._sync_queue_note(idx, text)
+
+        def cancel(event=None):
+            del event
+            committed["done"] = True
+            try:
+                editor.destroy()
+            except tk.TclError:
+                pass
+            if getattr(self, "_queue_note_editor", None) is editor:
+                self._queue_note_editor = None
+
+        editor.bind("<Return>", commit)
+        editor.bind("<FocusOut>", commit)
+        editor.bind("<Escape>", cancel)
+
+    def _sync_queue_note(self, idx, note):
+        if not (0 <= idx < len(self.queue)):
+            return
+        path = self.queue[idx].get("path")
+        file_id = self.find_file_log_id(path) if path else None
+        if file_id:
+            self.apply_file_note(file_id, note, log_event=False)
+        win = getattr(self, "_archive_window", None)
+        if win is not None:
+            refresh = getattr(win, "_wf_refresh", None)
+            if callable(refresh):
+                try:
+                    refresh()
+                except Exception:
+                    pass
+
+    def apply_file_note(self, file_id, note, log_event=True):
+        """Put the queue brief into the work log header and archive «Кратко»."""
+        text = normalize_queue_note(note)
+        if not file_id:
+            return
+        try:
+            self.log_panel.set_file_note(file_id, text)
+        except Exception:
+            pass
+        if log_event and text:
+            try:
+                self.log_panel.log_file_event(t("log_file_note", note=text), file_id=file_id)
+            except Exception:
+                pass
+        if text:
+            try:
+                self.library.set_meta(file_id, summary=text)
+            except Exception as e:
+                self.log(f"[library] set_meta: {e}")
 
     def build_ui(self):
         """Создание интерфейса по блокам 1, 2, 3, 4"""
@@ -454,38 +554,39 @@ class WhisperGUI:
         
         self.queue_header_label = ttk.Label(header_f, text=t("queue_header"), font=("Segoe UI", 9, "bold"))
         self.queue_header_label.pack(side="left")
-        self.add_files_btn = ttk.Button(header_f, text=t("add_files"), command=self.add_files_action)
-        self.add_files_btn.pack(side="left", padx=5)
-        self.add_directory_btn = ttk.Button(header_f, text=t("add_directory"), command=self.add_directory_action)
-        self.add_directory_btn.pack(side="left", padx=5)
-        self.clear_queue_btn = ttk.Button(header_f, text=t("clear_queue"), command=self.clear_queue)
-        self.clear_queue_btn.pack(side="left", padx=5)
-        self.archive_btn = ttk.Button(header_f, text=t("archive_button"), command=self._open_archive)
-        self.archive_btn.pack(side="left", padx=5)
-        self.capture_btn = ttk.Button(header_f, text=t("capture_start"), command=self._toggle_capture)
-        self.capture_btn.pack(side="left", padx=5)
+        self._toolbar_photos = toolbar_icons.load(self.root)
+        self.add_files_btn = ttk.Button(header_f, command=self.add_files_action)
+        self.add_files_btn.pack(side="left", padx=(8, 2))
+        self.add_directory_btn = ttk.Button(header_f, command=self.add_directory_action)
+        self.add_directory_btn.pack(side="left", padx=2)
+        self.clear_queue_btn = ttk.Button(header_f, command=self.clear_queue)
+        self.clear_queue_btn.pack(side="left", padx=2)
+        self.archive_btn = ttk.Button(header_f, command=self._open_archive)
+        self.archive_btn.pack(side="left", padx=2)
+        self.capture_sep = ttk.Label(header_f, text="|")
+        self.capture_sep.pack(side="left", padx=(10, 8))
+        self.capture_settings_btn = ttk.Button(header_f, command=self._open_capture_settings)
+        self.capture_settings_btn.pack(side="left", padx=(0, 4))
+        self.capture_btn = ttk.Button(header_f, command=self._toggle_capture)
+        self.capture_btn.pack(side="left", padx=2)
         self.capture_pause_btn = ttk.Button(
             header_f,
-            text=t("capture_pause"),
             command=self._toggle_capture_pause,
             state="disabled",
         )
-        self.capture_pause_btn.pack(side="left", padx=(0, 5))
+        self.capture_pause_btn.pack(side="left", padx=2)
         self.capture_clip_btn = ttk.Button(
             header_f,
-            text=t("capture_clip"),
             command=self._save_capture_clip,
             state="disabled",
         )
-        self.capture_clip_btn.pack(side="left", padx=(0, 2))
+        self.capture_clip_btn.pack(side="left", padx=(2, 2))
         self.capture_clip_entry = ttk.Entry(header_f, textvariable=self.capture_clip_var, width=6)
         self.capture_clip_entry.pack(side="left", padx=(0, 2))
         self.capture_clip_entry.bind("<Return>", lambda e: capture_ui.normalize_clip_entry(self))
         self.capture_clip_entry.bind("<FocusOut>", lambda e: capture_ui.normalize_clip_entry(self))
-        self.capture_settings_btn = ttk.Button(
-            header_f, text=t("capture_settings"), command=self._open_capture_settings, width=3
-        )
-        self.capture_settings_btn.pack(side="left", padx=(0, 5))
+        toolbar_icons.apply_static(self)
+        capture_ui.refresh_capture_buttons(self)
         # Чекбокс «Оповещение» (звук по завершении очереди)
         self.play_sound_check = ttk.Checkbutton(header_f, text=t("play_sound_finish"),
                        variable=self.play_sound_on_finish)
@@ -524,10 +625,11 @@ class WhisperGUI:
 
         q_frame = ttk.Frame(main)
         q_frame.pack(fill="both", pady=5)
-        cols = ("num", "filename", "start", "end_seg1", "end_seg2", "end", "status")
+        cols = ("num", "filename", "note", "start", "end_seg1", "end_seg2", "end", "status")
         self.queue_list = ttk.Treeview(q_frame, columns=cols, show="headings", height=8, selectmode="extended")
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
+        self.queue_list.heading("note", text=t("col_note"))
         self.queue_list.heading("start", text=t("col_start"))
         self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
         self.queue_list.heading("end_seg2", text=t("col_end_seg2"))
@@ -535,7 +637,8 @@ class WhisperGUI:
         self.queue_list.heading("status", text=t("col_status"))
         _num_w = 38
         self.queue_list.column("num", width=_num_w, minwidth=_num_w)
-        self.queue_list.column("filename", width=220)
+        self.queue_list.column("filename", width=200)
+        self.queue_list.column("note", width=180, minwidth=80)
         self.queue_list.column("start", width=90)
         self.queue_list.column("end_seg1", width=90)
         self.queue_list.column("end_seg2", width=90)
@@ -1983,19 +2086,11 @@ class WhisperGUI:
         
         # Обновляем элементы интерфейса
         self.queue_header_label.config(text=t("queue_header"))
-        self.add_files_btn.config(text=t("add_files"))
-        self.add_directory_btn.config(text=t("add_directory"))
-        self.clear_queue_btn.config(text=t("clear_queue"))
-        self.archive_btn.config(text=t("archive_button"))
+        toolbar_icons.apply_static(self)
         try:
             capture_ui.refresh_capture_buttons(self)
         except Exception:
-            self.capture_btn.config(text=t("capture_start"))
-        try:
-            self.capture_clip_btn.config(text=t("capture_clip"))
-            self.capture_settings_btn.config(text=t("capture_settings"))
-        except Exception:
-            pass
+            toolbar_icons.apply_capture_state(self, running=False, paused=False)
         self.help_btn.config(text=t("help"))
         self.start_btn.config(text=t("start_transcription"))
         self.dev_f.config(text=t("device_label"))
@@ -2026,6 +2121,7 @@ class WhisperGUI:
         self.cancel_btn.config(text=t("cancel"))
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
+        self.queue_list.heading("note", text=t("col_note"))
         self.queue_list.heading("start", text=t("col_start"))
         self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
         self.queue_list.heading("end_seg2", text=t("col_end_seg2"))

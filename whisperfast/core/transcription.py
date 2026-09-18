@@ -218,6 +218,11 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                 continue
             name = os.path.basename(path)
             file_id = _reuse_or_begin_file_log(app, path, name=name, current=done + 1, total=to_do)
+            note = (row.get("note") or "").strip()
+            if note:
+                apply_note = getattr(app, "apply_file_note", None)
+                if callable(apply_note):
+                    apply_note(file_id, note)
             if not os.path.isfile(path):
                 app.log_file_event(t("file_skipped", name=name), file_id=file_id)
                 app.end_file_log("skipped", file_id=file_id)

@@ -107,6 +107,7 @@ class LogStore:
             out.setdefault("status", "done")
             out.setdefault("events", [])
             out.setdefault("outputs", [])
+            out.setdefault("note", "")
             segs = out.get("segments")
             if not isinstance(segs, dict):
                 out["segments"] = {"count": 0, "last": []}
@@ -271,6 +272,7 @@ class LogStore:
         name: Optional[str] = None,
         current: Optional[int] = None,
         total: Optional[int] = None,
+        note: Optional[str] = None,
     ) -> Dict[str, Any]:
         day_key = today_key()
         src = os.path.abspath(source) if source else ""
@@ -281,6 +283,7 @@ class LogStore:
             "ts_end": None,
             "source": src,
             "name": name or (os.path.basename(src) if src else ""),
+            "note": (note or "").strip(),
             "status": "running",
             "index": None,
             "events": [],

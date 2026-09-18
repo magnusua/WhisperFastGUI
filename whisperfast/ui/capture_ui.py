@@ -36,6 +36,7 @@ from whisperfast.core.capture_names import format_clip_seconds, parse_clip_secon
 from whisperfast.core.capture_prefs import enabled_auto_apps
 from whisperfast.core.ipc_cmd import take_command
 from whisperfast.i18n import t
+from whisperfast.ui import toolbar_icons
 
 _machine = AutoRecordMachine()
 _poll_started = False
@@ -111,12 +112,35 @@ def save_clip(app) -> None:
     elapsed = session.elapsed_seconds()
     if elapsed > 0:
         requested = min(requested, max(1, int(elapsed)))
+    duration = format_clip_seconds(requested)
+    log = getattr(app, "log", None)
+    if callable(log):
+        log(t("capture_clip_saving", duration=duration))
     try:
         wav = session.copy_last_seconds(float(requested))
     except Exception as e:
+        if callable(log):
+            log(t("capture_clip_failed"))
         messagebox.showerror(t("capture_title"), str(e), parent=app.root)
         return
-    _finalize_and_enqueue(app, wav, settings, is_clip=True)
+    final = _finalize_and_enqueue(app, wav, settings, is_clip=True)
+    _log_clip_result(app, session, final, duration)
+
+
+def _log_clip_result(app, session, path: str, duration: str) -> None:
+    """Always write clip outcome into the main log window (and the live recording)."""
+    log = getattr(app, "log", None)
+    if not path or not os.path.isfile(path):
+        if callable(log):
+            log(t("capture_clip_failed"))
+        return
+    abs_path = os.path.abspath(path)
+    msg = t("capture_clip_saved", path=abs_path, duration=duration)
+    if callable(log):
+        log(msg, "link")
+    parent_id = getattr(session, "log_file_id", None) or ""
+    if parent_id:
+        _capture_logger(app, parent_id)(msg)
 
 
 def recover_interrupted_captures(app) -> None:
@@ -150,7 +174,10 @@ def _capture_logger(app, file_id: str = ""):
 
 
 def _log_capture_file(app, path: str, event_key: str) -> str:
-    """File-session for a recording so the path is a clickable log link (open / folder)."""
+    """File-session for a recording so the path is a clickable log link (open / folder).
+
+    Uses the log panel only — does not create an archive job until transcription.
+    """
     if not path:
         return ""
     abs_path = os.path.abspath(path)
@@ -158,6 +185,15 @@ def _log_capture_file(app, path: str, event_key: str) -> str:
     finder = getattr(app, "find_file_log_id", None)
     if callable(finder):
         file_id = finder(abs_path) or ""
+    panel = getattr(app, "log_panel", None)
+    if not file_id and panel is not None and hasattr(panel, "begin_file"):
+        file_id = panel.begin_file(abs_path, name=os.path.basename(abs_path)) or ""
+        if file_id:
+            panel.log_file_event(t(event_key, path=abs_path), file_id=file_id)
+            add = getattr(panel, "add_file_output", None)
+            if callable(add):
+                add("source", abs_path, file_id=file_id)
+            return str(file_id)
     if not file_id and hasattr(app, "begin_file_log"):
         file_id = app.begin_file_log(abs_path, name=os.path.basename(abs_path)) or ""
     if file_id:
@@ -174,6 +210,15 @@ def _update_capture_log(app, file_id: str, path: str, event_key: str) -> None:
     if not path:
         return
     abs_path = os.path.abspath(path)
+    panel = getattr(app, "log_panel", None)
+    if file_id and panel is not None:
+        if hasattr(panel, "set_file_source"):
+            panel.set_file_source(abs_path, file_id=file_id)
+        add = getattr(panel, "add_file_output", None)
+        if callable(add):
+            add("source", abs_path, file_id=file_id)
+        panel.log_file_event(t(event_key, path=abs_path), file_id=file_id)
+        return
     if file_id and hasattr(app, "set_file_source"):
         try:
             app.set_file_source(file_id, abs_path, reindex=False)
@@ -282,6 +327,7 @@ def _start_session(app, trigger: str) -> None:
         messagebox.showerror(t("capture_title"), str(e), parent=app.root)
         return
     session.log_file_id = _log_capture_file(app, path or session.path, "capture_started")
+    session.set_log(_capture_logger(app, session.log_file_id))
     refresh_capture_buttons(app)
     if settings.get("live_preview_enabled"):
         try:
@@ -318,9 +364,13 @@ def _stop_and_enqueue(app, session) -> None:
 def _finalize_and_enqueue(app, wav_path: str, settings: dict, is_clip: bool, log_file_id: str = "") -> str:
     if not wav_path or not os.path.isfile(wav_path):
         return ""
-    apps = enabled_auto_apps(settings)
-    custom = parse_custom_exes(str(settings.get("auto_record_custom_exes") or ""))
-    win = meeting_window_title(apps, custom, fallback="FTW")
+    win = "FTW"
+    try:
+        apps = enabled_auto_apps(settings)
+        custom = parse_custom_exes(str(settings.get("auto_record_custom_exes") or ""))
+        win = meeting_window_title(apps, custom, fallback="FTW") or "FTW"
+    except Exception:
+        win = "FTW"
     cal = ""
     session = get_capture_session()
     if settings.get("capture_filename_use_calendar"):
@@ -373,31 +423,17 @@ def refresh_capture_buttons(app) -> None:
     session = get_capture_session()
     running = session.running
     paused = session.paused
-    btn = getattr(app, "capture_btn", None)
     pause_btn = getattr(app, "capture_pause_btn", None)
     clip_btn = getattr(app, "capture_clip_btn", None)
-    settings_btn = getattr(app, "capture_settings_btn", None)
-    if btn is not None:
-        try:
-            btn.config(text=t("capture_stop") if running else t("capture_start"))
-        except tk.TclError:
-            pass
+    toolbar_icons.apply_capture_state(app, running, paused)
     if pause_btn is not None:
         try:
-            pause_btn.config(
-                text=t("capture_resume") if paused else t("capture_pause"),
-                state=("normal" if running else "disabled"),
-            )
+            pause_btn.config(state=("normal" if running else "disabled"))
         except tk.TclError:
             pass
     if clip_btn is not None:
         try:
             clip_btn.config(state=("normal" if running else "disabled"))
-        except tk.TclError:
-            pass
-    if settings_btn is not None:
-        try:
-            settings_btn.config(text=t("capture_settings"))
         except tk.TclError:
             pass
     clip_entry = getattr(app, "capture_clip_entry", None)

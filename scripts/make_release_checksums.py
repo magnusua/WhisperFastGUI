@@ -37,6 +37,7 @@ EXCLUDE_DIR_NAMES = frozenset(
         "dist",
         "captures",
         "downloads",
+        ".pytest_cache",
     }
 )
 EXCLUDE_FILE_NAMES = frozenset(

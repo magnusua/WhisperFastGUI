@@ -22,8 +22,9 @@ from whisperfast.i18n import t
 from whisperfast.core.input_files import add_files_to_queue_controller, is_valid_file
 from whisperfast.utils import (
     make_queue_item,
-    normalize_queue_path,
     normalize_display_path,
+    normalize_queue_path,
+    queue_tree_values,
 )
 
 # --- Константи слідкування ---
@@ -351,6 +352,7 @@ class QueueController:
                 if not path or not os.path.isfile(path):
                     continue
                 overrides = {
+                    "note": item.get("note") or "",
                     "start": item.get("start") or DEFAULT_START_TIMESTAMP,
                     "end_segment_1": item.get("end_segment_1") or "",
                     "end_segment_2": item.get("end_segment_2") or "",
@@ -369,6 +371,7 @@ class QueueController:
             data = [
                 {
                     "path": q["path"],
+                    "note": q.get("note") or "",
                     "start": q["start"],
                     "end_segment_1": q.get("end_segment_1", ""),
                     "end_segment_2": q.get("end_segment_2", ""),
@@ -404,21 +407,11 @@ class QueueController:
             return
         self.queue_list.delete(*self.queue_list.get_children())
         for i, q in enumerate(self.queue):
-            name = os.path.basename(q["path"])
-            status_text = t("status_processed") if q.get("processed") else t("status_not_processed")
             self.queue_list.insert(
                 "",
                 "end",
                 iid=str(i),
-                values=(
-                    i + 1,
-                    name,
-                    q["start"],
-                    q.get("end_segment_1", ""),
-                    q.get("end_segment_2", ""),
-                    q["end"],
-                    status_text,
-                ),
+                values=queue_tree_values(i + 1, q),
             )
 
     def _update_treeview_row(self, idx: int) -> None:
@@ -440,18 +433,9 @@ class QueueController:
             self.refresh_treeview()
             return
         q = self.queue[idx]
-        status_text = t("status_processed") if q.get("processed") else t("status_not_processed")
         self.queue_list.item(
             iid,
-            values=(
-                idx + 1,
-                os.path.basename(q["path"]),
-                q["start"],
-                q.get("end_segment_1", ""),
-                q.get("end_segment_2", ""),
-                q["end"],
-                status_text,
-            ),
+            values=queue_tree_values(idx + 1, q),
         )
 
     # --- Mutations ---
@@ -552,6 +536,10 @@ class QueueController:
 
     def update_row(self, idx, **fields):
         if 0 <= idx < len(self.queue):
+            if "note" in fields:
+                from whisperfast.utils import normalize_queue_note
+
+                fields["note"] = normalize_queue_note(fields.get("note"))
             self.queue[idx].update(fields)
             self._update_treeview_row(idx)
             self.schedule_save()

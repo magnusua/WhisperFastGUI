@@ -143,6 +143,14 @@ def foreground_window() -> dict:
     return {"title": buf.value or "FTW", "exe": exe, "pid": int(pid.value), "hwnd": int(hwnd)}
 
 
+class RenderingNames(set):
+    """Exe names plus session display names. A plain set cannot hold attributes."""
+
+    def __init__(self, exes=(), display_names=()):
+        super().__init__(exes)
+        self.display_names = set(display_names or ())
+
+
 def pycaw_rendering_exes() -> Set[str]:
     """Process names that currently render audio (optional pycaw)."""
     names: Set[str] = set()
@@ -150,11 +158,11 @@ def pycaw_rendering_exes() -> Set[str]:
     try:
         from pycaw.pycaw import AudioUtilities  # type: ignore
     except ImportError:
-        return names
+        return RenderingNames()
     try:
         sessions = AudioUtilities.GetAllSessions()
     except Exception:
-        return names
+        return RenderingNames()
     for session in sessions or []:
         try:
             vol = session.SimpleAudioVolume
@@ -176,10 +184,7 @@ def pycaw_rendering_exes() -> Set[str]:
                 display.add(dn.casefold())
         except Exception:
             pass
-    # stash display names on the set via attribute for callers
-    names_with = names
-    names_with.display_names = display  # type: ignore[attr-defined]
-    return names_with
+    return RenderingNames(names, display)
 
 
 def _title_matches(title: str, needles: Iterable[str]) -> bool:

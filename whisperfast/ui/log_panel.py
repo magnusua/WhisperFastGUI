@@ -115,8 +115,8 @@ class LogPanel:
 
     # --- File sessions -------------------------------------------------------
 
-    def begin_file(self, source, name=None, current=None, total=None):
-        entry = self._store.begin_file(source, name=name, current=current, total=total)
+    def begin_file(self, source, name=None, current=None, total=None, note=None):
+        entry = self._store.begin_file(source, name=name, current=current, total=total, note=note)
         file_id = entry["id"]
         self._active_file_id = file_id
 
@@ -133,6 +133,23 @@ class LogPanel:
         if file_id:
             self._active_file_id = file_id
         return file_id
+
+    def set_file_note(self, file_id, note):
+        """Update the file-session brief shown next to the filename in the log."""
+        text = (note or "").strip()
+        fid = file_id or self._active_file_id
+        if not fid:
+            return None
+        entry = self._store.update_file(fid, lambda e: e.__setitem__("note", text))
+        if not entry:
+            return None
+
+        def _do():
+            self._render_file_entry(entry, insert_new=False)
+            self._scroll_to_end_if_today()
+
+        self.root.after(0, _do)
+        return entry
 
     def find_file_id_for_path(self, path):
         entry = self._store.find_file_by_output(path) or self._store.find_file_by_source(path)
@@ -912,6 +929,8 @@ class LogPanel:
         if status_label == status_key:
             status_label = status
         mark = "▼" if expanded else "▶"
+        note = (entry.get("note") or "").strip()
+        note_part = f" — {note}" if note else ""
         if current is not None and total is not None:
             title = t(
                 "log_file_header_indexed",
@@ -919,6 +938,7 @@ class LogPanel:
                 current=current,
                 total=total,
                 name=name,
+                note=note_part,
                 status=status_label,
             )
         else:
@@ -926,6 +946,7 @@ class LogPanel:
                 "log_file_header",
                 mark=mark,
                 name=name,
+                note=note_part,
                 status=status_label,
             )
         return title + "\n"

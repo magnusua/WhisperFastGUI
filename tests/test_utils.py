@@ -7,8 +7,10 @@ from whisperfast.config import DEFAULT_START_TIMESTAMP, QUEUE_ITEM_KEYS
 from whisperfast.utils import (
     format_timestamp,
     make_queue_item,
+    normalize_queue_note,
     normalize_queue_path,
     parse_timestamp_to_seconds,
+    queue_tree_values,
 )
 
 
@@ -77,6 +79,7 @@ class TestMakeQueueItem(unittest.TestCase):
         self.assertEqual(item["end"], DEFAULT_START_TIMESTAMP)
         self.assertEqual(item["end_segment_1"], "")
         self.assertEqual(item["end_segment_2"], "")
+        self.assertEqual(item["note"], "")
         self.assertFalse(item["processed"])
 
     def test_duration_sets_end_timestamp(self):
@@ -94,6 +97,50 @@ class TestMakeQueueItem(unittest.TestCase):
         self.assertEqual(item["start"], "00:00:01,000")
         self.assertTrue(item["processed"])
         self.assertEqual(item["end"], format_timestamp(10.0))
+
+    def test_note_is_normalized(self):
+        with patch("whisperfast.utils.get_audio_duration_seconds", return_value=0.0):
+            item = make_queue_item("clip.mp3", note="  hello   world  \n")
+        self.assertEqual(item["note"], "hello world")
+        self.assertEqual(normalize_queue_note("  a\tb  "), "a b")
+        self.assertEqual(len(normalize_queue_note("x" * 250)), 200)
+
+    def test_queue_tree_values_puts_note_after_filename(self):
+        with patch("whisperfast.utils.get_audio_duration_seconds", return_value=0.0):
+            item = make_queue_item("folder/talk.mp4", note="sales call")
+        values = queue_tree_values(3, item)
+        self.assertEqual(values[0], 3)
+        self.assertEqual(values[1], "talk.mp4")
+        self.assertEqual(values[2], "sales call")
+
+
+class TestLogFileNoteHeader(unittest.TestCase):
+    def test_header_includes_note_next_to_filename(self):
+        from whisperfast.ui.log_panel import LogPanel
+
+        line = LogPanel._format_file_header_line(
+            None,
+            {
+                "name": "Video.mp4",
+                "status": "done",
+                "note": "sales call",
+                "index": {"current": 1, "total": 1},
+            },
+            True,
+        )
+        self.assertIn("Video.mp4", line)
+        self.assertIn(" — sales call", line)
+
+    def test_header_omits_note_when_empty(self):
+        from whisperfast.ui.log_panel import LogPanel
+
+        line = LogPanel._format_file_header_line(
+            None,
+            {"name": "Video.mp4", "status": "done", "note": ""},
+            True,
+        )
+        self.assertIn("Video.mp4", line)
+        self.assertNotIn(" — ", line)
 
 
 if __name__ == "__main__":

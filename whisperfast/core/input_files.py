@@ -19,7 +19,7 @@ from whisperfast.config import (
 )
 
 from whisperfast.i18n import t
-from whisperfast.utils import make_queue_item, normalize_queue_path
+from whisperfast.utils import make_queue_item, normalize_queue_path, queue_tree_values
 
 
 def get_file_dialog_filetypes():
@@ -203,7 +203,7 @@ def get_valid_files_from_directory(directory, recursive=True):
 def add_files_to_queue_controller(file_paths, queue, queue_list_or_treeview, log_func=None):
     """
     Универсальный контроллер для добавления файлов в очередь.
-    queue — список dict с ключами path, start, end_segment_1, end_segment_2, end.
+    queue — список dict с ключами path, note, start, end_segment_1, end_segment_2, end.
     queue_list_or_treeview — Treeview: добавляем строки через .insert().
     Возвращает (added_count, skipped_count), изменяет queue и виджет.
     """
@@ -219,9 +219,7 @@ def add_files_to_queue_controller(file_paths, queue, queue_list_or_treeview, log
         item = make_queue_item(path_norm)
         queue.append(item)
         num = len(queue)
-        name = os.path.basename(file_path)
-        status_text = t("status_not_processed")
-        values = (num, name, item["start"], item["end_segment_1"], item["end_segment_2"], item["end"], status_text)
+        values = queue_tree_values(num, item)
         if queue_list_or_treeview is not None:
             try:
                 queue_list_or_treeview.insert("", "end", iid=str(num - 1), values=values)

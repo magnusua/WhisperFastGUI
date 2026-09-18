@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "2.0.1",
+      "date": "18.09.2026",
+      "notes": {
+        "EN": [
+          "Toolbar buttons use pictograms (labels stay in tooltips). Capture settings sit left of Record, after a | separator.",
+          "Stop puts the recording in the processing queue (not Archive first). Successful Opus/AAC/MP3 encode drops the draft WAV. Loopback fallback is logged; saving a clip appears in the work log.",
+          "A Brief column next to the file name in the queue shows in the work log and in Archive. The one_liner prompt fills Brief only when it is still empty."
+        ],
+        "UK": [
+          "Кнопки в шапці — піктограми (підписи в підказках). Налаштування запису ліворуч від «Запис», перед ними розділювач |.",
+          "Stop додає запис у чергу обробки (не одразу в архів). Після успішного Opus/AAC/MP3 чорновий WAV прибирається. Збій loopback пишеться в лог; уривок видно в логу роботи.",
+          "Колонка «Коротко» поруч із назвою файлу в черзі потрапляє в лог і в архів. Промпт one_liner заповнює поле, лише якщо воно порожнє."
+        ],
+        "RU": [
+          "Кнопки в шапке — пиктограммы (подписи в подсказках). Настройки записи слева от «Запись», перед ними разделитель |.",
+          "Stop ставит запись в очередь обработки (не сразу в архив). После успешного Opus/AAC/MP3 черновой WAV удаляется. Сбой loopback пишется в лог; урывок виден в логе работы.",
+          "Колонка «Кратко» рядом с именем файла в очереди попадает в лог и в архив. Промпт one_liner заполняет поле, только если оно пустое."
+        ]
+      }
+    },
+    {
       "version": "2.0.0",
       "date": "18.09.2026",
       "notes": {

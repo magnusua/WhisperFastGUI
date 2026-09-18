@@ -515,11 +515,16 @@ class AiJobQueue:
                         with open(path, "r", encoding="utf-8", errors="replace") as f:
                             summary = f.read().strip().splitlines()[0][:200]
                         lib = getattr(app, "library", None)
-                        if lib and summary:
+                        applied = False
+                        setter = getattr(lib, "set_summary_if_empty", None) if lib else None
+                        if callable(setter) and summary:
+                            applied = bool(setter(file_id, summary))
+                        elif lib and summary:
                             lib.set_meta(file_id, summary=summary)
+                            applied = True
                         txt_p = job.get("txt_path") or txt_path
                         folder = os.path.dirname(txt_p) if txt_p else ""
-                        if folder:
+                        if folder and applied:
                             from whisperfast.core.session_store import write_summary
 
                             write_summary(folder, summary)

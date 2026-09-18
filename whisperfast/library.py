@@ -282,6 +282,19 @@ class ConversationLibrary:
             job["status"] = status
         self.upsert_job(job, reindex=reindex)
 
+    def set_summary_if_empty(self, job_id: str, summary: str, *, reindex: bool = True) -> bool:
+        """Fill archive «Кратко» only when the user has not already typed a note."""
+        text = (summary or "").strip()
+        if not job_id or not text:
+            return False
+        job = self.get_job(job_id)
+        if not job:
+            return False
+        if (job.get("summary") or "").strip():
+            return False
+        self.set_meta(job_id, summary=text, reindex=reindex)
+        return True
+
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         if not job_id:
             return None

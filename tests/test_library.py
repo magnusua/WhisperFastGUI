@@ -45,6 +45,28 @@ class TestConversationLibrary(unittest.TestCase):
         self.assertFalse(os.path.isfile(self.txt))
         self.assertIsNone(self.lib.get_job("abc"))
 
+    def test_set_summary_if_empty_does_not_overwrite(self):
+        self.lib.upsert_job(
+            {
+                "id": "job1",
+                "created_at": "2026-09-18T12:00:00",
+                "name": "talk.mp3",
+                "summary": "typed by user",
+            }
+        )
+        self.assertFalse(self.lib.set_summary_if_empty("job1", "from one_liner"))
+        self.assertEqual(self.lib.get_job("job1")["summary"], "typed by user")
+        self.lib.upsert_job(
+            {
+                "id": "job2",
+                "created_at": "2026-09-18T12:00:00",
+                "name": "other.mp3",
+                "summary": "",
+            }
+        )
+        self.assertTrue(self.lib.set_summary_if_empty("job2", "from one_liner"))
+        self.assertEqual(self.lib.get_job("job2")["summary"], "from one_liner")
+
 
 if __name__ == "__main__":
     unittest.main()

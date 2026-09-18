@@ -62,7 +62,7 @@ WHISPER_MODELS = [
 # Значение по умолчанию для поля «Начало» в очереди
 DEFAULT_START_TIMESTAMP = "00:00:00,000"
 # Ключи элемента очереди (единая схема для gui и input_files)
-QUEUE_ITEM_KEYS = ("path", "start", "end_segment_1", "end_segment_2", "end", "processed")
+QUEUE_ITEM_KEYS = ("path", "note", "start", "end_segment_1", "end_segment_2", "end", "processed")
 # Интервалы обновления UI в process_queue (секунды)
 PROGRESS_UPDATE_INTERVAL_S = 0.1
 LOG_UPDATE_INTERVAL_S = 0.5

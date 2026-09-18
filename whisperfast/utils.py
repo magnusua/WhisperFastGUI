@@ -58,15 +58,38 @@ def normalize_queue_path(path):
     return os.path.normpath(path)
 
 
+def normalize_queue_note(text) -> str:
+    """One-line brief for the queue / log / archive (max 200 chars)."""
+    return " ".join(str(text or "").split())[:200]
+
+
+def queue_tree_values(num, item):
+    """Treeview row: #, filename, note, start, end seg 1/2, end, status."""
+    from whisperfast.i18n import t
+
+    status_text = t("status_processed") if item.get("processed") else t("status_not_processed")
+    return (
+        num,
+        os.path.basename(item.get("path") or ""),
+        normalize_queue_note(item.get("note")),
+        item.get("start") or "",
+        item.get("end_segment_1") or "",
+        item.get("end_segment_2") or "",
+        item.get("end") or "",
+        status_text,
+    )
+
+
 def make_queue_item(path, **overrides):
     """
-    Элемент очереди (dict) с полями path, start, end_segment_1, end_segment_2, end, processed.
+    Элемент очереди (dict) с полями path, note, start, end_segment_1, end_segment_2, end, processed.
     path должен быть уже нормализованной строкой. overrides подставляются поверх умолчаний.
     """
     duration = get_audio_duration_seconds(path) or 0.0
     end_ts = format_timestamp(duration) if duration > 0 else DEFAULT_START_TIMESTAMP
     item = {
         "path": path,
+        "note": "",
         "start": DEFAULT_START_TIMESTAMP,
         "end_segment_1": "",
         "end_segment_2": "",
@@ -74,6 +97,8 @@ def make_queue_item(path, **overrides):
         "processed": False,
     }
     item.update(overrides)
+    if "note" in item:
+        item["note"] = normalize_queue_note(item.get("note"))
     return item
 
 
