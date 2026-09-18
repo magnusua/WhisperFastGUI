@@ -15,6 +15,8 @@ DPAPI_PREFIX = "dpapi:"
 SECRET_SETTING_KEYS = (
     "cursor_api_key",
     "gemini_api_key",
+    "gemini_oauth_refresh_token",
+    "google_oauth_client_secret",
     "anthropic_api_key",
     "azure_openai_api_key",
     "openai_compatible_api_key",

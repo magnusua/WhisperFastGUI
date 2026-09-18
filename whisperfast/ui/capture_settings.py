@@ -41,11 +41,14 @@ def show_capture_settings_dialog(app):
     dialog = tk.Toplevel(app.root)
     dialog.title(t("capture_settings"))
     dialog.transient(app.root)
-    dialog.minsize(560, 480)
+    dialog.minsize(560, 420)
     dialog.geometry("640x560")
 
+    btns = ttk.Frame(dialog)
+    btns.pack(side="bottom", fill="x", padx=8, pady=8)
+
     nb = ttk.Notebook(dialog)
-    nb.pack(fill="both", expand=True, padx=8, pady=8)
+    nb.pack(fill="both", expand=True, padx=8, pady=(8, 0))
 
     vars_map = {}
 
@@ -239,7 +242,11 @@ def show_capture_settings_dialog(app):
             return
         gid.set(client_id)
         try:
-            session = GoogleLoopbackAuth(client_id, gsec.get().strip())
+            session = GoogleLoopbackAuth(
+                client_id,
+                gsec.get().strip(),
+                success_message="Google Calendar is connected. You can close this tab.",
+            )
             session.open_browser()
         except Exception as e:
             if "session" in locals():
@@ -465,9 +472,6 @@ def show_capture_settings_dialog(app):
         dialog.destroy()
         if getattr(app, "_capture_settings_window", None) is dialog:
             app._capture_settings_window = None
-
-    btns = ttk.Frame(dialog)
-    btns.pack(fill="x", padx=8, pady=(0, 8))
 
     def _on_close():
         _close_google_session()

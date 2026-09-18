@@ -87,7 +87,7 @@ FTW преобразует речь из аудио- и видеофайлов �
 Включите **В AI**, чтобы обрабатывать созданные `.txt` (после транскрибации) или `.md` (документы) с помощью промптов из каталога `promts/` (отдельный JSON на каждый промт).
 
 - Подпись **В AI** открывает список промтов. Галочка — выполнять по умолчанию; **Изменить** в строке открывает файл этого промта. Наведите на название, чтобы увидеть краткое описание.
-- **API keys** — одно окно для ключей Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama и OpenAI-compatible URL. **Проверить соединение** пингует выбранного провайдера. Закрытие через X не сохраняет изменения. На Windows ключи шифруются (DPAPI). Env имеет приоритет: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
+- **API keys** — одно окно для ключей Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama и OpenAI-compatible URL. **Войти в Gemini** открывает браузер и копирует URL авторизации (как Cursor Chat / Google Календарь). **Проверить соединение** пингует выбранного провайдера. Закрытие через X не сохраняет изменения. На Windows ключи шифруются (DPAPI). Env имеет приоритет: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
 
 После Whisper или конвертации документа в логе появляется кликабельное **Передаю в AI** и окно **Промты**:
 
@@ -99,7 +99,7 @@ FTW преобразует речь из аудио- и видеофайлов �
 | Интеграция | С ключом (API) | Без ключа (fallback) |
 |------------|----------------|----------------------|
 | **Cursor** | Cursor SDK, цепочка промптов | Cursor Chat + промпт в буфере |
-| **Gemini** | Google Generative Language API | Браузер gemini.google.com + буфер |
+| **Gemini** | Google Generative Language API или браузерный OAuth (Desktop + PKCE) | Браузер gemini.google.com + буфер |
 | **Claude** | Anthropic Messages API | Браузер claude.ai + буфер |
 | **Copilot** | Azure OpenAI (endpoint + key + deployment) | Браузер copilot.microsoft.com + буфер |
 | **Ollama** | Локальный демон, без ключа | Нужен запущенный Ollama |

@@ -370,14 +370,49 @@
     "RU": "Microsoft Copilot (Azure OpenAI)"
   },
   "gemini_api_key_prompt": {
-    "EN": "Gemini API key (Google AI Studio). Empty = open gemini.google.com with prompt in clipboard.",
-    "UK": "Gemini API ключ (Google AI Studio). Порожнє = відкрити gemini.google.com з промптом у буфері.",
-    "RU": "Gemini API ключ (Google AI Studio). Пусто = открыть gemini.google.com с промптом в буфере."
+    "EN": "Gemini API key (Google AI Studio). Empty = Sign in with Google below, or open gemini.google.com with the prompt on the clipboard.",
+    "UK": "Gemini API ключ (Google AI Studio). Порожнє = Увійти через Google нижче, або відкрити gemini.google.com з промптом у буфері.",
+    "RU": "Gemini API ключ (Google AI Studio). Пусто = Войти через Google ниже, или открыть gemini.google.com с промптом в буфере."
   },
   "gemini_model_label": {
     "EN": "Model:",
     "UK": "Модель:",
     "RU": "Модель:"
+  },
+  "gemini_oauth_hint": {
+    "EN": "Sign in opens the browser (your Google account is usually already there) and copies the auth URL, like Cursor Chat without an API key. Needs a Desktop OAuth client in the same Cloud project with Generative Language API, or FTW_GOOGLE_OAUTH_CLIENT_ID.",
+    "UK": "Увійти відкриває браузер (акаунт Google зазвичай уже там) і копіює URL авторизації, як Cursor Chat без API-ключа. Потрібен Desktop OAuth-клієнт у тому ж Cloud-проєкті з Generative Language API або змінна FTW_GOOGLE_OAUTH_CLIENT_ID.",
+    "RU": "Вход открывает браузер (аккаунт Google обычно уже там) и копирует URL авторизации, как Cursor Chat без API-ключа. Нужен Desktop OAuth-клиент в том же Cloud-проекте с Generative Language API или переменная FTW_GOOGLE_OAUTH_CLIENT_ID."
+  },
+  "gemini_oauth_project": {
+    "EN": "GCP project ID (optional, x-goog-user-project)",
+    "UK": "GCP project ID (необов’язково, x-goog-user-project)",
+    "RU": "GCP project ID (необязательно, x-goog-user-project)"
+  },
+  "gemini_oauth_login": {
+    "EN": "Sign in to Gemini",
+    "UK": "Увійти в Gemini",
+    "RU": "Войти в Gemini"
+  },
+  "gemini_oauth_need_client": {
+    "EN": "Create a Desktop OAuth client in Google Cloud, enable Generative Language API, paste the Client ID here, then Sign in again. Redirect http://127.0.0.1 is already copied. You can also set {env}.",
+    "UK": "Створіть Desktop OAuth-клієнт у Google Cloud, увімкніть Generative Language API, вставте Client ID сюди й натисніть Увійти ще раз. Redirect http://127.0.0.1 уже в буфері. Або задайте {env}.",
+    "RU": "Создайте Desktop OAuth-клиент в Google Cloud, включите Generative Language API, вставьте Client ID сюда и нажмите Войти ещё раз. Redirect http://127.0.0.1 уже в буфере. Или задайте {env}."
+  },
+  "gemini_oauth_ok": {
+    "EN": "Gemini connected as {email}.",
+    "UK": "Gemini підключено як {email}.",
+    "RU": "Gemini подключён как {email}."
+  },
+  "gemini_oauth_waiting": {
+    "EN": "Waiting for Google in the browser… Auth URL copied to the clipboard.",
+    "UK": "Чекаємо Google у браузері… URL авторизації скопійовано.",
+    "RU": "Ждём Google в браузере… URL авторизации скопирован."
+  },
+  "gemini_oauth_signed_in": {
+    "EN": "Signed in as {email}.",
+    "UK": "Увійшли як {email}.",
+    "RU": "Вход выполнен: {email}."
   },
   "claude_api_key_prompt": {
     "EN": "Anthropic API key (console.anthropic.com). Empty = open claude.ai with prompt in clipboard.",
@@ -1543,6 +1578,21 @@
     "EN": "   Could not extract {tool} from the archive.",
     "UK": "   Не вдалося розпакувати {tool} з архіву.",
     "RU": "   Не удалось распаковать {tool} из архива."
+  },
+  "external_tool_size_mismatch": {
+    "EN": "   Download size mismatch for {tool} (expected {expected}, got {actual}) — aborting.",
+    "UK": "   Розмір завантаженого {tool} не збігається (очікували {expected}, отримали {actual}) — скасовано.",
+    "RU": "   Размер загруженного {tool} не совпадает (ожидали {expected}, получили {actual}) — отменено."
+  },
+  "external_tool_hash_changed": {
+    "EN": "   ⚠ {tool} asset for this release changed since it was last installed (SHA-256 mismatch) — aborting for safety.",
+    "UK": "   ⚠ Файл {tool} цього релізу змінився з моменту попереднього встановлення (не збігається SHA-256) — зупинено з міркувань безпеки.",
+    "RU": "   ⚠ Файл {tool} этого релиза изменился с момента предыдущей установки (не совпадает SHA-256) — остановлено из соображений безопасности."
+  },
+  "external_tool_hash_recorded": {
+    "EN": "   {tool} SHA-256: {hash}",
+    "UK": "   {tool} SHA-256: {hash}",
+    "RU": "   {tool} SHA-256: {hash}"
   },
   "external_tool_local_ok": {
     "EN": "   {tool} saved to {path}",

@@ -114,10 +114,11 @@ def finalize_source_after_processing(app, source_path: str, output_dir: str, fil
         except Exception:
             pass
 
+    # end_file_log() reindexes once after all of this job's outputs are set.
     if hasattr(app, "set_file_source") and file_id:
-        app.set_file_source(file_id, final)
+        app.set_file_source(file_id, final, reindex=False)
     if hasattr(app, "add_file_output") and file_id:
-        app.add_file_output("source", final, file_id=file_id)
+        app.add_file_output("source", final, file_id=file_id, reindex=False)
 
     try:
         if hasattr(app, "queue_ctrl"):

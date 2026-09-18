@@ -87,7 +87,7 @@ If another task is running, new files wait in the queue and start automatically 
 Enable **To AI** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from the `promts/` folder (one JSON file each).
 
 - The **To AI** label opens the prompt list. A check mark means the prompt runs by default; **Edit** on a row opens that prompt file. Hover a name for a short description.
-- **API keys** opens one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
+- **API keys** opens one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Sign in to Gemini** opens the browser and copies the auth URL (same pattern as Cursor Chat / Google Calendar). **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
 
 After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens (unless an auto-run rule matches):
 
@@ -99,7 +99,7 @@ After Whisper or document conversion, the log shows a clickable **Send to AI** l
 | Integration | With API key | Without key (fallback) |
 |-------------|--------------|------------------------|
 | **Cursor** | Cursor SDK, prompt chain | Cursor Chat + prompt on clipboard |
-| **Gemini** | Google Generative Language API | Browser gemini.google.com + clipboard |
+| **Gemini** | Google Generative Language API, or browser OAuth (Desktop client + PKCE) | Browser gemini.google.com + clipboard |
 | **Claude** | Anthropic Messages API | Browser claude.ai + clipboard |
 | **Copilot** | Azure OpenAI (endpoint + key + deployment) | Browser copilot.microsoft.com + clipboard |
 | **Ollama** | Local daemon, no key | Needs Ollama running |

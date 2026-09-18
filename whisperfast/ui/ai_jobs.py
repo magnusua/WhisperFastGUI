@@ -28,6 +28,10 @@ from whisperfast.utils import play_finish_sound
 _PROMPT_CASCADE_DX = 28
 _PROMPT_CASCADE_DY = 28
 
+# Верхня межа self._jobs у довгій tray-сесії; звільняємо найстаріші
+# завершені job, щойно поріг перевищено (running/selecting/open-dialog не чіпаємо).
+_MAX_RETAINED_JOBS = 2000
+
 
 class AiJobQueue:
     """Оркестрація AI після TXT/MD: діалог промптів на кожен файл, finish hooks."""
@@ -125,6 +129,26 @@ class AiJobQueue:
             )
             if not will_continue:
                 play_finish_sound()
+        self._prune_old_jobs()
+
+    def _prune_old_jobs(self):
+        """Evict the oldest resolved jobs once self._jobs exceeds _MAX_RETAINED_JOBS.
+
+        Only "done"/"skipped" jobs with no open dialog are eligible, so this
+        never touches a job the user could still be actively interacting with.
+        """
+        excess = len(self._jobs) - _MAX_RETAINED_JOBS
+        if excess <= 0:
+            return
+        for job_id, job in list(self._jobs.items()):
+            if excess <= 0:
+                break
+            if job.get("status") not in ("done", "skipped"):
+                continue
+            if job.get("dialog") is not None or job_id in self._open_prompt_job_ids:
+                continue
+            del self._jobs[job_id]
+            excess -= 1
 
     def register_job(self, txt_path, export_md_to_docx=None, log_file_id=None):
         """Створює pending AI-job без логу/діалогу. Повертає job_id."""
@@ -329,6 +353,29 @@ class AiJobQueue:
             "cursor_api_key": (app.cursor_api_key.get() or "").strip(),
             "gemini_api_key": (app.gemini_api_key.get() or "").strip(),
             "gemini_model": (app.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "gemini_oauth_refresh_token": (
+                getattr(app, "gemini_oauth_refresh_token", None) and app.gemini_oauth_refresh_token.get() or ""
+            ).strip(),
+            "gemini_oauth_email": (
+                getattr(app, "gemini_oauth_email", None) and app.gemini_oauth_email.get() or ""
+            ).strip(),
+            "google_oauth_client_id": (
+                getattr(app, "google_oauth_client_id", None) and app.google_oauth_client_id.get() or ""
+            ).strip()
+            or str((getattr(app, "capture_cfg", None) or {}).get("google_calendar_client_id") or "").strip(),
+            "google_oauth_client_secret": (
+                getattr(app, "google_oauth_client_secret", None) and app.google_oauth_client_secret.get() or ""
+            ).strip()
+            or str((getattr(app, "capture_cfg", None) or {}).get("google_calendar_client_secret") or "").strip(),
+            "google_calendar_client_id": str(
+                (getattr(app, "capture_cfg", None) or {}).get("google_calendar_client_id") or ""
+            ).strip(),
+            "google_calendar_client_secret": str(
+                (getattr(app, "capture_cfg", None) or {}).get("google_calendar_client_secret") or ""
+            ).strip(),
+            "google_cloud_project_id": (
+                getattr(app, "google_cloud_project_id", None) and app.google_cloud_project_id.get() or ""
+            ).strip(),
             "anthropic_api_key": (app.anthropic_api_key.get() or "").strip(),
             "claude_model": (app.claude_model.get() or "").strip() or "claude-sonnet-4-5",
             "azure_openai_endpoint": (app.azure_openai_endpoint.get() or "").strip(),

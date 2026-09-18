@@ -49,7 +49,7 @@ class FakeHost:
     def end_file_log(self, status, error=None, file_id=None):
         self.ended.append((status, error, file_id))
 
-    def add_file_output(self, role, path, label=None, file_id=None):
+    def add_file_output(self, role, path, label=None, file_id=None, reindex=True):
         pass
 
     def set_file_prompt_callback(self, file_id, callback):
@@ -58,7 +58,7 @@ class FakeHost:
     def set_file_retry_callback(self, file_id, callback):
         pass
 
-    def set_file_source(self, file_id, path):
+    def set_file_source(self, file_id, path, reindex=True):
         pass
 
     def ask_save_mp3_confirm(self, filename):

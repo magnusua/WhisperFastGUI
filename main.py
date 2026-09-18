@@ -9,7 +9,7 @@ warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
 # Импортируем только то, что гарантированно есть в стандартной поставке Python
 from tkinter import messagebox
 from whisperfast.setup.installer import install_dependencies, ensure_audioop_shim, needs_pyaudioop
-from whisperfast.i18n import t, set_language
+from whisperfast.i18n import t
 
 
 def on_app_closing(root, app=None, WhisperModelSingleton=None):
@@ -38,7 +38,7 @@ def main():
         return
 
     # Перший запуск: вибір Python серед встановлених версій → settings.json → за потреби re-exec
-    from whisperfast.setup.python_selector import ensure_preferred_python, _to_python_exe
+    from whisperfast.setup.python_selector import ensure_preferred_python
     ensure_preferred_python()
 
     # Один екземпляр (після можливого re-exec Python)

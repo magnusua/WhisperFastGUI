@@ -1,9 +1,16 @@
 """Speakers, filename tokens, ICS, auto-record machine, echo filter, clips (no hardware)."""
+import io
+import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 import wave
 from datetime import datetime, timezone
+from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.parse import parse_qs
 
 from whisperfast.core.auto_record import (
     START_AUTO,
@@ -420,6 +427,232 @@ class TestGoogleBrowserOAuth(unittest.TestCase):
         clear_google_session(settings)
         self.assertEqual(settings.get("google_calendar_refresh_token"), "")
         self.assertEqual(settings.get("google_calendar_email"), "")
+
+
+class _FakeUrlopenResponse:
+    """Minimal stand-in for the context manager urlopen() returns."""
+
+    def __init__(self, payload: bytes):
+        self._payload = payload
+
+    def read(self):
+        return self._payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class TestGoogleTokenExchange(unittest.TestCase):
+    """whisperfast.core.google_oauth: token exchange/refresh/email, incl. error parsing."""
+
+    def test_exchange_google_code_posts_expected_fields(self):
+        from whisperfast.core import google_oauth
+
+        captured = {}
+
+        def fake_urlopen(req, timeout=20):
+            captured["url"] = req.full_url
+            captured["body"] = req.data
+            return _FakeUrlopenResponse(json.dumps({"access_token": "tok123"}).encode())
+
+        with patch.object(google_oauth, "urlopen", side_effect=fake_urlopen):
+            token = google_oauth.exchange_google_code(
+                "cid", "secret", "authcode", "http://127.0.0.1:9/", code_verifier="verifier123"
+            )
+        self.assertEqual(token.get("access_token"), "tok123")
+        self.assertEqual(captured["url"], google_oauth.GOOGLE_TOKEN_URL)
+        posted = parse_qs(captured["body"].decode("utf-8"))
+        self.assertEqual(posted["code"], ["authcode"])
+        self.assertEqual(posted["client_id"], ["cid"])
+        self.assertEqual(posted["client_secret"], ["secret"])
+        self.assertEqual(posted["code_verifier"], ["verifier123"])
+        self.assertEqual(posted["grant_type"], ["authorization_code"])
+
+    def test_refresh_google_token_posts_refresh_grant(self):
+        from whisperfast.core import google_oauth
+
+        captured = {}
+
+        def fake_urlopen(req, timeout=20):
+            captured["body"] = req.data
+            return _FakeUrlopenResponse(json.dumps({"access_token": "newtok"}).encode())
+
+        with patch.object(google_oauth, "urlopen", side_effect=fake_urlopen):
+            token = google_oauth.refresh_google_token("cid", "", "refresh-abc")
+        self.assertEqual(token.get("access_token"), "newtok")
+        posted = parse_qs(captured["body"].decode("utf-8"))
+        self.assertEqual(posted["grant_type"], ["refresh_token"])
+        self.assertEqual(posted["refresh_token"], ["refresh-abc"])
+        self.assertNotIn("client_secret", posted)
+
+    def test_token_request_http_error_extracts_description(self):
+        from whisperfast.core import google_oauth
+
+        err_body = json.dumps(
+            {"error": "invalid_grant", "error_description": "Bad refresh token"}
+        ).encode()
+        http_err = HTTPError(
+            url=google_oauth.GOOGLE_TOKEN_URL,
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(err_body),
+        )
+        with patch.object(google_oauth, "urlopen", side_effect=http_err):
+            with self.assertRaises(RuntimeError) as ctx:
+                google_oauth.refresh_google_token("cid", "", "bad-refresh")
+        self.assertIn("Bad refresh token", str(ctx.exception))
+
+    def test_token_request_non_http_error_falls_back_to_str(self):
+        from whisperfast.core import google_oauth
+
+        with patch.object(google_oauth, "urlopen", side_effect=OSError("network unreachable")):
+            with self.assertRaises(RuntimeError) as ctx:
+                google_oauth.refresh_google_token("cid", "", "refresh-abc")
+        self.assertIn("network unreachable", str(ctx.exception))
+
+    def test_fetch_google_email_success_and_failure(self):
+        from whisperfast.core import google_oauth
+
+        with patch.object(
+            google_oauth,
+            "urlopen",
+            return_value=_FakeUrlopenResponse(json.dumps({"email": "user@example.com"}).encode()),
+        ):
+            self.assertEqual(google_oauth.fetch_google_email("tok"), "user@example.com")
+
+        with patch.object(google_oauth, "urlopen", side_effect=OSError("down")):
+            self.assertEqual(google_oauth.fetch_google_email("tok"), "")
+
+        self.assertEqual(google_oauth.fetch_google_email(""), "")
+
+
+def _stub_event(title, source):
+    return {
+        "title": title,
+        "start": None,
+        "end": None,
+        "attendees": [],
+        "location": "",
+        "description": "",
+        "source": source,
+    }
+
+
+class TestCollectEvents(unittest.TestCase):
+    """whisperfast.core.calendar.collect_events(): aggregation, 60s cache, force refresh."""
+
+    def setUp(self):
+        from whisperfast.core import calendar as calendar_mod
+
+        self.cal = calendar_mod
+        self.cal._cache["ts"] = 0.0
+        self.cal._cache["events"] = []
+        self.cal._async_refresh_in_flight = False
+
+    def test_aggregates_enabled_sources_and_caches_for_60s(self):
+        cal = self.cal
+        settings = {
+            "calendar_ics_enabled": True,
+            "calendar_ics_path": "ignored.ics",
+            "calendar_outlook_enabled": True,
+            "calendar_google_enabled": True,
+        }
+        with patch.object(cal, "load_ics_path", return_value=[_stub_event("ICS meet", "ics")]) as m_ics, \
+                patch.object(cal, "load_outlook_events", return_value=[_stub_event("Outlook meet", "outlook")]) as m_outlook, \
+                patch.object(cal, "_google_events_from_settings", return_value=[_stub_event("Google meet", "google")]) as m_google:
+            events = cal.collect_events(settings)
+            self.assertEqual(
+                {e["title"] for e in events}, {"ICS meet", "Outlook meet", "Google meet"}
+            )
+            # Second call within the 60s TTL must hit the cache, not refetch.
+            cal.collect_events(settings)
+            self.assertEqual(m_ics.call_count, 1)
+            self.assertEqual(m_outlook.call_count, 1)
+            self.assertEqual(m_google.call_count, 1)
+            # force=True always refetches.
+            cal.collect_events(settings, force=True)
+            self.assertEqual(m_ics.call_count, 2)
+
+    def test_disabled_sources_are_not_queried(self):
+        cal = self.cal
+        settings = {"calendar_ics_enabled": False, "calendar_outlook_enabled": False, "calendar_google_enabled": False}
+        with patch.object(cal, "load_ics_path") as m_ics, \
+                patch.object(cal, "load_outlook_events") as m_outlook, \
+                patch.object(cal, "_google_events_from_settings") as m_google:
+            self.assertEqual(cal.collect_events(settings), [])
+            m_ics.assert_not_called()
+            m_outlook.assert_not_called()
+            m_google.assert_not_called()
+
+    def test_google_events_from_settings_without_credentials(self):
+        self.assertEqual(self.cal._google_events_from_settings({}), [])
+
+    def test_google_events_from_settings_aggregates_calendars(self):
+        cal = self.cal
+        settings = {
+            "google_calendar_client_id": "cid",
+            "google_calendar_client_secret": "secret",
+            "google_calendar_refresh_token": "encrypted-blob",
+            "google_calendar_ids": "primary, team@example.com",
+        }
+        with patch.object(cal, "unprotect_string", side_effect=lambda v: v), \
+                patch.object(cal, "refresh_google_token", return_value={"access_token": "tok"}) as m_refresh, \
+                patch.object(
+                    cal, "fetch_google_events",
+                    side_effect=lambda token, cal_id, hours=12: [_stub_event(cal_id, "google")],
+                ):
+            events = cal._google_events_from_settings(settings)
+        m_refresh.assert_called_once_with("cid", "secret", "encrypted-blob")
+        self.assertEqual([e["title"] for e in events], ["primary", "team@example.com"])
+
+    def test_google_events_from_settings_swallows_refresh_error(self):
+        cal = self.cal
+        settings = {
+            "google_calendar_client_id": "cid",
+            "google_calendar_refresh_token": "blob",
+        }
+        with patch.object(cal, "unprotect_string", side_effect=lambda v: v), \
+                patch.object(cal, "refresh_google_token", side_effect=RuntimeError("invalid_grant")):
+            self.assertEqual(cal._google_events_from_settings(settings), [])
+
+
+class TestCollectEventsAsync(unittest.TestCase):
+    """collect_events_async() must never block the caller on network/COM I/O."""
+
+    def setUp(self):
+        from whisperfast.core import calendar as calendar_mod
+
+        self.cal = calendar_mod
+        self.cal._cache["ts"] = 0.0
+        self.cal._cache["events"] = []
+        self.cal._async_refresh_in_flight = False
+
+    def test_returns_cached_snapshot_immediately_then_refreshes_in_background(self):
+        cal = self.cal
+        settings = {"calendar_ics_enabled": True, "calendar_ics_path": "x.ics"}
+        call_started = threading.Event()
+        release = threading.Event()
+
+        def slow_load_ics(_path):
+            call_started.set()
+            release.wait(2)
+            return [_stub_event("late event", "ics")]
+
+        with patch.object(cal, "load_ics_path", side_effect=slow_load_ics), \
+                patch.object(cal, "load_outlook_events", return_value=[]), \
+                patch.object(cal, "_google_events_from_settings", return_value=[]):
+            first = cal.collect_events_async(settings)
+            self.assertEqual(first, [])  # nothing cached yet; must not block
+            self.assertTrue(call_started.wait(2), "background refresh should have started")
+            release.set()
+            deadline = time.time() + 2
+            while time.time() < deadline and not cal.get_cached_events():
+                time.sleep(0.05)
+        self.assertEqual([e["title"] for e in cal.get_cached_events()], ["late event"])
 
 
 if __name__ == "__main__":

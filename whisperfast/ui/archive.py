@@ -355,7 +355,7 @@ def _ask_llm(app, question: str, transcript: str) -> str:
         resolve_azure_openai_deployment,
         resolve_azure_openai_endpoint,
     )
-    from whisperfast.postprocess.providers.gemini import call_gemini_generate, resolve_gemini_api_key, resolve_gemini_model
+    from whisperfast.postprocess.providers.gemini import generate_gemini, resolve_gemini_model
     from whisperfast.postprocess.providers.ollama import call_ollama_chat, resolve_ollama_base_url, resolve_ollama_model
     from whisperfast.postprocess.providers.openai_compat import (
         call_openai_chat,
@@ -379,8 +379,8 @@ def _ask_llm(app, question: str, transcript: str) -> str:
 
         raise RuntimeError(_t("ai_test_missing_key"))
     if pid == "gemini":
-        return call_gemini_generate(
-            resolve_gemini_api_key(cred.get("gemini_api_key") or ""),
+        return generate_gemini(
+            cred,
             resolve_gemini_model(cred.get("gemini_model") or ""),
             user_msg,
         )

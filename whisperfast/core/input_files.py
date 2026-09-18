@@ -47,9 +47,20 @@ def is_valid_file(file_path):
     Returns:
         True если файл валидный, False иначе
     """
-    if not os.path.isfile(file_path):
+    if not file_path or not os.path.isfile(file_path):
         return False
     return file_path.lower().endswith(VALID_EXTS)
+
+
+def _file_identity_key(path):
+    """Stable identity for duplicate checks (abspath + Windows case)."""
+    raw = str(path or "").strip()
+    if not raw:
+        return ""
+    try:
+        return os.path.normcase(os.path.normpath(os.path.abspath(raw)))
+    except OSError:
+        return os.path.normcase(os.path.normpath(raw))
 
 
 def validate_and_filter_files(file_paths, existing_files=None):
@@ -72,19 +83,23 @@ def validate_and_filter_files(file_paths, existing_files=None):
     valid_files = []
     invalid_files = []
     duplicate_files = []
+    seen = {_file_identity_key(p) for p in existing_files if p}
     
     for file_path in file_paths:
         # Нормализация пути
         file_path = os.path.normpath(file_path)
+        key = _file_identity_key(file_path)
         
         # Проверка на дубликат
-        if file_path in existing_files:
+        if key and key in seen:
             duplicate_files.append(file_path)
             continue
         
         # Проверка валидности
         if is_valid_file(file_path):
             valid_files.append(file_path)
+            if key:
+                seen.add(key)
         else:
             invalid_files.append(file_path)
     
@@ -207,7 +222,12 @@ def add_files_to_queue_controller(file_paths, queue, queue_list_or_treeview, log
         name = os.path.basename(file_path)
         status_text = t("status_not_processed")
         values = (num, name, item["start"], item["end_segment_1"], item["end_segment_2"], item["end"], status_text)
-        queue_list_or_treeview.insert("", "end", values=values)
+        if queue_list_or_treeview is not None:
+            try:
+                queue_list_or_treeview.insert("", "end", iid=str(num - 1), values=values)
+            except Exception:
+                # Duplicate iid or a stale widget: QueueController.refresh_treeview() repairs it.
+                pass
         added_count += 1
 
     skipped_count = len(invalid_files) + len(duplicate_files)

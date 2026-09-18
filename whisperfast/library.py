@@ -10,7 +10,7 @@ import json
 import os
 import sqlite3
 import threading
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from whisperfast.config import BASE_DIR
 
@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     vtt_path TEXT,
     extra_outputs TEXT
 );
+"""
+
+_CREATE_JOBS_CREATED_AT_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at DESC);
 """
 
 _CREATE_FTS = """
@@ -73,6 +77,7 @@ class ConversationLibrary:
             cur = self._conn.cursor()
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute(_CREATE_JOBS)
+            cur.execute(_CREATE_JOBS_CREATED_AT_INDEX)
             cur.execute(_CREATE_FTS)
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)"
@@ -90,7 +95,7 @@ class ConversationLibrary:
             except sqlite3.Error:
                 pass
 
-    def upsert_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
+    def upsert_job(self, job: Dict[str, Any], *, reindex: bool = True) -> Dict[str, Any]:
         """Insert or update a job. `id` is required."""
         job_id = (job.get("id") or "").strip()
         if not job_id:
@@ -161,7 +166,8 @@ class ConversationLibrary:
                 row,
             )
             self._conn.commit()
-        self._reindex_fts(job_id)
+        if reindex:
+            self._reindex_fts(job_id)
         return self.get_job(job_id) or merged
 
     def _reindex_fts(self, job_id: str) -> None:
@@ -192,13 +198,21 @@ class ConversationLibrary:
             )
             self._conn.commit()
 
-    def add_output(self, job_id: str, role: str, path: str, label: Optional[str] = None) -> None:
+    def add_output(
+        self,
+        job_id: str,
+        role: str,
+        path: str,
+        label: Optional[str] = None,
+        *,
+        reindex: bool = True,
+    ) -> None:
         path_n = _norm_path(path)
         if not job_id or not path_n:
             return
         job = self.get_job(job_id)
         if job is None:
-            self.upsert_job({"id": job_id, "created_at": "", "status": "running"})
+            self.upsert_job({"id": job_id, "created_at": "", "status": "running"}, reindex=False)
             job = self.get_job(job_id) or {}
         updates: Dict[str, Any] = {"id": job_id}
         if role == "txt":
@@ -243,7 +257,7 @@ class ConversationLibrary:
         updates.setdefault("model", job.get("model"))
         if "extra_outputs" not in updates:
             updates["extra_outputs"] = job.get("extra_outputs") or []
-        self.upsert_job(updates)
+        self.upsert_job(updates, reindex=reindex)
 
     def set_meta(
         self,
@@ -253,6 +267,7 @@ class ConversationLibrary:
         category: Optional[str] = None,
         tags: Optional[Sequence[str]] = None,
         status: Optional[str] = None,
+        reindex: bool = True,
     ) -> None:
         job = self.get_job(job_id)
         if not job:
@@ -265,7 +280,7 @@ class ConversationLibrary:
             job["tags"] = list(tags)
         if status is not None:
             job["status"] = status
-        self.upsert_job(job)
+        self.upsert_job(job, reindex=reindex)
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         if not job_id:

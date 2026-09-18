@@ -4,7 +4,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext
 
 # Импорт pydub с обработкой ошибок для Python 3.13+
 try:
@@ -61,9 +61,7 @@ from whisperfast.config import (
     DEFAULT_START_TIMESTAMP, DEFAULT_MODEL,
     get_whisper_cache_dir,
 )
-from whisperfast.utils import (
-    normalize_queue_path, normalize_display_path,
-)
+from whisperfast.utils import normalize_display_path
 from whisperfast.core.model_manager import WhisperModelSingleton
 from whisperfast.core.transcription import run_queue, save_files as save_transcription_files
 from whisperfast.setup.installer import install_dependencies, check_system, check_updates
@@ -187,6 +185,11 @@ class WhisperGUI:
         self.cursor_api_key = tk.StringVar(value="")
         self.gemini_api_key = tk.StringVar(value="")
         self.gemini_model = tk.StringVar(value="gemini-2.0-flash")
+        self.gemini_oauth_refresh_token = tk.StringVar(value="")
+        self.gemini_oauth_email = tk.StringVar(value="")
+        self.google_oauth_client_id = tk.StringVar(value="")
+        self.google_oauth_client_secret = tk.StringVar(value="")
+        self.google_cloud_project_id = tk.StringVar(value="")
         self.anthropic_api_key = tk.StringVar(value="")
         self.claude_model = tk.StringVar(value="claude-sonnet-4-5")
         self.azure_openai_endpoint = tk.StringVar(value="")
@@ -231,6 +234,10 @@ class WhisperGUI:
         self.gemini_model.set(
             (saved.get("gemini_model") or "").strip() or "gemini-2.0-flash"
         )
+        self.gemini_oauth_refresh_token.set((saved.get("gemini_oauth_refresh_token") or "").strip())
+        self.gemini_oauth_email.set((saved.get("gemini_oauth_email") or "").strip())
+        self.google_oauth_client_secret.set((saved.get("google_oauth_client_secret") or "").strip())
+        self.google_cloud_project_id.set((saved.get("google_cloud_project_id") or "").strip())
         self.anthropic_api_key.set((saved.get("anthropic_api_key") or "").strip())
         self.claude_model.set(
             (saved.get("claude_model") or "").strip() or "claude-sonnet-4-5"
@@ -263,6 +270,10 @@ class WhisperGUI:
         self.diarization_enabled.set(bool(saved.get("diarization_enabled", False)))
         self.capture_consent_shown.set(bool(saved.get("capture_consent_shown", False)))
         self.capture_cfg = snapshot_capture_settings(saved)
+        self.google_oauth_client_id.set(
+            (saved.get("google_oauth_client_id") or "").strip()
+            or str((self.capture_cfg or {}).get("google_calendar_client_id") or "").strip()
+        )
         self.capture_clip_var = tk.StringVar(
             value=format_clip_seconds(int(self.capture_cfg.get("capture_clip_seconds") or 122))
         )
@@ -937,6 +948,11 @@ class WhisperGUI:
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
             "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
             "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "gemini_oauth_refresh_token": (self.gemini_oauth_refresh_token.get() or "").strip(),
+            "gemini_oauth_email": (self.gemini_oauth_email.get() or "").strip(),
+            "google_oauth_client_id": (self.google_oauth_client_id.get() or "").strip(),
+            "google_oauth_client_secret": (self.google_oauth_client_secret.get() or "").strip(),
+            "google_cloud_project_id": (self.google_cloud_project_id.get() or "").strip(),
             "anthropic_api_key": (self.anthropic_api_key.get() or "").strip(),
             "claude_model": (self.claude_model.get() or "").strip() or "claude-sonnet-4-5",
             "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
@@ -1237,35 +1253,39 @@ class WhisperGUI:
                     "model": (self.whisper_model.get() if hasattr(self, "whisper_model") else "")
                     or "",
                     "language": (self.lang_mode.get() if hasattr(self, "lang_mode") else "") or "",
-                }
+                },
+                # No txt output exists yet, so an FTS reindex here would only
+                # index an empty transcript; end_file_log() reindexes once
+                # after all outputs for this job are written.
+                reindex=False,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            self.log(f"[library] upsert_job: {e}")
         return file_id
 
-    def add_file_output(self, role, path, label=None, file_id=None):
+    def add_file_output(self, role, path, label=None, file_id=None, reindex=True):
         self.log_panel.add_file_output(role, path, label=label, file_id=file_id)
         if file_id:
             try:
-                self.library.add_output(file_id, role, path, label=label)
-            except Exception:
-                pass
+                self.library.add_output(file_id, role, path, label=label, reindex=reindex)
+            except Exception as e:
+                self.log(f"[library] add_output: {e}")
 
     def end_file_log(self, status="done", error=None, file_id=None):
         self.log_panel.end_file(status=status, error=error, file_id=file_id)
         if file_id:
             try:
                 self.library.set_meta(file_id, status=status)
-            except Exception:
-                pass
+            except Exception as e:
+                self.log(f"[library] set_meta: {e}")
 
-    def set_file_source(self, file_id, path):
+    def set_file_source(self, file_id, path, reindex=True):
         self.log_panel.set_file_source(path, file_id=file_id)
         if file_id:
             try:
-                self.library.add_output(file_id, "source", path)
-            except Exception:
-                pass
+                self.library.add_output(file_id, "source", path, reindex=reindex)
+            except Exception as e:
+                self.log(f"[library] add_output(source): {e}")
 
     def log_file_event(self, msg, tag=None, file_id=None, callback=None):
         self.log_panel.log_file_event(msg, tag=tag, file_id=file_id, callback=callback)
@@ -1364,9 +1384,6 @@ class WhisperGUI:
 
     def _show_model_dialog(self):
         ui_dialogs.show_model_dialog(self)
-
-    def _show_cursor_api_key_dialog(self):
-        ui_dialogs.show_ai_api_keys_dialog(self)
 
     def _show_ai_api_keys_dialog(self):
         ui_dialogs.show_ai_api_keys_dialog(self)
@@ -1544,6 +1561,9 @@ class WhisperGUI:
     def prepare_close(self):
         """Зупинити слідкування, трей та зберегти налаштування перед закриттям (викликається з main.py)."""
         self.queue_ctrl.stop_watch()
+        # Flush any debounced request_queue.json write (schedule_save()) so the
+        # last queue mutation isn't lost if the app closes before it fires.
+        self.queue_ctrl.save_to_file()
         if self._tray_icon:
             try:
                 self._tray_icon.stop()
@@ -1551,8 +1571,13 @@ class WhisperGUI:
                 pass
         try:
             self.log_panel.flush()
-        except Exception:
-            pass
+        except Exception as e:
+            # log_panel itself failed to flush, so fall back to stderr instead
+            # of silently losing the last log/session record on exit.
+            try:
+                print(f"[FTW] log_panel.flush() failed on exit: {e}", file=sys.stderr)
+            except Exception:
+                pass
         try:
             from whisperfast.single_instance import release_lock_if_owned
             release_lock_if_owned()
@@ -1624,6 +1649,11 @@ class WhisperGUI:
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
             "gemini_api_key": (self.gemini_api_key.get() or "").strip(),
             "gemini_model": (self.gemini_model.get() or "").strip() or "gemini-2.0-flash",
+            "gemini_oauth_refresh_token": (self.gemini_oauth_refresh_token.get() or "").strip(),
+            "gemini_oauth_email": (self.gemini_oauth_email.get() or "").strip(),
+            "google_oauth_client_id": (self.google_oauth_client_id.get() or "").strip(),
+            "google_oauth_client_secret": (self.google_oauth_client_secret.get() or "").strip(),
+            "google_cloud_project_id": (self.google_cloud_project_id.get() or "").strip(),
             "anthropic_api_key": (self.anthropic_api_key.get() or "").strip(),
             "claude_model": (self.claude_model.get() or "").strip() or "claude-sonnet-4-5",
             "azure_openai_endpoint": (self.azure_openai_endpoint.get() or "").strip(),
@@ -1659,6 +1689,14 @@ class WhisperGUI:
             "has_nvidia": self.has_nvidia,
             "gpu_model": self.gpu_model,
         }
+        cid = (self.google_oauth_client_id.get() or "").strip()
+        if cid:
+            live = dict(getattr(self, "capture_cfg", None) or {})
+            live["google_calendar_client_id"] = cid
+            secret = (self.google_oauth_client_secret.get() or "").strip()
+            if secret:
+                live["google_calendar_client_secret"] = secret
+            self.capture_cfg = live
         payload.update(snapshot_capture_settings(getattr(self, "capture_cfg", None) or {}))
         save_app_settings(payload)
 
@@ -1682,9 +1720,6 @@ class WhisperGUI:
 
     def auto_start_record(self):
         capture_ui.start_capture(self, trigger="manual")
-
-    def _on_send_txt_to_cursor_toggled(self):
-        self._on_send_txt_to_ai_toggled()
 
     def _on_export_md_to_docx_toggled(self):
         self._persist_settings()
@@ -1719,7 +1754,8 @@ class WhisperGUI:
 
     def resolve_output_paths(self, paths):
         """Якщо файл(и) вже існують — Yes/No/Skip: overwrite, _HHMM, або порожні шляхи."""
-        from whisperfast.core.output_conflict import ask_overwrite_via_tk, resolve_output_paths
+        from whisperfast.core.output_conflict import resolve_output_paths
+        from whisperfast.ui.dialogs import ask_overwrite_via_tk
 
         return resolve_output_paths(
             paths,

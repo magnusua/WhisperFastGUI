@@ -102,7 +102,6 @@ HELP_DOCUMENTS = (
     ("setup", "help_doc_setup", os.path.join(DOCS_DIR, "SETUP-AND-DEPENDENCIES.uk.md")),
     ("updates", "help_doc_updates", os.path.join(DOCS_DIR, "UPDATES.uk.md")),
     ("changelog", "help_doc_changelog", os.path.join(DOCS_DIR, "CHANGELOG.md")),
-    ("code_review", "help_doc_code_review", os.path.join(DOCS_DIR, "CODE-REVIEW.md")),
 )
 
 

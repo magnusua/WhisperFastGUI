@@ -1,7 +1,6 @@
 """OBS-like capture filename tokens and clip duration (mm:ss)."""
 from __future__ import annotations
 
-import os
 import random
 import re
 import string

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 SPEAKER_NEAR = "SPEAKER_00"
 SPEAKER_FAR = "SPEAKER_01"

@@ -7,17 +7,20 @@
         "EN": [
           "Meeting capture 2.0: Opus 24 kbit/s mono by default, clip last N seconds, filename tokens, auto-record for Zoom/Teams/Meet/Telegram/Viber/Phone Link/WhatsApp.",
           "Speakers show as You/Them with speakers.json, archive rename, and LLM names only when a quote appears in the transcript.",
-          "Google Calendar, Outlook, and ICS can start a recording; live preview, CLI (sessions/process/record), and session folder meta.json + summary.md."
+          "Google Calendar, Outlook, and ICS can start a recording; live preview, CLI (sessions/process/record), and session folder meta.json + summary.md.",
+          "Gemini and Google Calendar can sign in via the browser (your Desktop OAuth client ID). Stop/Clip add the file to the processing queue; capture paths in the log are clickable."
         ],
         "UK": [
           "Запис зустрічі 2.0: типово Opus 24 кбіт/с моно, уривок останніх N секунд, шаблон імені, автозапис Zoom/Teams/Meet/Telegram/Viber/Phone Link/WhatsApp.",
           "Спікери You/Them, speakers.json, перейменування в архіві; LLM-імена лише якщо цитата є в тексті.",
-          "Google Календар, Outlook і ICS можуть стартувати запис; live preview, CLI (sessions/process/record), папка сесії meta.json + summary.md."
+          "Google Календар, Outlook і ICS можуть стартувати запис; live preview, CLI (sessions/process/record), папка сесії meta.json + summary.md.",
+          "Gemini і Google Календар можна увійти через браузер (власний Desktop OAuth client ID). Stop/Clip додають файл у чергу; шлях запису в логу клікабельний."
         ],
         "RU": [
           "Запись встречи 2.0: по умолчанию Opus 24 кбит/с моно, уривок последних N секунд, шаблон имени, автозапись Zoom/Teams/Meet/Telegram/Viber/Phone Link/WhatsApp.",
           "Спикеры You/Them, speakers.json, переименование в архиве; LLM-имена только если цитата есть в тексте.",
-          "Google Календарь, Outlook и ICS могут стартовать запись; live preview, CLI (sessions/process/record), папка сессии meta.json + summary.md."
+          "Google Календарь, Outlook и ICS могут стартовать запись; live preview, CLI (sessions/process/record), папка сессии meta.json + summary.md.",
+          "Gemini и Google Календарь можно войти через браузер (свой Desktop OAuth client ID). Stop/Clip добавляют файл в очередь; путь записи в логе кликабельный."
         ]
       }
     },

@@ -39,6 +39,18 @@ _FILES_CREATED_MARKERS = (
     "файлы созданы для",
 )
 
+# Верхня межа callback-словників у довгій tray-сесії; понад поріг звільняємо
+# найстаріші записи (insertion order), щоб пам'ять не росла необмежено.
+_MAX_RETAINED_CALLBACKS = 2000
+
+
+def _bound_callback_dict(d: dict, cap: int = _MAX_RETAINED_CALLBACKS) -> None:
+    excess = len(d) - cap
+    if excess <= 0:
+        return
+    for key in list(d.keys())[:excess]:
+        del d[key]
+
 
 class LogPanel:
     """Керує ScrolledText-логом: store, дні, file-сесії, link/action, меню копіювання."""
@@ -90,6 +102,7 @@ class LogPanel:
 
         def _do_log():
             self._action_callbacks[action_tag] = callback
+            _bound_callback_dict(self._action_callbacks)
             self._append_line_ui(
                 entry.get("day") or today_key(),
                 text,
@@ -140,6 +153,7 @@ class LogPanel:
         def _do():
             if callback is not None:
                 self._file_action_callbacks[fid] = callback
+                _bound_callback_dict(self._file_action_callbacks)
             if entry:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
@@ -211,6 +225,7 @@ class LogPanel:
 
         def _do():
             self._file_action_callbacks[fid] = callback
+            _bound_callback_dict(self._file_action_callbacks)
             entry = self._store.get_file(fid)
             if entry:
                 self._render_file_entry(entry, insert_new=False)
@@ -229,6 +244,7 @@ class LogPanel:
                 self._file_retry_callbacks.pop(fid, None)
             else:
                 self._file_retry_callbacks[fid] = callback
+                _bound_callback_dict(self._file_retry_callbacks)
             entry = self._store.get_file(fid)
             if entry:
                 self._render_file_entry(entry, insert_new=False)

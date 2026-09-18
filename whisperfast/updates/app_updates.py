@@ -120,18 +120,6 @@ def _pick_release_assets(release: dict) -> dict:
     return {"zip": zip_asset, "checksums": checksums, "signature": signature}
 
 
-def fetch_remote_app_version(timeout: int = 15) -> tuple[Optional[str], Optional[str]]:
-    """Version and date from the latest GitHub Release (immutable tag)."""
-    release = fetch_latest_github_release(timeout=timeout)
-    if not release:
-        return None, None
-    version = _normalize_tag_version(release.get("tag_name") or "")
-    if not version or version.lower() == "unknown":
-        return None, None
-    date = _format_release_date(release.get("published_at") or "")
-    return version, date or None
-
-
 def _is_unknown_version(value: Optional[str]) -> bool:
     return not value or str(value).strip().lower() == "unknown"
 

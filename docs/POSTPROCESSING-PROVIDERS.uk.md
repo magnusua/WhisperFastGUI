@@ -9,7 +9,7 @@ FTW вміє передавати вже готовий текст (`.txt` пі�
 | Провайдер | З ключем / URL | Без ключа (fallback) |
 |---|---|---|
 | **Cursor** | Cursor SDK, ланцюжок промптів послідовно | Cursor Chat + промпт у буфері обміну |
-| **Gemini** | Google Generative Language API | Браузер `gemini.google.com` + буфер обміну |
+| **Gemini** | Google Generative Language API або OAuth (Desktop + PKCE) | Браузер `gemini.google.com` + буфер обміну |
 | **Claude** | Anthropic Messages API | Браузер `claude.ai` + буфер обміну |
 | **Copilot** | Azure OpenAI (endpoint + ключ + deployment) | Браузер `copilot.microsoft.com` + буфер обміну |
 | **Ollama** | Локальний `http://127.0.0.1:11434/api/chat` | Немає: потрібен запущений Ollama |
@@ -47,7 +47,7 @@ FTW вміє передавати вже готовий текст (`.txt` пі�
 
 ## Провайдер Gemini
 
-`postprocess/providers/gemini.py`. Ключ: env `GEMINI_API_KEY` або `GOOGLE_API_KEY`, інакше `settings.json: gemini_api_key`. Модель: env `GEMINI_MODEL`, інакше `settings.json: gemini_model` (за замовчуванням `gemini-2.0-flash`). З ключем — виклик Google Generative Language API; без ключа — буфер обміну + браузер `gemini.google.com`.
+`postprocess/providers/gemini.py`. Ключ: env `GEMINI_API_KEY` або `GOOGLE_API_KEY`, інакше `settings.json: gemini_api_key`. Або браузерний OAuth (той самий Desktop client ID, що для календаря / `FTW_GOOGLE_OAUTH_CLIENT_ID`): `gemini_oauth_refresh_token` у DPAPI, виклик `generateContent` з `Authorization: Bearer`. Модель: env `GEMINI_MODEL`, інакше `settings.json: gemini_model` (за замовчуванням `gemini-2.0-flash`). Без ключа і без OAuth — буфер обміну + браузер `gemini.google.com`.
 
 ## Провайдер Claude (Anthropic)
 

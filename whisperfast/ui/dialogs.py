@@ -3,6 +3,7 @@ import os
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
+from typing import List, Optional
 
 from whisperfast.config import (
     DEFAULT_MODEL,
@@ -20,6 +21,7 @@ from whisperfast.core.input_files import (
     validate_and_filter_files,
 )
 from whisperfast.core.model_manager import WhisperModelSingleton
+from whisperfast.core.output_conflict import ai_prompts_dialog_is_open
 from whisperfast.i18n import get_language, t
 from whisperfast.ui.widgets import Tooltip
 from whisperfast.updates.model_updates import (
@@ -268,6 +270,113 @@ def center_toplevel(app, win, parent=None):
     x = max(0, min(x, sw - w))
     y = max(0, min(y, sh - h))
     win.geometry(f"+{x}+{y}")
+
+
+def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
+    """
+    Blocking ask from a worker thread using Tk main loop.
+    Returns True (overwrite), False (use timed name), or None (skip write / closed).
+
+    Якщо відкрите вікно «Промты» — не питаємо (щоб діалог не ховався
+    під ним і не стопорив Whisper); одразу збереження з суфіксом часу.
+
+    Перенесено з core/output_conflict.py (core має лишатись без Tkinter) —
+    див. docs/INTERNAL-ARCHITECTURE.uk.md.
+    """
+    if ai_prompts_dialog_is_open(app):
+        return False
+
+    pending = object()
+    choice: List[object] = [pending]
+    done = threading.Event()
+
+    def ask():
+        try:
+            # Якщо за час очікування відкрили «Промты» — без запитання
+            if ai_prompts_dialog_is_open(app):
+                choice[0] = False
+                done.set()
+                return
+
+            parent = getattr(app, "root", None)
+            dlg = tk.Toplevel(parent)
+            dlg.title(t("file_exists_title"))
+            dlg.resizable(False, False)
+            if parent is not None:
+                dlg.transient(parent)
+            dlg.grab_set()
+
+            body = ttk.Frame(dlg, padding=16)
+            body.pack(fill="both", expand=True)
+            ttk.Label(
+                body,
+                text=t(
+                    "file_exists_msg",
+                    name=os.path.basename(path),
+                    alt=alt_name,
+                ),
+                justify="left",
+                wraplength=420,
+            ).pack(anchor="w")
+
+            bf = ttk.Frame(body)
+            bf.pack(fill="x", pady=(16, 0))
+
+            def finish(val: Optional[bool]):
+                choice[0] = val
+                try:
+                    dlg.grab_release()
+                except Exception:
+                    pass
+                try:
+                    dlg.destroy()
+                except Exception:
+                    pass
+                done.set()
+
+            # Right-aligned: Yes | No | Skip
+            ttk.Button(bf, text=t("file_exists_skip"), command=lambda: finish(None)).pack(
+                side="right"
+            )
+            ttk.Button(bf, text=t("file_exists_no"), command=lambda: finish(False)).pack(
+                side="right", padx=(0, 8)
+            )
+            yes_btn = ttk.Button(bf, text=t("file_exists_yes"), command=lambda: finish(True))
+            yes_btn.pack(side="right", padx=(0, 8))
+
+            dlg.protocol("WM_DELETE_WINDOW", lambda: finish(None))
+            dlg.bind("<Escape>", lambda _e: finish(None))
+            dlg.bind("<Return>", lambda _e: finish(True))
+
+            dlg.update_idletasks()
+            if parent is not None:
+                try:
+                    center_toplevel(app, dlg, parent=parent)
+                except Exception:
+                    pass
+            yes_btn.focus_set()
+        except Exception:
+            choice[0] = False
+            done.set()
+
+    try:
+        app.root.after(0, ask)
+    except Exception:
+        return False
+
+    while not done.is_set():
+        if getattr(app, "cancel_requested", False):
+            return False
+        if ai_prompts_dialog_is_open(app):
+            return False
+        done.wait(timeout=0.05)
+
+    result = choice[0]
+    if result is True:
+        return True
+    if result is False:
+        return False
+    return None
 
 
 def track_i18n_window(app, window, refresh_cb):
@@ -856,7 +965,8 @@ def show_model_dialog(app):
         try:
             WhisperModelSingleton.get(app.log, app.device_mode.get(), chosen)
         except Exception:
-            pass
+            # WhisperModelSingleton.get() already logged model_load_error.
+            return
         app.model_btn.config(text=app._model_button_label())
         app._persist_settings()
         app.log(t("model_loaded", model=chosen))
@@ -885,18 +995,13 @@ def show_model_dialog(app):
     win.focus_set()
 
 
-def show_cursor_api_key_dialog(app):
-    """Сумісність: відкриває спільне вікно AI API keys."""
-    show_ai_api_keys_dialog(app)
-
-
 def show_ai_api_keys_dialog(app):
     """Модальне вікно ключів Cursor / Gemini / Claude / Azure OpenAI (Copilot)."""
     dialog = tk.Toplevel(app.root)
     dialog.title(t("ai_api_keys_title"))
     dialog.transient(app.root)
     dialog.resizable(True, True)
-    dialog.minsize(480, 400)
+    dialog.minsize(480, 520)
     dialog.grab_set()
 
     frame = ttk.Frame(dialog, padding=15)
@@ -924,7 +1029,7 @@ def show_ai_api_keys_dialog(app):
     ttk.Entry(frame, textvariable=cursor_key, width=56, show="*").pack(fill="x", pady=(2, 0))
 
     section("ai_api_keys_gemini")
-    ttk.Label(frame, text=t("gemini_api_key_prompt")).pack(anchor="w")
+    ttk.Label(frame, text=t("gemini_api_key_prompt"), wraplength=520, justify="left").pack(anchor="w")
     ttk.Entry(frame, textvariable=gemini_key, width=56, show="*").pack(fill="x", pady=(2, 4))
     model_row = ttk.Frame(frame)
     model_row.pack(fill="x")
@@ -932,6 +1037,203 @@ def show_ai_api_keys_dialog(app):
     ttk.Entry(model_row, textvariable=gemini_model, width=28).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
+    ttk.Label(frame, text=t("gemini_oauth_hint"), wraplength=520, justify="left").pack(
+        anchor="w", pady=(8, 4)
+    )
+    capture_cfg = getattr(app, "capture_cfg", None) or {}
+    gemini_email = tk.StringVar(value=(getattr(app, "gemini_oauth_email", None) and app.gemini_oauth_email.get() or ""))
+    google_client = tk.StringVar(
+        value=(getattr(app, "google_oauth_client_id", None) and app.google_oauth_client_id.get() or "").strip()
+        or str(capture_cfg.get("google_calendar_client_id") or "").strip()
+    )
+    google_secret = tk.StringVar(
+        value=(getattr(app, "google_oauth_client_secret", None) and app.google_oauth_client_secret.get() or "").strip()
+        or str(capture_cfg.get("google_calendar_client_secret") or "").strip()
+    )
+    google_project = tk.StringVar(
+        value=(getattr(app, "google_cloud_project_id", None) and app.google_cloud_project_id.get() or "").strip()
+    )
+    ttk.Label(frame, text=t("calendar_google_client_id")).pack(anchor="w")
+    ttk.Entry(frame, textvariable=google_client).pack(fill="x")
+    ttk.Label(frame, text=t("calendar_google_secret_optional")).pack(anchor="w", pady=(4, 0))
+    ttk.Entry(frame, textvariable=google_secret, show="*").pack(fill="x")
+    ttk.Label(frame, text=t("gemini_oauth_project")).pack(anchor="w", pady=(4, 0))
+    ttk.Entry(frame, textvariable=google_project).pack(fill="x")
+    gemini_status = ttk.Label(frame, text="", wraplength=520, justify="left")
+    gemini_status.pack(anchor="w", pady=(6, 2))
+    gemini_busy = {"on": False, "session": None}
+
+    def _gemini_refresh_token():
+        var = getattr(app, "gemini_oauth_refresh_token", None)
+        raw = (var.get() if var is not None else "") or ""
+        from whisperfast.secrets_store import unprotect_string
+
+        return unprotect_string(str(raw))
+
+    def _refresh_gemini_status(extra: str = ""):
+        if extra:
+            gemini_status.configure(text=extra)
+            return
+        who = (gemini_email.get() or "").strip()
+        if who or _gemini_refresh_token():
+            gemini_status.configure(text=t("gemini_oauth_signed_in", email=who or "Google"))
+        else:
+            gemini_status.configure(text="")
+
+    def _close_gemini_session():
+        session = gemini_busy.get("session")
+        gemini_busy["session"] = None
+        gemini_busy["on"] = False
+        if session is not None:
+            try:
+                session.close()
+            except Exception:
+                pass
+
+    def _persist_gemini_oauth():
+        if hasattr(app, "google_oauth_client_id"):
+            app.google_oauth_client_id.set(google_client.get().strip())
+        if hasattr(app, "google_oauth_client_secret"):
+            app.google_oauth_client_secret.set(google_secret.get())
+        if hasattr(app, "google_cloud_project_id"):
+            app.google_cloud_project_id.set(google_project.get().strip())
+        if hasattr(app, "gemini_oauth_email"):
+            app.gemini_oauth_email.set(gemini_email.get().strip())
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
+
+    def do_gemini_login():
+        if gemini_busy["on"]:
+            return
+        from whisperfast.core.google_oauth import (
+            CLIENT_ID_ENV,
+            GEMINI_SCOPE,
+            GOOGLE_CLOUD_CREDENTIALS_URL,
+            GOOGLE_GENERATIVE_LANGUAGE_API_URL,
+            GoogleLoopbackAuth,
+            resolve_google_client_id,
+        )
+        from whisperfast.postprocess.common import copy_text_to_clipboard, open_url_in_browser
+        from whisperfast.postprocess.providers.gemini import store_gemini_session
+        from whisperfast.secrets_store import unprotect_string
+
+        client_id = resolve_google_client_id(google_client.get())
+        if not client_id:
+            copy_text_to_clipboard("http://127.0.0.1")
+            open_url_in_browser(GOOGLE_GENERATIVE_LANGUAGE_API_URL)
+            open_url_in_browser(GOOGLE_CLOUD_CREDENTIALS_URL)
+            messagebox.showinfo(
+                t("ai_api_keys_title"),
+                t("gemini_oauth_need_client", env=CLIENT_ID_ENV),
+                parent=dialog,
+            )
+            return
+        google_client.set(client_id)
+        try:
+            session = GoogleLoopbackAuth(
+                client_id,
+                google_secret.get().strip(),
+                scope=GEMINI_SCOPE,
+                success_message="Gemini is connected. You can close this tab.",
+            )
+            session.open_browser()
+        except Exception as e:
+            if "session" in locals():
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            messagebox.showerror(t("ai_api_keys_title"), str(e), parent=dialog)
+            return
+        gemini_busy["on"] = True
+        gemini_busy["session"] = session
+        gemini_login_btn.configure(state="disabled")
+        _refresh_gemini_status(t("gemini_oauth_waiting"))
+
+        def worker():
+            err = ""
+            token = None
+            try:
+                token = session.wait(180)
+            except Exception as e:
+                err = str(e)
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+            def done():
+                gemini_busy["session"] = None
+                gemini_busy["on"] = False
+                try:
+                    if gemini_login_btn.winfo_exists():
+                        gemini_login_btn.configure(state="normal")
+                except tk.TclError:
+                    return
+                if token:
+                    refresh = token.get("refresh_token") or unprotect_string(
+                        str(
+                            (getattr(app, "gemini_oauth_refresh_token", None) and app.gemini_oauth_refresh_token.get())
+                            or ""
+                        )
+                    )
+                    if not refresh:
+                        messagebox.showerror(
+                            t("ai_api_keys_title"), t("calendar_google_no_refresh"), parent=dialog
+                        )
+                        _refresh_gemini_status()
+                        return
+                    email = str(token.get("email") or "").strip()
+                    box = {}
+                    store_gemini_session(box, refresh, email)
+                    if hasattr(app, "gemini_oauth_refresh_token"):
+                        app.gemini_oauth_refresh_token.set(box.get("gemini_oauth_refresh_token") or "")
+                    gemini_email.set(email)
+                    _persist_gemini_oauth()
+                    _refresh_gemini_status()
+                    messagebox.showinfo(
+                        t("ai_api_keys_title"),
+                        t("gemini_oauth_ok", email=email or "Google"),
+                        parent=dialog,
+                    )
+                    return
+                if err == "timeout":
+                    messagebox.showinfo(
+                        t("ai_api_keys_title"), t("calendar_google_timeout"), parent=dialog
+                    )
+                elif err:
+                    messagebox.showerror(t("ai_api_keys_title"), err, parent=dialog)
+                _refresh_gemini_status()
+
+            try:
+                dialog.after(0, done)
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def do_gemini_logout():
+        from whisperfast.postprocess.providers.gemini import clear_gemini_session
+
+        _close_gemini_session()
+        box = {}
+        clear_gemini_session(box)
+        if hasattr(app, "gemini_oauth_refresh_token"):
+            app.gemini_oauth_refresh_token.set("")
+        gemini_email.set("")
+        _persist_gemini_oauth()
+        _refresh_gemini_status()
+
+    g_btns = ttk.Frame(frame)
+    g_btns.pack(fill="x", pady=4)
+    gemini_login_btn = ttk.Button(g_btns, text=t("gemini_oauth_login"), command=do_gemini_login)
+    gemini_login_btn.pack(side="left")
+    ttk.Button(g_btns, text=t("calendar_google_logout"), command=do_gemini_logout).pack(
+        side="left", padx=6
+    )
+    _refresh_gemini_status()
 
     section("ai_api_keys_claude")
     ttk.Label(frame, text=t("claude_api_key_prompt")).pack(anchor="w")
@@ -1010,13 +1312,21 @@ def show_ai_api_keys_dialog(app):
     buttons.pack(fill="x", pady=(14, 0))
 
     def close_without_saving():
+        _close_gemini_session()
         dialog.destroy()
 
     def _creds():
+        refresh = ""
+        if hasattr(app, "gemini_oauth_refresh_token"):
+            refresh = (app.gemini_oauth_refresh_token.get() or "").strip()
         return {
             "cursor_api_key": (cursor_key.get() or "").strip(),
             "gemini_api_key": (gemini_key.get() or "").strip(),
             "gemini_model": (gemini_model.get() or "").strip(),
+            "gemini_oauth_refresh_token": refresh,
+            "google_oauth_client_id": (google_client.get() or "").strip(),
+            "google_oauth_client_secret": (google_secret.get() or "").strip(),
+            "google_cloud_project_id": (google_project.get() or "").strip(),
             "anthropic_api_key": (anthropic_key.get() or "").strip(),
             "claude_model": (claude_model.get() or "").strip(),
             "azure_openai_endpoint": (azure_endpoint.get() or "").strip(),
@@ -1053,6 +1363,14 @@ def show_ai_api_keys_dialog(app):
         app.cursor_api_key.set((cursor_key.get() or "").strip())
         app.gemini_api_key.set((gemini_key.get() or "").strip())
         app.gemini_model.set((gemini_model.get() or "").strip() or "gemini-2.0-flash")
+        if hasattr(app, "google_oauth_client_id"):
+            app.google_oauth_client_id.set(google_client.get().strip())
+        if hasattr(app, "google_oauth_client_secret"):
+            app.google_oauth_client_secret.set(google_secret.get())
+        if hasattr(app, "google_cloud_project_id"):
+            app.google_cloud_project_id.set(google_project.get().strip())
+        if hasattr(app, "gemini_oauth_email"):
+            app.gemini_oauth_email.set(gemini_email.get().strip())
         app.anthropic_api_key.set((anthropic_key.get() or "").strip())
         app.claude_model.set((claude_model.get() or "").strip() or "claude-sonnet-4-5")
         app.azure_openai_endpoint.set((azure_endpoint.get() or "").strip().rstrip("/"))
@@ -1074,6 +1392,7 @@ def show_ai_api_keys_dialog(app):
             except (TypeError, ValueError, tk.TclError):
                 app.ai_month_budget.set(0.0)
         app._persist_settings()
+        _close_gemini_session()
         dialog.destroy()
 
     ttk.Button(buttons, text=t("cancel_btn"), command=close_without_saving).pack(
@@ -1085,13 +1404,6 @@ def show_ai_api_keys_dialog(app):
     dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
     dialog.bind("<Escape>", lambda event: close_without_saving())
     center_toplevel(app, dialog)
-
-
-def show_cursor_prompts_dialog(app, file_name, prompts, on_result, provider_id=None):
-    """Сумісність: делегує в show_ai_prompts_dialog."""
-    return show_ai_prompts_dialog(
-        app, file_name, prompts, on_result, provider_id=provider_id
-    )
 
 
 def show_ai_prompts_dialog(

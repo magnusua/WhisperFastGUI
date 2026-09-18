@@ -9,8 +9,6 @@ from whisperfast.secrets_store import protect_settings, unprotect_settings
 
 SETTINGS_FILE = "settings.json"
 
-SETTINGS_FILE = "settings.json"
-
 
 def _restrict_settings_file_permissions(path):
     """
@@ -55,6 +53,11 @@ _DEFAULTS = {
     "cursor_api_key": "",
     "gemini_api_key": "",
     "gemini_model": "gemini-2.0-flash",
+    "gemini_oauth_refresh_token": "",
+    "gemini_oauth_email": "",
+    "google_oauth_client_id": "",
+    "google_oauth_client_secret": "",
+    "google_cloud_project_id": "",
     "anthropic_api_key": "",
     "claude_model": "claude-sonnet-4-5",
     "azure_openai_endpoint": "",

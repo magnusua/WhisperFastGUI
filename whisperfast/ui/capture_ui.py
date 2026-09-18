@@ -14,7 +14,12 @@ from whisperfast.core.auto_record import (
     STOP_SILENCE,
     AutoRecordMachine,
 )
-from whisperfast.core.calendar import collect_events, overlapping_event, upcoming_event
+from whisperfast.core.calendar import (
+    collect_events,
+    collect_events_async,
+    overlapping_event,
+    upcoming_event,
+)
 from whisperfast.core.capture import (
     capture_available,
     default_capture_dir,
@@ -90,7 +95,8 @@ def toggle_pause(app) -> None:
     session = get_capture_session()
     if not session.running:
         return
-    session.toggle_pause(log_func=app.log)
+    logger = _capture_logger(app, getattr(session, "log_file_id", None))
+    session.toggle_pause(log_func=logger)
     refresh_capture_buttons(app)
 
 
@@ -110,9 +116,7 @@ def save_clip(app) -> None:
     except Exception as e:
         messagebox.showerror(t("capture_title"), str(e), parent=app.root)
         return
-    final = _finalize_and_enqueue(app, wav, settings, is_clip=True)
-    if final:
-        app.log(t("capture_clip_saved", path=final))
+    _finalize_and_enqueue(app, wav, settings, is_clip=True)
 
 
 def recover_interrupted_captures(app) -> None:
@@ -131,19 +135,115 @@ def recover_interrupted_captures(app) -> None:
             if key in seen:
                 continue
             seen.add(key)
-            app.log(t("capture_recovered", path=path))
-            _finalize_and_enqueue(app, path, settings, is_clip=False)
+            fid = _log_capture_file(app, path, "capture_recovered")
+            _finalize_and_enqueue(app, path, settings, is_clip=False, log_file_id=fid)
 
 
 def capture_blocks_shutdown() -> bool:
     return bool(get_capture_session().running)
 
 
+def _capture_logger(app, file_id: str = ""):
+    if file_id and hasattr(app, "make_file_logger"):
+        return app.make_file_logger(file_id)
+    return getattr(app, "log", lambda *_a, **_k: None)
+
+
+def _log_capture_file(app, path: str, event_key: str) -> str:
+    """File-session for a recording so the path is a clickable log link (open / folder)."""
+    if not path:
+        return ""
+    abs_path = os.path.abspath(path)
+    file_id = ""
+    finder = getattr(app, "find_file_log_id", None)
+    if callable(finder):
+        file_id = finder(abs_path) or ""
+    if not file_id and hasattr(app, "begin_file_log"):
+        file_id = app.begin_file_log(abs_path, name=os.path.basename(abs_path)) or ""
+    if file_id:
+        app.log_file_event(t(event_key, path=abs_path), file_id=file_id)
+        add = getattr(app, "add_file_output", None)
+        if callable(add):
+            add("source", abs_path, file_id=file_id, reindex=False)
+        return str(file_id)
+    app.log(t(event_key, path=abs_path), "link")
+    return ""
+
+
+def _update_capture_log(app, file_id: str, path: str, event_key: str) -> None:
+    if not path:
+        return
+    abs_path = os.path.abspath(path)
+    if file_id and hasattr(app, "set_file_source"):
+        try:
+            app.set_file_source(file_id, abs_path, reindex=False)
+        except TypeError:
+            app.set_file_source(file_id, abs_path)
+    if file_id and hasattr(app, "add_file_output"):
+        app.add_file_output("source", abs_path, file_id=file_id, reindex=False)
+    if file_id:
+        app.log_file_event(t(event_key, path=abs_path), file_id=file_id)
+    else:
+        _log_capture_file(app, abs_path, event_key)
+
+
 def _enqueue_capture(app, path: str) -> None:
+    """Put a finished recording into the same processing queue as Add files."""
+    if not path:
+        return
+    abs_path = os.path.abspath(path)
+    if not os.path.isfile(abs_path):
+        return
+    ctrl = getattr(app, "queue_ctrl", None)
+    if ctrl is None:
+        add = getattr(app, "add_files_to_queue", None)
+        if callable(add):
+            add([abs_path])
+        return
+    added = 0
     try:
-        app.queue_ctrl.add_files([path])
+        added, _skipped = ctrl.add_files([abs_path])
     except Exception:
-        app.log(path)
+        added = 0
+    if added:
+        try:
+            ctrl.refresh_treeview()
+        except Exception:
+            pass
+        return
+    # add_files returned 0: already queued, rejected, or a widget error.
+    # If the file is valid and not already in the list, force it in.
+    from whisperfast.core.input_files import is_valid_file
+    from whisperfast.utils import make_queue_item, normalize_queue_path
+
+    path_norm = normalize_queue_path(abs_path) or abs_path
+    keys = set()
+    try:
+        keys.add(os.path.normcase(path_norm))
+        keys.add(os.path.normcase(os.path.abspath(path_norm)))
+    except OSError:
+        keys.add(os.path.normcase(path_norm))
+    for item in ctrl.queue:
+        existing = str(item.get("path") or "")
+        if not existing:
+            continue
+        try:
+            if os.path.normcase(existing) in keys or os.path.normcase(
+                os.path.abspath(existing)
+            ) in keys:
+                return
+        except OSError:
+            if os.path.normcase(existing) in keys:
+                return
+    if not is_valid_file(abs_path):
+        return
+    ctrl.queue.append(make_queue_item(path_norm))
+    try:
+        ctrl.save_to_file()
+        ctrl.register_output_paths([path_norm])
+        ctrl.refresh_treeview()
+    except Exception:
+        pass
 
 
 def _start_session(app, trigger: str) -> None:
@@ -168,9 +268,9 @@ def _start_session(app, trigger: str) -> None:
         pass
     session = get_capture_session()
     try:
-        session.start(
+        path = session.start(
             out_dir,
-            log_func=app.log,
+            log_func=None,
             trigger=trigger,
             include_mic=bool(settings.get("capture_include_mic", True)),
             include_system=bool(settings.get("capture_include_system", True)),
@@ -181,6 +281,7 @@ def _start_session(app, trigger: str) -> None:
     except Exception as e:
         messagebox.showerror(t("capture_title"), str(e), parent=app.root)
         return
+    session.log_file_id = _log_capture_file(app, path or session.path, "capture_started")
     refresh_capture_buttons(app)
     if settings.get("live_preview_enabled"):
         try:
@@ -204,14 +305,17 @@ def _stop_and_enqueue(app, session) -> None:
         stop_preview()
     except Exception:
         pass
-    path = session.stop(log_func=app.log)
+    fid = getattr(session, "log_file_id", None) or ""
+    path = session.stop(log_func=None)
     refresh_capture_buttons(app)
+    if session.error:
+        _capture_logger(app, fid)(t("capture_error", error=session.error))
     settings = settings_from_app(app)
-    final = _finalize_and_enqueue(app, path, settings, is_clip=False)
-    run_on_stop_hook(str(settings.get("on_stop_hook") or ""), final or path or "", log_func=app.log)
+    final = _finalize_and_enqueue(app, path, settings, is_clip=False, log_file_id=fid)
+    run_on_stop_hook(str(settings.get("on_stop_hook") or ""), final or path or "", log_func=_capture_logger(app, fid))
 
 
-def _finalize_and_enqueue(app, wav_path: str, settings: dict, is_clip: bool) -> str:
+def _finalize_and_enqueue(app, wav_path: str, settings: dict, is_clip: bool, log_file_id: str = "") -> str:
     if not wav_path or not os.path.isfile(wav_path):
         return ""
     apps = enabled_auto_apps(settings)
@@ -228,19 +332,31 @@ def _finalize_and_enqueue(app, wav_path: str, settings: dict, is_clip: bool) -> 
                     cal = str(ev.get("title") or "")
             except Exception:
                 cal = ""
+    logger = _capture_logger(app, log_file_id)
     final = finalize_wav(
         wav_path,
         settings,
         window_title=win,
         calendar_title=cal,
         is_clip=is_clip,
-        log_func=app.log,
+        log_func=logger,
     )
-    if final and os.path.isfile(final):
-        _enqueue_capture(app, final)
-        return final
-    _enqueue_capture(app, wav_path)
-    return wav_path
+    target = final if final and os.path.isfile(final) else wav_path
+    try:
+        if is_clip:
+            _log_capture_file(app, target, "capture_clip_saved")
+        elif log_file_id:
+            _update_capture_log(app, log_file_id, target, "capture_saved")
+        else:
+            _log_capture_file(app, target, "capture_saved")
+    except Exception:
+        pass
+    enqueue_path = target if target and os.path.isfile(target) else wav_path
+    try:
+        _enqueue_capture(app, enqueue_path)
+    except Exception as e:
+        _capture_logger(app, log_file_id)(str(e))
+    return enqueue_path or ""
 
 
 def _clip_var_text(app) -> str:
@@ -290,10 +406,6 @@ def refresh_capture_buttons(app) -> None:
             clip_entry.config(state="normal")
         except tk.TclError:
             pass
-
-
-def _refresh_capture_button(app) -> None:
-    refresh_capture_buttons(app)
 
 
 def bind_capture_hotkey(app) -> None:
@@ -389,7 +501,10 @@ def _poll_auto(app) -> None:
     event = None
     if cal_on:
         try:
-            events = collect_events(settings)
+            # Non-blocking: this runs on the 1s Tk main-thread poll tick, and
+            # collect_events() itself does blocking Outlook COM / Google HTTP
+            # calls on a cache miss.
+            events = collect_events_async(settings)
             event = upcoming_event(
                 events, lead_min=int(settings.get("calendar_start_lead_min") or 2)
             )

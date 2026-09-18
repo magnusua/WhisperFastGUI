@@ -6,7 +6,7 @@ and diarization is enabled; otherwise mono files keep no speaker prefix.
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Optional
+from typing import Any, List, Optional
 
 
 def apply_speakers(

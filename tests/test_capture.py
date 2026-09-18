@@ -76,5 +76,153 @@ class TestCaptureSessionPause(unittest.TestCase):
         self.assertFalse(session.paused)
 
 
+class TestCaptureLogSession(unittest.TestCase):
+    def test_log_capture_file_creates_clickable_source(self):
+        from whisperfast.ui.capture_ui import _log_capture_file, _update_capture_log
+
+        class FakeApp:
+            def __init__(self):
+                self.begun = []
+                self.events = []
+                self.outputs = []
+                self.sources = []
+                self.logs = []
+                self._ids = {}
+
+            def begin_file_log(self, source, name=None, current=None, total=None):
+                fid = f"f{len(self.begun) + 1}"
+                self.begun.append((fid, source, name))
+                self._ids[os.path.abspath(source)] = fid
+                return fid
+
+            def find_file_log_id(self, path):
+                return self._ids.get(os.path.abspath(path))
+
+            def log_file_event(self, msg, tag=None, file_id=None, callback=None):
+                self.events.append((file_id, msg))
+
+            def add_file_output(self, role, path, label=None, file_id=None, reindex=True):
+                self.outputs.append((file_id, role, path))
+
+            def set_file_source(self, file_id, path, reindex=True):
+                self.sources.append((file_id, path))
+
+            def log(self, msg, tag=None):
+                self.logs.append((msg, tag))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            wav = os.path.join(tmp, "capture_x.wav")
+            opus = os.path.join(tmp, "meeting.opus")
+            app = FakeApp()
+            fid = _log_capture_file(app, wav, "capture_started")
+            self.assertEqual(fid, "f1")
+            self.assertEqual(app.outputs[0][1], "source")
+            self.assertEqual(os.path.normpath(app.outputs[0][2]), os.path.normpath(wav))
+            self.assertTrue(app.events[0][1])
+            _update_capture_log(app, fid, opus, "capture_saved")
+            self.assertEqual(os.path.normpath(app.sources[0][1]), os.path.normpath(opus))
+            self.assertEqual(app.outputs[-1][1], "source")
+            again = _log_capture_file(app, wav, "capture_started")
+            self.assertEqual(again, fid)
+            self.assertEqual(len(app.begun), 1)
+
+
+class TestReuseCaptureFileLog(unittest.TestCase):
+    def test_reuses_existing_id(self):
+        from whisperfast.core.transcription import _reuse_or_begin_file_log
+
+        class FakeApp:
+            def __init__(self):
+                self.begun = 0
+                self.attached = []
+
+                class Panel:
+                    def __init__(self, outer):
+                        self.outer = outer
+
+                    def attach_file(self, file_id):
+                        self.outer.attached.append(file_id)
+
+                self.log_panel = Panel(self)
+
+            def find_file_log_id(self, path):
+                return "cap-1"
+
+            def begin_file_log(self, source, name=None, current=None, total=None):
+                self.begun += 1
+                return "new"
+
+        app = FakeApp()
+        self.assertEqual(_reuse_or_begin_file_log(app, r"D:\a.opus", name="a.opus"), "cap-1")
+        self.assertEqual(app.begun, 0)
+        self.assertEqual(app.attached, ["cap-1"])
+
+
+class TestEnqueueCapture(unittest.TestCase):
+    def test_stop_puts_recording_in_processing_queue(self):
+        from unittest.mock import patch
+
+        from whisperfast.core.queue_manager import QueueController
+        from whisperfast.ui.capture_ui import _enqueue_capture, _finalize_and_enqueue
+
+        class Tree:
+            def __init__(self):
+                self.rows = {}
+                self._order = []
+
+            def insert(self, parent, index, iid=None, values=()):
+                iid = iid or str(len(self._order))
+                self.rows[iid] = tuple(values)
+                self._order.append(iid)
+                return iid
+
+            def delete(self, *iids):
+                drop = set(iids)
+                self._order = [i for i in self._order if i not in drop]
+                for i in drop:
+                    self.rows.pop(i, None)
+
+            def get_children(self):
+                return list(self._order)
+
+        class FakeApp:
+            def __init__(self, ctrl):
+                self.queue_ctrl = ctrl
+                self.logs = []
+
+            def log(self, msg, tag=None):
+                self.logs.append((msg, tag))
+
+            def begin_file_log(self, source, name=None, current=None, total=None):
+                return "f1"
+
+            def find_file_log_id(self, path):
+                return None
+
+            def log_file_event(self, msg, tag=None, file_id=None, callback=None):
+                self.logs.append((file_id, msg))
+
+            def add_file_output(self, role, path, label=None, file_id=None, reindex=True):
+                return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            wav = os.path.join(tmp, "capture_x.wav")
+            _write_pcm_wav(wav)
+            qfile = os.path.join(tmp, "request_queue.json")
+            ctrl = QueueController(request_queue_file=qfile, log_func=lambda *a, **k: None)
+            ctrl.bind_treeview(Tree())
+            app = FakeApp(ctrl)
+            _enqueue_capture(app, wav)
+            self.assertEqual(len(ctrl.queue), 1)
+            self.assertEqual(os.path.normcase(ctrl.queue[0]["path"]), os.path.normcase(wav))
+            self.assertEqual(len(ctrl.queue_list.get_children()), 1)
+            with patch("whisperfast.ui.capture_ui.finalize_wav", return_value=wav), patch(
+                "whisperfast.ui.capture_ui.meeting_window_title", return_value="FTW"
+            ):
+                out = _finalize_and_enqueue(app, wav, {}, is_clip=False)
+            self.assertEqual(os.path.normcase(out), os.path.normcase(wav))
+            self.assertEqual(len(ctrl.queue), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

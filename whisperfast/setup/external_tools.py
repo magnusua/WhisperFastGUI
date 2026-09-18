@@ -1,6 +1,7 @@
 """FFmpeg / Pandoc: check, PATH refresh, and install (winget/choco/brew or GitHub zip)."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
@@ -61,6 +62,45 @@ _EXTERNAL_TOOLS = (
 )
 
 _PATH_REFRESHED = False
+
+# jgm/pandoc and BtbN/FFmpeg-Builds releases publish no independent checksum
+# asset, so a fresh download can only be trusted via TLS + GitHub's own
+# hosting. To still catch a release asset being swapped out later under the
+# same version tag (a delayed supply-chain compromise), we pin the SHA-256 of
+# each (tool, tag, asset) the first time it installs successfully and refuse
+# to install silently if a later download under the same tag doesn't match.
+_TOOL_HASHES_FILENAME = "tools_hashes.json"
+
+
+def _tool_hashes_path() -> str:
+    return os.path.join(BASE_DIR, _TOOL_HASHES_FILENAME)
+
+
+def _load_tool_hashes() -> Dict[str, str]:
+    try:
+        with open(_tool_hashes_path(), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_tool_hashes(data: Dict[str, str]) -> None:
+    try:
+        tmp = _tool_hashes_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, _tool_hashes_path())
+    except OSError:
+        pass
+
+
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 class ExternalToolUpdate(TypedDict, total=False):
@@ -610,10 +650,38 @@ def _install_via_github_zip(spec: dict, log_func: LogFunc) -> bool:
     try:
         if not _download_url(url, tmp_path, log_func):
             return False
+
+        expected_size = asset.get("size")
+        if isinstance(expected_size, int) and expected_size > 0:
+            actual_size = os.path.getsize(tmp_path)
+            if actual_size != expected_size:
+                log_func(
+                    t(
+                        "external_tool_size_mismatch",
+                        tool=spec["display"],
+                        expected=expected_size,
+                        actual=actual_size,
+                    )
+                )
+                return False
+
+        digest = _sha256_file(tmp_path)
+        tag = str(data.get("tag_name") or "")
+        asset_name = str(asset.get("name") or os.path.basename(url))
+        hash_key = f"{name}:{tag}:{asset_name}"
+        known_hashes = _load_tool_hashes()
+        known_digest = known_hashes.get(hash_key)
+        if known_digest and known_digest != digest:
+            log_func(t("external_tool_hash_changed", tool=spec["display"]))
+            return False
+        log_func(t("external_tool_hash_recorded", tool=spec["display"], hash=digest))
+
         exe_path = _extract_tool_archive(tmp_path, dest_dir, spec["exe"])
         if not exe_path:
             log_func(t("external_tool_extract_failed", tool=spec["display"]))
             return False
+        known_hashes[hash_key] = digest
+        _save_tool_hashes(known_hashes)
         log_func(t("external_tool_local_ok", tool=spec["display"], path=exe_path))
         return True
     finally:

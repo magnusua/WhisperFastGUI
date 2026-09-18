@@ -5,7 +5,6 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
-from whisperfast.core.export_transcript import format_segment_line
 from whisperfast.core.speakers import (
     DEFAULT_THEM,
     DEFAULT_YOU,

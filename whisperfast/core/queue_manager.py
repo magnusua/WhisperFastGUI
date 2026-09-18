@@ -313,6 +313,7 @@ class QueueController:
         self._root_after = root_after  # callable(ms_or_0, fn) — Tk after
         self.queue_list = None
         self.watch_pending_continue = False
+        self._save_pending = False
         self.watcher = DirectoryWatcher(
             on_file_ready=self._on_watch_file_ready_threadsafe,
             log_func=self._log,
@@ -363,6 +364,7 @@ class QueueController:
             pass
 
     def save_to_file(self):
+        self._save_pending = False
         try:
             data = [
                 {
@@ -380,6 +382,19 @@ class QueueController:
         except OSError:
             pass
 
+    def schedule_save(self):
+        """Debounced save_to_file(): coalesces bursts (e.g. a batch of files
+        completing back-to-back) into a single write instead of one full
+        request_queue.json rewrite per file. Falls back to an immediate save
+        when there's no Tk event loop to debounce against (e.g. in tests)."""
+        if self._root_after is None:
+            self.save_to_file()
+            return
+        if self._save_pending:
+            return
+        self._save_pending = True
+        self._root_after(500, self.save_to_file)
+
     def ensure_file_exists(self):
         if not os.path.exists(self._request_queue_file):
             self.save_to_file()
@@ -394,6 +409,7 @@ class QueueController:
             self.queue_list.insert(
                 "",
                 "end",
+                iid=str(i),
                 values=(
                     i + 1,
                     name,
@@ -405,16 +421,56 @@ class QueueController:
                 ),
             )
 
+    def _update_treeview_row(self, idx: int) -> None:
+        """Update one row's displayed values in place instead of rebuilding
+        the whole Treeview. Falls back to a full refresh if the positional
+        iid scheme from refresh_treeview()/add_files() doesn't line up
+        (e.g. widget rebuilt or item filtered out by the real Tk widget)."""
+        if self.queue_list is None:
+            return
+        if not (0 <= idx < len(self.queue)):
+            return
+        iid = str(idx)
+        try:
+            exists = self.queue_list.exists(iid)
+        except AttributeError:
+            self.refresh_treeview()
+            return
+        if not exists:
+            self.refresh_treeview()
+            return
+        q = self.queue[idx]
+        status_text = t("status_processed") if q.get("processed") else t("status_not_processed")
+        self.queue_list.item(
+            iid,
+            values=(
+                idx + 1,
+                os.path.basename(q["path"]),
+                q["start"],
+                q.get("end_segment_1", ""),
+                q.get("end_segment_2", ""),
+                q["end"],
+                status_text,
+            ),
+        )
+
     # --- Mutations ---
 
     def add_files(self, file_paths):
-        if self.queue_list is None:
+        if not file_paths:
             return 0, 0
         added, skipped = add_files_to_queue_controller(
             file_paths, self.queue, self.queue_list, log_func=self._log
         )
         if added:
             self.save_to_file()
+            new_paths = [q.get("path") for q in self.queue[-added:] if q.get("path")]
+            if new_paths:
+                self.register_output_paths(new_paths)
+            try:
+                self.refresh_treeview()
+            except Exception:
+                pass
         return added, skipped
 
     def clear(self):
@@ -442,12 +498,12 @@ class QueueController:
 
     def mark_done_by_path(self, path):
         keys = _path_match_keys(path)
-        for q in self.queue:
+        for idx, q in enumerate(self.queue):
             if _path_match_keys(q.get("path")) & keys:
                 q["processed"] = True
+                self._update_treeview_row(idx)
                 break
-        self.refresh_treeview()
-        self.save_to_file()
+        self.schedule_save()
 
     def update_path(self, old_path, new_path):
         """Оновлює path у черзі після переносу файлу. Повертає True якщо знайдено."""
@@ -455,11 +511,11 @@ class QueueController:
         new_norm = normalize_queue_path(new_path) or new_path
         if not keys or not new_norm:
             return False
-        for q in self.queue:
+        for idx, q in enumerate(self.queue):
             if _path_match_keys(q.get("path")) & keys:
                 q["path"] = new_norm
-                self.refresh_treeview()
-                self.save_to_file()
+                self._update_treeview_row(idx)
+                self.schedule_save()
                 return True
         return False
 
@@ -469,20 +525,20 @@ class QueueController:
         new_norm = normalize_queue_path(new_path) or new_path
         if not keys:
             return
-        for q in self.queue:
+        for idx, q in enumerate(self.queue):
             if _path_match_keys(q.get("path")) & keys:
                 if new_norm:
                     q["path"] = new_norm
                 q["processed"] = True
+                self._update_treeview_row(idx)
                 break
-        self.refresh_treeview()
-        self.save_to_file()
+        self.schedule_save()
 
     def mark_done(self, idx):
         if 0 <= idx < len(self.queue):
             self.queue[idx]["processed"] = True
-            self.refresh_treeview()
-            self.save_to_file()
+            self._update_treeview_row(idx)
+            self.schedule_save()
 
     def remove_paths(self, paths):
         skipped = set()
@@ -497,8 +553,8 @@ class QueueController:
     def update_row(self, idx, **fields):
         if 0 <= idx < len(self.queue):
             self.queue[idx].update(fields)
-            self.refresh_treeview()
-            self.save_to_file()
+            self._update_treeview_row(idx)
+            self.schedule_save()
 
     # --- Watch integration ---
 

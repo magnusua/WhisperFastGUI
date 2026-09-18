@@ -12,6 +12,8 @@
 - **Автозапис і календар:** Zoom/Teams/Meet/Telegram/Viber/Phone Link/WhatsApp, Google Calendar / Outlook / ICS; ручний Start/Stop сильніший за автомат; автостоп 15 с тиші лише для автосесій.
 - **Live preview** на tiny/base (не пишеться на диск), CLI `sessions` / `process` / `record`, echo-фільтр точних дублікатів far-end.
 - **install.bat:** numpy і pycaw для запису/автозапису, перевірка FFmpeg з libopus.
+- **Вхід Google:** Calendar і Gemini через браузер (PKCE / Desktop OAuth, власний client ID).
+- **Запис → черга:** Stop і Clip додають готовий файл у чергу обробки; шлях у логу клікабельний (відкрити / папка). Кнопки OK/Cancel у налаштуваннях запису завжди видно.
 
 ## Що нового в 1.3.1
 

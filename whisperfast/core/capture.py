@@ -185,6 +185,7 @@ class CaptureSession:
         self._loopback_device: Optional[int] = None
         self.calendar_title = ""
         self.calendar_attendees: List[str] = []
+        self.log_file_id = ""
 
     @property
     def running(self) -> bool:
@@ -254,6 +255,7 @@ class CaptureSession:
             self._loopback_device = loopback_device
             self.calendar_title = calendar_title or ""
             self.calendar_attendees = list(calendar_attendees or [])
+            self.log_file_id = ""
             self._thread = threading.Thread(target=self._run, daemon=True)
             self._thread.start()
         if log_func:

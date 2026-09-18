@@ -10,21 +10,36 @@ from whisperfast.utils import make_queue_item
 
 class FakeTreeview:
     def __init__(self):
-        self.rows = []
+        self.rows = {}
+        self._order = []
         self._n = 0
 
-    def insert(self, parent, index, values=()):
-        self._n += 1
-        iid = str(self._n)
-        self.rows.append((iid, values))
+    def insert(self, parent, index, iid=None, values=()):
+        if iid is None:
+            self._n += 1
+            iid = str(self._n)
+        if iid in self.rows:
+            raise ValueError(f"Item {iid} already exists")
+        self.rows[iid] = tuple(values)
+        self._order.append(iid)
         return iid
 
     def delete(self, *iids):
         drop = set(iids)
-        self.rows = [row for row in self.rows if row[0] not in drop]
+        self._order = [i for i in self._order if i not in drop]
+        for i in drop:
+            self.rows.pop(i, None)
 
     def get_children(self):
-        return [row[0] for row in self.rows]
+        return list(self._order)
+
+    def exists(self, iid):
+        return iid in self.rows
+
+    def item(self, iid, values=None):
+        if values is not None:
+            self.rows[iid] = tuple(values)
+        return {"values": self.rows.get(iid, ())}
 
 
 def _touch(path, data=b"x"):
@@ -45,14 +60,27 @@ class TestQueueController(unittest.TestCase):
             ctrl.bind_treeview(FakeTreeview())
         return ctrl
 
-    def test_add_files_requires_treeview(self):
+    def test_add_files_without_treeview_still_queues(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "a.mp3")
             _touch(path)
             ctrl = self._controller(tmp, bind=False)
             added, skipped = ctrl.add_files([path])
-            self.assertEqual((added, skipped), (0, 0))
-            self.assertEqual(ctrl.queue, [])
+            self.assertEqual((added, skipped), (1, 0))
+            self.assertEqual(len(ctrl.queue), 1)
+            self.assertEqual(os.path.normcase(ctrl.queue[0]["path"]), os.path.normcase(path))
+
+    def test_add_files_repairs_treeview_after_insert_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "a.mp3")
+            _touch(path)
+            ctrl = self._controller(tmp)
+            ctrl.queue_list.insert("", "end", iid="0", values=(1, "stale", "", "", "", "", ""))
+            added, skipped = ctrl.add_files([path])
+            self.assertEqual((added, skipped), (1, 0))
+            self.assertEqual(len(ctrl.queue), 1)
+            self.assertEqual(len(ctrl.queue_list.get_children()), 1)
+            self.assertEqual(ctrl.queue_list.rows["0"][1], os.path.basename(path))
 
     def test_add_files_and_skip_duplicate(self):
         with tempfile.TemporaryDirectory() as tmp:

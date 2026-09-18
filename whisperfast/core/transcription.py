@@ -60,6 +60,19 @@ def segment_file_suffix(start_sec, end_sec):
     return "_" + format_timestamp_filename(start_sec) + "_" + format_timestamp_filename(end_sec)
 
 
+def _reuse_or_begin_file_log(app, path, name=None, current=None, total=None):
+    """Reuse a capture file-session if this path was already logged as a recording."""
+    finder = getattr(app, "find_file_log_id", None)
+    existing = finder(path) if callable(finder) else None
+    if existing:
+        panel = getattr(app, "log_panel", None)
+        attach = getattr(panel, "attach_file", None) if panel is not None else None
+        if callable(attach):
+            attach(existing)
+        return existing
+    return app.begin_file_log(path, name=name, current=current, total=total)
+
+
 def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
     """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально Cursor / DOCX."""
     out_dir = app._resolve_output_dir(path, opts)
@@ -123,7 +136,7 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
         )
     else:
         app.log_file_event(t("doc_ready_md", name=md_name), file_id=file_id)
-    app.add_file_output("md", md_path, file_id=file_id)
+    app.add_file_output("md", md_path, file_id=file_id, reindex=False)
     if chars or lines:
         app.log_file_event(
             t("doc_md_stats", chars=chars, lines=lines),
@@ -204,13 +217,12 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
             if not path:
                 continue
             name = os.path.basename(path)
+            file_id = _reuse_or_begin_file_log(app, path, name=name, current=done + 1, total=to_do)
             if not os.path.isfile(path):
-                file_id = app.begin_file_log(path, name=name, current=done + 1, total=to_do)
                 app.log_file_event(t("file_skipped", name=name), file_id=file_id)
                 app.end_file_log("skipped", file_id=file_id)
                 skipped_paths.append(path)
                 continue
-            file_id = app.begin_file_log(path, name=name, current=done + 1, total=to_do)
 
             try:
                 if is_document_file(path):
@@ -462,10 +474,10 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
             segments,
             extra={"source": os.path.abspath(path), "model": opts.get("whisper_model") or ""},
         )
-        app.add_file_output("json", json_p, file_id=log_file_id)
+        app.add_file_output("json", json_p, file_id=log_file_id, reindex=False)
     if vtt_p:
         write_vtt(vtt_p, segments)
-        app.add_file_output("vtt", vtt_p, file_id=log_file_id)
+        app.add_file_output("vtt", vtt_p, file_id=log_file_id, reindex=False)
 
     file_id = log_file_id
     ai_job_id = None
@@ -479,13 +491,13 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
             file_id,
             lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
         )
-    app.add_file_output("txt", txt_p, file_id=file_id)
-    app.add_file_output("srt", srt_p, file_id=file_id)
+    app.add_file_output("txt", txt_p, file_id=file_id, reindex=False)
+    app.add_file_output("srt", srt_p, file_id=file_id, reindex=False)
 
     if audio_segment is not None and mp3_p is not None:
         try:
             audio_segment.export(mp3_p, format="mp3")
-            app.add_file_output("mp3", mp3_p, file_id=file_id)
+            app.add_file_output("mp3", mp3_p, file_id=file_id, reindex=False)
         except Exception as e:
             app.log_file_event(t("audio_mp3_error", error=str(e)), file_id=file_id)
 
@@ -545,7 +557,7 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
                 ),
             )
             if file_id:
-                app.add_file_output("speakers", sp_path, file_id=file_id)
+                app.add_file_output("speakers", sp_path, file_id=file_id, reindex=False)
         keep_audio = True
         if output_opts:
             keep_audio = bool(output_opts.get("keep_audio", True))

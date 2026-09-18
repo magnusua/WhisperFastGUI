@@ -53,17 +53,12 @@ def test_provider(provider_id: str, credentials: Dict[str, Any]) -> Tuple[bool, 
             )
             return True, t("ai_test_ok")
         if pid == PROVIDER_GEMINI:
-            from whisperfast.postprocess.providers.gemini import (
-                call_gemini_generate,
-                resolve_gemini_api_key,
-                resolve_gemini_model,
-            )
+            from whisperfast.postprocess.providers.gemini import GeminiProvider, generate_gemini, resolve_gemini_model
 
-            key = resolve_gemini_api_key((credentials.get("gemini_api_key") or "").strip())
-            if not key:
+            if not GeminiProvider().has_api_credentials(credentials):
                 return False, t("ai_test_missing_key")
-            call_gemini_generate(
-                key,
+            generate_gemini(
+                credentials,
                 resolve_gemini_model((credentials.get("gemini_model") or "").strip()),
                 "Reply with the single word pong.",
             )

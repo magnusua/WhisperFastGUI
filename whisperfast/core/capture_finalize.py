@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from datetime import datetime
 from typing import Optional
 
@@ -106,11 +107,19 @@ def finalize_wav(
 
 
 def run_on_stop_hook(command: str, path: str, log_func=None) -> None:
-    cmd = (command or "").strip()
-    if not cmd:
+    cmd_template = (command or "").strip()
+    if not cmd_template:
         return
+    # {path} is substituted via an environment variable, not raw text, so shell
+    # metacharacters in `path` (e.g. from a user-typed meeting name) can't be
+    # reinterpreted as command syntax when this runs with shell=True.
+    var_name = "FTW_STOPPED_FILE"
+    var_ref = f'"%{var_name}%"' if sys.platform == "win32" else f'"${var_name}"'
+    cmd = cmd_template.replace("{path}", var_ref)
+    env = os.environ.copy()
+    env[var_name] = path
     try:
-        subprocess.Popen(cmd.replace("{path}", path), shell=True)
+        subprocess.Popen(cmd, shell=True, env=env)
     except Exception as e:
         if log_func:
             try:
