@@ -1,7 +1,11 @@
 """Open a file or reveal it in the system file manager."""
 import os
+import shutil
 import subprocess
 import sys
+from typing import List, Optional, Tuple
+
+from whisperfast.platform_util import win_no_window_kwargs
 
 
 def open_file(path: str) -> bool:
@@ -15,6 +19,67 @@ def open_file(path: str) -> bool:
     else:
         subprocess.run(["xdg-open", path], check=False)
     return True
+
+
+def waitable_editor_command(path: str) -> Tuple[Optional[List[str]], dict]:
+    """Command that opens ``path`` and blocks until the editor/tab closes."""
+    abs_path = os.path.abspath(path)
+    if sys.platform == "win32":
+        cursor = _find_cursor_cli()
+        if cursor:
+            kwargs = win_no_window_kwargs() if cursor.lower().endswith((".cmd", ".bat")) else {}
+            return [cursor, "--wait", abs_path], kwargs
+        code = shutil.which("code.cmd") or shutil.which("code")
+        if code:
+            kwargs = win_no_window_kwargs() if code.lower().endswith((".cmd", ".bat")) else {}
+            return [code, "--wait", abs_path], kwargs
+        notepad = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "notepad.exe")
+        if os.path.isfile(notepad):
+            return [notepad, abs_path], {}
+        return None, {}
+    if sys.platform == "darwin":
+        return ["open", "-W", "-t", abs_path], {}
+    for name, extra in (("cursor", ["--wait"]), ("code", ["--wait"]), ("gedit", ["--wait"])):
+        found = shutil.which(name)
+        if found:
+            return [found, *extra, abs_path], {}
+    return None, {}
+
+
+def open_file_and_wait(path: str) -> bool:
+    """Open ``path`` and block until the editor process (or tab) closes.
+
+    Returns False if no waitable editor is available (does not fire-and-forget).
+    """
+    if not path or not os.path.exists(path):
+        return False
+    cmd, kwargs = waitable_editor_command(path)
+    if not cmd:
+        return False
+    try:
+        subprocess.run(cmd, check=False, **kwargs)
+        return True
+    except OSError:
+        return False
+
+
+def _find_cursor_cli() -> Optional[str]:
+    for name in ("cursor.cmd", "cursor.exe", "cursor"):
+        found = shutil.which(name)
+        if found:
+            return found
+    if sys.platform != "win32":
+        return None
+    bundled = os.path.join(
+        os.environ.get("LOCALAPPDATA", ""),
+        "Programs",
+        "cursor",
+        "resources",
+        "app",
+        "bin",
+        "cursor.cmd",
+    )
+    return bundled if os.path.isfile(bundled) else None
 
 
 def open_file_location(path: str) -> bool:

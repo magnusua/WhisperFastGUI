@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "2.0.2",
+      "date": "21.09.2026",
+      "notes": {
+        "EN": [
+          "Edit on a prompt copies its text to a temporary Markdown file; save and close writes it back to JSON and deletes the Markdown.",
+          "The Brief cell in the work log no longer duplicates the file card on every transcription segment.",
+          "Toolbar: Archive sits behind a | with a search icon; another | follows Record/Clip; the finish-sound switch is a bell icon."
+        ],
+        "UK": [
+          "«Змінити» на промпті копіює текст у тимчасовий Markdown; після збереження і закриття записує його назад у JSON і видаляє Markdown.",
+          "Клітинка «Коротко» в логу більше не дублює картку файлу на кожному сегменті транскрипції.",
+          "Шапка: архів за `|` з іконкою лупи; ще один `|` після запису/відрізка; «Сповіщення» — дзвіночок."
+        ],
+        "RU": [
+          "«Изменить» у промта копирует текст во временный Markdown; после сохранения и закрытия записывает его обратно в JSON и удаляет Markdown.",
+          "Ячейка «Кратко» в логе больше не дублирует карточку файла на каждом сегменте транскрипции.",
+          "Шапка: архив за `|` с иконкой лупы; ещё один `|` после записи/урывка; «Уведомление» — колокольчик."
+        ]
+      }
+    },
+    {
       "version": "2.0.1",
       "date": "18.09.2026",
       "notes": {

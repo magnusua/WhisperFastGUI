@@ -26,6 +26,7 @@ class TestToolbarIcons(unittest.TestCase):
             if not os.path.isfile(toolbar_icons.icon_path(key))
         ]
         self.assertEqual(missing, [], f"missing toolbar PNG for: {missing}")
+        self.assertEqual(toolbar_icons.FILE_MAP["archive"], "search.png")
 
     def test_load_and_apply_on_buttons(self):
         root = _make_root()
@@ -45,6 +46,8 @@ class TestToolbarIcons(unittest.TestCase):
             capture_settings_btn=ttk.Button(root),
             capture_btn=ttk.Button(root),
             capture_pause_btn=ttk.Button(root),
+            play_sound_btn=ttk.Button(root),
+            play_sound_on_finish=tk.BooleanVar(value=True),
         )
         toolbar_icons.apply_static(app)
         self.assertEqual(app.add_files_btn._toolbar_icon_key, "add_files")
@@ -52,7 +55,13 @@ class TestToolbarIcons(unittest.TestCase):
         self.assertEqual(app.clear_queue_btn._toolbar_icon_key, "clear_queue")
         self.assertEqual(app.archive_btn._toolbar_icon_key, "archive")
         self.assertEqual(app.capture_settings_btn._toolbar_icon_key, "capture_settings")
+        self.assertEqual(app.play_sound_btn._toolbar_icon_key, "notify_on")
         self.assertEqual(app.add_files_btn.cget("text"), "")
+        self.assertEqual(app.play_sound_btn.cget("text"), "")
+
+        app.play_sound_on_finish.set(False)
+        toolbar_icons.apply_notify_state(app)
+        self.assertEqual(app.play_sound_btn._toolbar_icon_key, "notify_off")
 
         toolbar_icons.apply_capture_state(app, running=False, paused=False)
         self.assertEqual(app.capture_btn._toolbar_icon_key, "capture_start")

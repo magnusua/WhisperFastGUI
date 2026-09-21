@@ -544,6 +544,46 @@ class QueueController:
             self._update_treeview_row(idx)
             self.schedule_save()
 
+    def set_note_for_path(self, path, note, *, only_if_empty=False) -> bool:
+        """Write queue «Кратко» for this file (same path or same folder/stem)."""
+        from whisperfast.utils import normalize_queue_note
+
+        text = normalize_queue_note(note)
+        if not path:
+            return False
+        if only_if_empty and not text:
+            return False
+        keys = _path_match_keys(path)
+        try:
+            stem = os.path.splitext(os.path.basename(path))[0].lower()
+            dirn = os.path.normcase(os.path.dirname(os.path.abspath(path)))
+        except OSError:
+            stem = os.path.splitext(os.path.basename(path))[0].lower()
+            dirn = ""
+        for idx, q in enumerate(self.queue):
+            qp = q.get("path") or ""
+            matched = bool(keys & _path_match_keys(qp))
+            if not matched:
+                q_stem = os.path.splitext(os.path.basename(qp))[0].lower()
+                if q_stem != stem:
+                    continue
+                try:
+                    q_dir = os.path.normcase(os.path.dirname(os.path.abspath(qp)))
+                except OSError:
+                    q_dir = ""
+                matched = (not dirn) or (not q_dir) or q_dir == dirn
+            if not matched:
+                continue
+            if only_if_empty and (q.get("note") or "").strip():
+                return False
+            self.update_row(idx, note=text)
+            return True
+        return False
+
+    def set_note_if_empty_for_path(self, path, note) -> bool:
+        """Fill queue «Кратко» for this file when the user has not typed one."""
+        return self.set_note_for_path(path, note, only_if_empty=True)
+
     # --- Watch integration ---
 
     def start_watch(self):

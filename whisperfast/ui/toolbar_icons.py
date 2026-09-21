@@ -18,13 +18,15 @@ FILE_MAP = {
     "add_files": "note-add.png",
     "add_directory": "create-new-folder.png",
     "clear_queue": "delete-sweep.png",
-    "archive": "archive.png",
+    "archive": "search.png",
     "capture_start": "mic.png",
     "capture_stop": "stop.png",
     "capture_pause": "pause.png",
     "capture_resume": "play-arrow.png",
     "capture_clip": "content-cut.png",
     "capture_settings": "settings.png",
+    "notify_on": "notifications.png",
+    "notify_off": "notifications-off.png",
 }
 
 # Segoe MDL2 Assets (Windows) if a PNG is missing.
@@ -33,13 +35,15 @@ UNICODE_FALLBACK = {
     "add_files": "\uE8E5",
     "add_directory": "\uE8F4",
     "clear_queue": "\uE74D",
-    "archive": "\uE7B8",
+    "archive": "\uE721",
     "capture_start": "\uE720",
     "capture_stop": "\uE71A",
     "capture_pause": "\uE769",
     "capture_resume": "\uE768",
     "capture_clip": "\uE8C6",
     "capture_settings": "\uE713",
+    "notify_on": "\uEA8F",
+    "notify_off": "\uE7ED",
 }
 
 _ICON_SIZE = 20
@@ -104,6 +108,19 @@ def apply_static(app) -> None:
         ("capture_settings_btn", "capture_settings"),
     ):
         set_icon(getattr(app, attr, None), photos, key)
+    apply_notify_state(app)
+
+
+def apply_notify_state(app) -> None:
+    photos = getattr(app, "_toolbar_photos", None) or {}
+    on = False
+    var = getattr(app, "play_sound_on_finish", None)
+    if var is not None:
+        try:
+            on = bool(var.get())
+        except tk.TclError:
+            pass
+    set_icon(getattr(app, "play_sound_btn", None), photos, "notify_on" if on else "notify_off")
 
 
 def apply_capture_state(app, running: bool, paused: bool) -> None:

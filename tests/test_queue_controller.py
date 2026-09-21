@@ -126,6 +126,21 @@ class TestQueueController(unittest.TestCase):
             self.assertEqual(other.queue[0]["note"], "weekly sync")
             self.assertEqual(other.queue_list.rows["0"][2], "weekly sync")
 
+    def test_set_note_if_empty_matches_same_stem(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            media = os.path.join(tmp, "2026-09-18 16-29-13.mp4")
+            txt = os.path.join(tmp, "2026-09-18 16-29-13.txt")
+            _touch(media)
+            _touch(txt)
+            ctrl = self._controller(tmp)
+            ctrl.add_files([media])
+            self.assertTrue(ctrl.set_note_if_empty_for_path(txt, "brief from AI"))
+            self.assertEqual(ctrl.queue[0]["note"], "brief from AI")
+            self.assertFalse(ctrl.set_note_if_empty_for_path(txt, "later"))
+            self.assertEqual(ctrl.queue[0]["note"], "brief from AI")
+            self.assertTrue(ctrl.set_note_for_path(txt, "typed in log", only_if_empty=False))
+            self.assertEqual(ctrl.queue[0]["note"], "typed in log")
+
     def test_mark_done_and_remove_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             a = os.path.join(tmp, "a.mp3")

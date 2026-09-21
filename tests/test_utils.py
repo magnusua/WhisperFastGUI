@@ -115,11 +115,10 @@ class TestMakeQueueItem(unittest.TestCase):
 
 
 class TestLogFileNoteHeader(unittest.TestCase):
-    def test_header_includes_note_next_to_filename(self):
+    def test_header_keeps_name_and_status_outside_the_cell(self):
         from whisperfast.ui.log_panel import LogPanel
 
-        line = LogPanel._format_file_header_line(
-            None,
+        prefix, suffix = LogPanel._format_file_header_parts(
             {
                 "name": "Video.mp4",
                 "status": "done",
@@ -128,19 +127,57 @@ class TestLogFileNoteHeader(unittest.TestCase):
             },
             True,
         )
-        self.assertIn("Video.mp4", line)
-        self.assertIn(" — sales call", line)
+        self.assertIn("Video.mp4", prefix)
+        self.assertNotIn("sales call", prefix)
+        self.assertNotIn("sales call", suffix)
+        self.assertIn("[", suffix)
 
-    def test_header_omits_note_when_empty(self):
+    def test_header_line_has_no_inline_note(self):
         from whisperfast.ui.log_panel import LogPanel
 
         line = LogPanel._format_file_header_line(
-            None,
-            {"name": "Video.mp4", "status": "done", "note": ""},
+            {"name": "Video.mp4", "status": "done", "note": "sales call"},
             True,
         )
         self.assertIn("Video.mp4", line)
-        self.assertNotIn(" — ", line)
+        self.assertNotIn("sales call", line)
+
+    def test_embedded_note_cell_is_an_entry(self):
+        import tkinter as tk
+        import tempfile
+
+        from whisperfast.log_store import LogStore
+        from whisperfast.ui.log_panel import LogPanel
+
+        try:
+            root = tk.Tk()
+        except tk.TclError as e:
+            raise unittest.SkipTest(f"no Tk display available: {e}")
+        root.withdraw()
+        self.addCleanup(root.destroy)
+        with tempfile.TemporaryDirectory() as tmp:
+            panel = LogPanel(root)
+            panel._store = LogStore(path=os.path.join(tmp, "app_log.json"))
+            box = tk.Text(root)
+            panel.bind_widget(box)
+            panel.setup_styles()
+            file_id = panel.begin_file(os.path.join(tmp, "a.mp4"), name="a.mp4")
+            root.update()
+            widget = panel._file_note_widgets.get(file_id)
+            self.assertIsInstance(widget, tk.Entry)
+            self.assertGreaterEqual(int(widget.cget("width")), 20)
+            panel.log_file_segment("0:01", "hello", count=1, file_id=file_id)
+            root.update()
+            panel.log_file_segment("0:02", "world", count=12, file_id=file_id)
+            root.update()
+            panel.end_file(status="done", file_id=file_id)
+            root.update()
+            text = box.get("1.0", "end")
+            self.assertEqual(text.count("a.mp4"), 1)
+            self.assertEqual(text.count("▶"), 1)
+            windows = [item for item in box.dump("1.0", "end", window=True) if item[0] == "window"]
+            self.assertEqual(len(windows), 1)
+            self.assertEqual(len(panel._file_note_widgets), 1)
 
 
 if __name__ == "__main__":

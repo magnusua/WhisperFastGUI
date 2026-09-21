@@ -334,6 +334,28 @@ def parse_redactor_prompts(path: Optional[str] = None) -> List[Tuple[int, str, s
     return []
 
 
+def prompt_label_from_output_path(path: str, source_path: str = "") -> str:
+    """Prompt name from ``stem_one_liner.md`` (names may contain underscores)."""
+    stem = os.path.splitext(os.path.basename(path or ""))[0]
+    src_stem = os.path.splitext(os.path.basename(source_path or ""))[0]
+    if src_stem:
+        prefix = src_stem + "_"
+        if stem.startswith(prefix) and len(stem) > len(prefix):
+            return stem[len(prefix) :]
+        if stem.lower().startswith(prefix.lower()) and len(stem) > len(prefix):
+            return stem[len(src_stem) + 1 :]
+    if "_" in stem:
+        return stem.rsplit("_", 1)[-1]
+    return stem
+
+
+def is_one_liner_output(path: str, label: str = "") -> bool:
+    """True for the archive-brief prompt, even if the label was split on '_'."""
+    lab = (label or "").lower().replace("-", "_")
+    stem = os.path.splitext(os.path.basename(path or ""))[0].lower().replace("-", "_")
+    return lab in ("one_liner", "oneliner") or stem.endswith("_one_liner") or stem == "one_liner"
+
+
 def sanitize_prompt_filename(name: str) -> str:
     """Готує ім'я промпта для використання у назві файлу."""
     name = (name or "").strip()
@@ -368,7 +390,7 @@ def edited_output_path(txt_path: str, prompt_num: int, prompt_name: str = "") ->
 
 
 def open_redactor_file(log_func: Optional[LogFunc] = None, path: Optional[str] = None) -> str:
-    """Відкриває один JSON-промпт (або каталог ``promts/``)."""
+    """Редагує JSON-промпт через тимчасовий Markdown або відкриває каталог ``promts/``."""
     target = path or ensure_prompt_library()
     return open_prompt_file(target, log_func=log_func)
 

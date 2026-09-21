@@ -12,8 +12,10 @@ from whisperfast.i18n import t
 from whisperfast.postprocess.ai_postprocess import start_ai_postprocess_async
 from whisperfast.postprocess.cursor_postprocess import (
     ensure_redactor_file,
+    is_one_liner_output,
     open_redactor_file,
     parse_redactor_prompts,
+    prompt_label_from_output_path,
 )
 from whisperfast.postprocess.providers import (
     PROVIDER_CURSOR,
@@ -31,6 +33,67 @@ _PROMPT_CASCADE_DY = 28
 # Верхня межа self._jobs у довгій tray-сесії; звільняємо найстаріші
 # завершені job, щойно поріг перевищено (running/selecting/open-dialog не чіпаємо).
 _MAX_RETAINED_JOBS = 2000
+
+
+def apply_one_liner_brief(app, file_id, summary, source_path="") -> bool:
+    """Copy one_liner text into archive, work-log header, and empty queue Brief."""
+    from whisperfast.utils import normalize_queue_note
+
+    text = normalize_queue_note(summary)
+    if not text:
+        return False
+    lib = getattr(app, "library", None)
+    if lib and file_id:
+        existing = ((lib.get_job(file_id) or {}).get("summary") or "").strip()
+        if existing:
+            return False
+        try:
+            lib.set_meta(file_id, summary=text)
+        except Exception:
+            pass
+    apply_note = getattr(app, "apply_file_note", None)
+    if callable(apply_note) and file_id:
+        try:
+            apply_note(file_id, text, log_event=False)
+        except Exception:
+            pass
+    else:
+        panel = getattr(app, "log_panel", None)
+        setter = getattr(panel, "set_file_note", None) if panel is not None else None
+        if callable(setter) and file_id:
+            try:
+                setter(file_id, text)
+            except Exception:
+                pass
+    media = source_path
+    if lib and file_id:
+        media = ((lib.get_job(file_id) or {}).get("source") or source_path or media)
+    ctrl = getattr(app, "queue_ctrl", None)
+    fill = getattr(ctrl, "set_note_if_empty_for_path", None)
+    if callable(fill):
+        for candidate in (media, source_path):
+            if candidate:
+                try:
+                    fill(candidate, text)
+                except Exception:
+                    pass
+    folder = os.path.dirname(source_path) if source_path else ""
+    if folder:
+        try:
+            from whisperfast.core.session_store import write_summary
+
+            write_summary(folder, text)
+        except Exception:
+            pass
+    win = getattr(app, "_archive_window", None)
+    if win is not None:
+        refresh = getattr(win, "_wf_refresh", None)
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception:
+                pass
+    return True
 
 
 class AiJobQueue:
@@ -52,7 +115,7 @@ class AiJobQueue:
         open_redactor_file(log_func=self.app.log)
 
     def show_prompts_overview(self):
-        """Вікно зі списком промптів; галочка = за замовчуванням; Змінити відкриває JSON рядка."""
+        """Вікно зі списком промптів; галочка = за замовчуванням; Змінити редагує body через тимчасовий MD."""
         dialog = getattr(self, "_overview_dialog", None)
         if dialog is not None:
             try:
@@ -505,29 +568,15 @@ class AiJobQueue:
 
         def on_created(path):
             app.queue_ctrl.register_output_paths([path])
-            label = os.path.splitext(os.path.basename(path))[0]
-            if "_" in label:
-                label = label.rsplit("_", 1)[-1]
+            txt_p = job.get("txt_path") or txt_path
+            label = prompt_label_from_output_path(path, source_path=txt_p)
             if file_id:
                 app.add_file_output("ai", path, label=label, file_id=file_id)
-                if label.lower() in ("one_liner", "one-liner"):
+                if is_one_liner_output(path, label=label):
                     try:
                         with open(path, "r", encoding="utf-8", errors="replace") as f:
                             summary = f.read().strip().splitlines()[0][:200]
-                        lib = getattr(app, "library", None)
-                        applied = False
-                        setter = getattr(lib, "set_summary_if_empty", None) if lib else None
-                        if callable(setter) and summary:
-                            applied = bool(setter(file_id, summary))
-                        elif lib and summary:
-                            lib.set_meta(file_id, summary=summary)
-                            applied = True
-                        txt_p = job.get("txt_path") or txt_path
-                        folder = os.path.dirname(txt_p) if txt_p else ""
-                        if folder and applied:
-                            from whisperfast.core.session_store import write_summary
-
-                            write_summary(folder, summary)
+                        apply_one_liner_brief(app, file_id, summary, source_path=txt_p)
                     except Exception:
                         pass
                 if label.lower() in ("names",):

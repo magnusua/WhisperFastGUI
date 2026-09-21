@@ -134,5 +134,59 @@ class TestAiJobRetry(unittest.TestCase):
         self.assertTrue(any("a.txt" in str(m) for m in app.file_events))
 
 
+class TestApplyOneLinerBrief(unittest.TestCase):
+    def test_fills_library_log_and_queue(self):
+        from whisperfast.library import ConversationLibrary
+        from whisperfast.ui.ai_jobs import apply_one_liner_brief
+        from whisperfast.utils import make_queue_item
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("whisperfast.utils.get_audio_duration_seconds", return_value=1.0):
+                media = os.path.join(tmp, "2026-09-18 16-29-13.mp4")
+                txt = os.path.join(tmp, "2026-09-18 16-29-13.txt")
+                with open(media, "wb") as f:
+                    f.write(b"x")
+                with open(txt, "w", encoding="utf-8") as f:
+                    f.write("hi")
+                lib = ConversationLibrary(os.path.join(tmp, "library.sqlite"))
+                try:
+                    lib.upsert_job(
+                        {
+                            "id": "file1",
+                            "created_at": "2026-09-18T16:29:13",
+                            "source": media,
+                            "name": os.path.basename(media),
+                            "txt_path": txt,
+                        }
+                    )
+                    notes = []
+                    app = FakeApp()
+                    app.library = lib
+                    app.apply_file_note = lambda fid, note, log_event=True: notes.append(
+                        (fid, note, log_event)
+                    )
+                    app.queue_ctrl = SimpleNamespace(
+                        register_output_paths=lambda _p: None,
+                        watch_pending_continue=False,
+                        queue=[make_queue_item(media)],
+                    )
+
+                    def set_note_if_empty_for_path(path, note):
+                        app.queue_ctrl.queue[0]["note"] = note
+                        return True
+
+                    app.queue_ctrl.set_note_if_empty_for_path = set_note_if_empty_for_path
+                    self.assertTrue(
+                        apply_one_liner_brief(app, "file1", "  sales call  ", source_path=txt)
+                    )
+                    self.assertEqual(lib.get_job("file1")["summary"], "sales call")
+                    self.assertEqual(notes, [("file1", "sales call", False)])
+                    self.assertEqual(app.queue_ctrl.queue[0]["note"], "sales call")
+                    self.assertFalse(apply_one_liner_brief(app, "file1", "other", source_path=txt))
+                    self.assertEqual(lib.get_job("file1")["summary"], "sales call")
+                finally:
+                    lib.close()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -164,6 +164,7 @@ class WhisperGUI:
             root_after=lambda ms, fn: self.root.after(ms, fn),
         )
         self.queue = self.queue_ctrl.queue  # сумісність: той самий list
+        self.log_panel.on_note_commit = self._on_log_note_commit
         self.cancel_requested = False
         self._process_queue_lock = threading.Lock()  # только одна обработка очереди одновременно
         
@@ -539,6 +540,55 @@ class WhisperGUI:
             except Exception as e:
                 self.log(f"[library] set_meta: {e}")
 
+    def _on_log_note_commit(self, file_id, note):
+        """User typed Brief in the log cell — copy to archive and queue."""
+        text = normalize_queue_note(note)
+        if not file_id:
+            return
+        try:
+            self.library.set_meta(file_id, summary=text)
+        except Exception as e:
+            self.log(f"[library] set_meta: {e}")
+        paths = []
+        try:
+            job = self.library.get_job(file_id)
+            if job:
+                if job.get("source"):
+                    paths.append(job["source"])
+                if job.get("txt_path"):
+                    paths.append(job["txt_path"])
+        except Exception:
+            pass
+        try:
+            entry = self.log_panel._store.get_file(file_id)
+            if entry and entry.get("source"):
+                paths.append(entry["source"])
+        except Exception:
+            pass
+        seen = set()
+        for path in paths:
+            if not path:
+                continue
+            try:
+                key = os.path.normcase(os.path.normpath(path))
+            except OSError:
+                key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                self.queue_ctrl.set_note_for_path(path, text, only_if_empty=False)
+            except Exception:
+                pass
+        win = getattr(self, "_archive_window", None)
+        if win is not None:
+            refresh = getattr(win, "_wf_refresh", None)
+            if callable(refresh):
+                try:
+                    refresh()
+                except Exception:
+                    pass
+
     def build_ui(self):
         """Создание интерфейса по блокам 1, 2, 3, 4"""
         main = ttk.Frame(self.root, padding=10)
@@ -561,6 +611,8 @@ class WhisperGUI:
         self.add_directory_btn.pack(side="left", padx=2)
         self.clear_queue_btn = ttk.Button(header_f, command=self.clear_queue)
         self.clear_queue_btn.pack(side="left", padx=2)
+        self.archive_sep = ttk.Label(header_f, text="|")
+        self.archive_sep.pack(side="left", padx=(10, 8))
         self.archive_btn = ttk.Button(header_f, command=self._open_archive)
         self.archive_btn.pack(side="left", padx=2)
         self.capture_sep = ttk.Label(header_f, text="|")
@@ -585,12 +637,12 @@ class WhisperGUI:
         self.capture_clip_entry.pack(side="left", padx=(0, 2))
         self.capture_clip_entry.bind("<Return>", lambda e: capture_ui.normalize_clip_entry(self))
         self.capture_clip_entry.bind("<FocusOut>", lambda e: capture_ui.normalize_clip_entry(self))
+        self.notify_sep = ttk.Label(header_f, text="|")
+        self.notify_sep.pack(side="left", padx=(10, 8))
+        self.play_sound_btn = ttk.Button(header_f, command=self._toggle_play_sound)
+        self.play_sound_btn.pack(side="left", padx=2)
         toolbar_icons.apply_static(self)
         capture_ui.refresh_capture_buttons(self)
-        # Чекбокс «Оповещение» (звук по завершении очереди)
-        self.play_sound_check = ttk.Checkbutton(header_f, text=t("play_sound_finish"),
-                       variable=self.play_sound_on_finish)
-        self.play_sound_check.pack(side="left", padx=5)
         
         # Кнопка Help самая правая
         self.help_btn = ttk.Button(header_f, text=t("help"), width=10, command=self.show_help)
@@ -823,7 +875,7 @@ class WhisperGUI:
         tip(self.capture_clip_btn, "tooltip_capture_clip")
         tip(self.capture_clip_entry, "tooltip_capture_clip")
         tip(self.capture_settings_btn, "tooltip_capture_settings")
-        tip(self.play_sound_check, "tooltip_play_sound")
+        tip(self.play_sound_btn, "tooltip_play_sound")
         tip(self.help_btn, "tooltip_help")
         tip(self.version_btn, "tooltip_version")
         tip(self.lang_selector_frame, "tooltip_ui_language")
@@ -1809,6 +1861,11 @@ class WhisperGUI:
     def _open_archive(self):
         show_archive_window(self)
 
+    def _toggle_play_sound(self):
+        self.play_sound_on_finish.set(not bool(self.play_sound_on_finish.get()))
+        toolbar_icons.apply_notify_state(self)
+        self._persist_settings()
+
     def _toggle_capture(self):
         capture_ui.toggle_capture(self)
 
@@ -2106,7 +2163,6 @@ class WhisperGUI:
             self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
         except (tk.TclError, ValueError):
             pass
-        self.play_sound_check.config(text=t("play_sound_finish"))
         self.mp3_settings_btn.config(text=t("save_audio_mp3"))
         self.edit_redactor_btn.config(text=t("send_txt_to_ai"))
         self.cursor_api_key_btn.config(text=t("ai_api_keys_button"))

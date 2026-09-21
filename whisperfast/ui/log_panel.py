@@ -75,6 +75,9 @@ class LogPanel:
         self._file_out_expanded = {}  # file_id -> bool (default True)
         self._file_action_callbacks = {}  # file_id -> latest action callback
         self._file_retry_callbacks = {}  # file_id -> retry AI job callback
+        self._file_note_widgets = {}  # file_id -> Entry embedded in the header
+        self._note_edit_state = {}  # file_id -> in-progress edit across re-renders
+        self.on_note_commit = None  # callback(file_id, note)
 
     def bind_widget(self, log_box):
         self.log_box = log_box
@@ -135,17 +138,29 @@ class LogPanel:
         return file_id
 
     def set_file_note(self, file_id, note):
-        """Update the file-session brief shown next to the filename in the log."""
-        text = (note or "").strip()
+        """Update the file-session brief shown in the header cell."""
+        from whisperfast.utils import normalize_queue_note
+
+        text = normalize_queue_note(note)
         fid = file_id or self._active_file_id
         if not fid:
             return None
         entry = self._store.update_file(fid, lambda e: e.__setitem__("note", text))
         if not entry:
             return None
+        widget = self._file_note_widgets.get(fid)
+        if widget is not None:
+            try:
+                if widget.focus_get() is widget:
+                    return entry
+                self._fill_note_entry(widget, text)
+                return entry
+            except tk.TclError:
+                pass
 
         def _do():
-            self._render_file_entry(entry, insert_new=False)
+            fresh = self._store.get_file(fid) or entry
+            self._render_file_entry(fresh, insert_new=False)
             self._scroll_to_end_if_today()
 
         self.root.after(0, _do)
@@ -284,6 +299,8 @@ class LogPanel:
         self._action_callbacks.clear()
         self._file_action_callbacks.clear()
         self._file_retry_callbacks.clear()
+        self._file_note_widgets.clear()
+        self._note_edit_state.clear()
         self._day_expanded.clear()
         self._day_body_loaded.clear()
         self._file_block_tags.clear()
@@ -350,6 +367,8 @@ class LogPanel:
         self._action_callbacks.clear()
         self._file_action_callbacks.clear()
         self._file_retry_callbacks.clear()
+        self._file_note_widgets.clear()
+        self._note_edit_state.clear()
         self._day_expanded.clear()
         self._day_body_loaded.clear()
         self._file_block_tags.clear()
@@ -403,6 +422,8 @@ class LogPanel:
         self._file_out_expanded = out_exp
         self._file_action_callbacks = cbs
         self._file_retry_callbacks = retry_cbs
+        self._file_note_widgets.clear()
+        self._note_edit_state.clear()
         self._ui_day = None
 
         box = self.log_box
@@ -493,6 +514,12 @@ class LogPanel:
             self._day_body_loaded[day_key] = False
             return
         body_tag = self._day_body_tag(day_key)
+        for entry in self._store.get_entries(day_key):
+            if entry.get("kind") == KIND_FILE:
+                fid = entry.get("id")
+                if fid:
+                    self._capture_note_edit_state(fid)
+                    self._file_block_tags.pop(fid, None)
         ranges = self.log_box.tag_ranges(body_tag)
         self.log_box.config(state="normal")
         pairs = list(zip(ranges[0::2], ranges[1::2]))
@@ -500,11 +527,6 @@ class LogPanel:
             self.log_box.delete(start, end)
         self.log_box.config(state="disabled")
         self._day_body_loaded[day_key] = False
-        for entry in self._store.get_entries(day_key):
-            if entry.get("kind") == KIND_FILE:
-                fid = entry.get("id")
-                if fid:
-                    self._file_block_tags.pop(fid, None)
 
     def _set_day_expanded(self, day_key, expanded):
         """Згорнути/розгорнути день: тіло вивантажується / підвантажується."""
@@ -591,6 +613,22 @@ class LogPanel:
         self._trim_if_needed()
         self.log_box.config(state="disabled")
 
+    def _tagged_span(self, tag):
+        """First start .. last end of a tag, including gaps from embedded windows."""
+        ranges = self.log_box.tag_ranges(tag)
+        if len(ranges) < 2:
+            return None
+        return ranges[0], ranges[-1]
+
+    def _delete_tagged_span(self, tag):
+        """Delete a possibly split tagged region. Returns the start index, or None."""
+        span = self._tagged_span(tag)
+        if span is None:
+            return None
+        start, end = span
+        self.log_box.delete(start, end)
+        return start
+
     def _file_block_tag(self, file_id):
         return f"file_block_{file_id}"
 
@@ -650,21 +688,22 @@ class LogPanel:
         self._file_expanded[file_id] = expanded
         self._configure_file_body_elide(file_id, expanded)
         header_tag = self._file_header_tag(file_id)
-        ranges = self.log_box.tag_ranges(header_tag)
-        if len(ranges) < 2:
-            return
         entry = self._store.get_file(file_id)
         if not entry:
             return
         day_key = entry.get("day") or today_key()
         block_tag = self._file_block_tag(file_id)
         body_day = self._day_body_tag(day_key)
-        header_text = self._format_file_header_line(entry, expanded)
+        self._capture_note_edit_state(file_id)
         self.log_box.config(state="normal")
-        self.log_box.delete(ranges[0], ranges[1])
-        self.log_box.insert(
-            ranges[0],
-            header_text,
+        start = self._delete_tagged_span(header_tag)
+        if start is None:
+            self.log_box.config(state="disabled")
+            return
+        self._insert_file_header(
+            self.log_box,
+            start,
+            entry,
             (body_day, block_tag, "file_header", header_tag),
         )
         self.log_box.config(state="disabled")
@@ -750,14 +789,15 @@ class LogPanel:
             self._file_out_expanded[file_id] = True
 
         if not insert_new:
-            ranges = self.log_box.tag_ranges(block_tag)
-            if len(ranges) >= 2:
-                self.log_box.config(state="normal")
-                self.log_box.delete(ranges[0], ranges[1])
-                self._insert_file_block(entry, index=ranges[0], day_key=day_key)
+            self._capture_note_edit_state(file_id)
+            self.log_box.config(state="normal")
+            start = self._delete_tagged_span(block_tag)
+            if start is not None:
+                self._insert_file_block(entry, index=start, day_key=day_key)
                 self._trim_if_needed()
                 self.log_box.config(state="disabled")
                 return
+            self.log_box.config(state="disabled")
 
         self.log_box.config(state="normal")
         self._insert_file_block(entry, index="end", day_key=day_key)
@@ -790,14 +830,8 @@ class LogPanel:
         self._configure_file_tx_elide(file_id, tx_expanded)
         self._configure_file_out_elide(file_id, out_expanded)
 
-        header_text = self._format_file_header_line(entry, expanded)
-        cursor = index
-        box.insert(
-            cursor,
-            header_text,
-            (body_day, block_tag, "file_header", header_tag),
-        )
-        cursor = box.index(f"{cursor}+{len(header_text)}c")
+        header_tags = (body_day, block_tag, "file_header", header_tag)
+        cursor = self._insert_file_header(box, index, entry, header_tags)
 
         base_body = [body_day, block_tag, body_tag]
 
@@ -919,7 +953,8 @@ class LogPanel:
         low = (text or "").lower()
         return any(m in low for m in _FILES_CREATED_MARKERS)
 
-    def _format_file_header_line(self, entry, expanded=True):
+    @staticmethod
+    def _format_file_header_parts(entry, expanded=True):
         name = entry.get("name") or os.path.basename(entry.get("source") or "") or "?"
         status = entry.get("status") or "running"
         idx = entry.get("index") or {}
@@ -929,27 +964,180 @@ class LogPanel:
         if status_label == status_key:
             status_label = status
         mark = "▼" if expanded else "▶"
-        note = (entry.get("note") or "").strip()
-        note_part = f" — {note}" if note else ""
         if current is not None and total is not None:
-            title = t(
+            prefix = t(
                 "log_file_header_indexed",
                 mark=mark,
                 current=current,
                 total=total,
                 name=name,
-                note=note_part,
-                status=status_label,
             )
         else:
-            title = t(
+            prefix = t(
                 "log_file_header",
                 mark=mark,
                 name=name,
-                note=note_part,
-                status=status_label,
             )
-        return title + "\n"
+        suffix = t("log_file_header_status", status=status_label) + "\n"
+        return prefix, suffix
+
+    @staticmethod
+    def _format_file_header_line(entry, expanded=True):
+        prefix, suffix = LogPanel._format_file_header_parts(entry, expanded)
+        return prefix + suffix
+
+    def _capture_note_edit_state(self, file_id):
+        widget = self._file_note_widgets.pop(file_id, None)
+        if widget is None:
+            return
+        try:
+            self._note_edit_state[file_id] = {
+                "text": "" if getattr(widget, "_is_hint", False) else widget.get(),
+                "cursor": widget.index(tk.INSERT),
+                "focused": widget.focus_get() is widget,
+            }
+        except tk.TclError:
+            pass
+        try:
+            widget.destroy()
+        except tk.TclError:
+            pass
+
+    def _fill_note_entry(self, widget, text):
+        hint = t("col_note")
+        body = (text or "").strip()
+        try:
+            widget.delete(0, tk.END)
+            if body:
+                widget.insert(0, body)
+                widget.configure(fg="#111111")
+                widget._is_hint = False
+            else:
+                widget.insert(0, hint)
+                widget.configure(fg="#888888")
+                widget._is_hint = True
+        except tk.TclError:
+            pass
+
+    def _make_file_note_entry(self, file_id, text):
+        old = self._file_note_widgets.pop(file_id, None)
+        if old is not None:
+            try:
+                old.destroy()
+            except tk.TclError:
+                pass
+        entry = tk.Entry(
+            self.log_box,
+            width=28,
+            font=("Consolas", 9),
+            relief="solid",
+            bd=1,
+            highlightthickness=1,
+            highlightbackground="#7a7a7a",
+            highlightcolor="#1a5fb4",
+            bg="#ffffff",
+            insertbackground="#111111",
+        )
+        self._fill_note_entry(entry, text)
+        entry.bind("<FocusIn>", lambda _e, w=entry: self._on_note_entry_focus_in(w))
+        entry.bind("<FocusOut>", lambda _e, fid=file_id: self._on_note_entry_focus_out(fid))
+        entry.bind("<Return>", lambda _e, fid=file_id: self._on_note_entry_return(fid))
+        entry.bind("<Escape>", lambda _e, fid=file_id: self._on_note_entry_escape(fid))
+        self._file_note_widgets[file_id] = entry
+        return entry
+
+    def _on_note_entry_focus_in(self, widget):
+        if getattr(widget, "_is_hint", False):
+            try:
+                widget.delete(0, tk.END)
+                widget.configure(fg="#111111")
+                widget._is_hint = False
+            except tk.TclError:
+                pass
+
+    def _on_note_entry_return(self, file_id):
+        self._commit_note_entry(file_id)
+        try:
+            self.log_box.focus_set()
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _on_note_entry_focus_out(self, file_id):
+        self._commit_note_entry(file_id)
+
+    def _on_note_entry_escape(self, file_id):
+        stored = ((self._store.get_file(file_id) or {}).get("note") or "").strip()
+        widget = self._file_note_widgets.get(file_id)
+        if widget is not None:
+            self._fill_note_entry(widget, stored)
+        try:
+            self.log_box.focus_set()
+        except tk.TclError:
+            pass
+        return "break"
+
+    def _commit_note_entry(self, file_id):
+        widget = self._file_note_widgets.get(file_id)
+        if widget is None:
+            return
+        if getattr(widget, "_committing", False):
+            return
+        widget._committing = True
+        try:
+            from whisperfast.utils import normalize_queue_note
+
+            raw = "" if getattr(widget, "_is_hint", False) else (widget.get() or "")
+            text = normalize_queue_note(raw)
+            current = ((self._store.get_file(file_id) or {}).get("note") or "").strip()
+            if text == current:
+                if not text:
+                    self._fill_note_entry(widget, "")
+                return
+            self._store.update_file(file_id, lambda e: e.__setitem__("note", text))
+            if not text:
+                self._fill_note_entry(widget, "")
+            cb = getattr(self, "on_note_commit", None)
+            if callable(cb):
+                cb(file_id, text)
+        except tk.TclError:
+            pass
+        finally:
+            try:
+                widget._committing = False
+            except tk.TclError:
+                pass
+
+    def _insert_file_header(self, box, index, entry, tags):
+        file_id = entry.get("id")
+        expanded = self._is_file_expanded(file_id)
+        prefix, suffix = LogPanel._format_file_header_parts(entry, expanded)
+        box.insert(index, prefix, tags)
+        at = box.index(f"{index}+{len(prefix)}c")
+        state = self._note_edit_state.pop(file_id, None) if file_id else None
+        stored = (entry.get("note") or "").strip()
+        if state and state.get("focused"):
+            initial = state.get("text") if state.get("text") is not None else stored
+        else:
+            initial = stored
+        widget = self._make_file_note_entry(file_id, initial)
+        box.window_create(at, window=widget, padx=4, pady=0, align="center")
+        after = box.index(f"{at}+1c")
+        for tag in tags:
+            box.tag_add(tag, at, after)
+        box.insert(after, suffix, tags)
+        if state and state.get("focused"):
+            cursor = state.get("cursor") or 0
+
+            def _restore(w=widget, pos=cursor):
+                try:
+                    w.focus_set()
+                    w.icursor(int(pos))
+                except (tk.TclError, TypeError, ValueError):
+                    pass
+
+            self.root.after(0, _restore)
+        return box.index(f"{after}+{len(suffix)}c")
 
     def _trim_if_needed(self):
         try:

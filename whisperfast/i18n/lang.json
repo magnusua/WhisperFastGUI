@@ -595,9 +595,9 @@
     "RU": "Промты"
   },
   "ai_prompts_overview_hint": {
-    "EN": "The check mark (left) turns the prompt on for default AI processing. Hover a name for what the prompt does. Edit opens that prompt’s JSON in promts/.",
-    "UK": "Галочка ліворуч вмикає промпт у обробку AI за замовчуванням. Наведіть на назву, щоб побачити навіщо він. «Змінити» відкриває JSON цього промпту в promts/.",
-    "RU": "Галочка слева включает промт в обработку AI по умолчанию. Наведите на название, чтобы увидеть, зачем он. «Изменить» открывает JSON этого промта в promts/."
+    "EN": "The check mark (left) turns the prompt on for default AI processing. Hover a name for what the prompt does. Edit copies the prompt text to a temporary Markdown file; after you save and close it, the text is written back to JSON and the Markdown file is deleted.",
+    "UK": "Галочка ліворуч вмикає промпт у обробку AI за замовчуванням. Наведіть на назву, щоб побачити навіщо він. «Змінити» копіює текст промпту в тимчасовий Markdown; після збереження і закриття файлу текст записується назад у JSON, а Markdown видаляється.",
+    "RU": "Галочка слева включает промт в обработку AI по умолчанию. Наведите на название, чтобы увидеть, зачем он. «Изменить» копирует текст промта во временный Markdown; после сохранения и закрытия файла текст записывается обратно в JSON, а Markdown удаляется."
   },
   "ai_prompts_overview_edit": {
     "EN": "Edit prompts",
@@ -615,9 +615,9 @@
     "RU": "Отметьте, чтобы этот промт выполнялся в AI по умолчанию."
   },
   "tooltip_ai_prompt_edit": {
-    "EN": "Open this prompt’s JSON file for editing. The hint field is not sent to the model.",
-    "UK": "Відкрити JSON цього промпту для редагування. Поле hint у модель не надсилається.",
-    "RU": "Открыть JSON этого промта для редактирования. Поле hint в модель не отправляется."
+    "EN": "Copy this prompt’s text to a temporary Markdown file. After you save and close it, the text is written back to JSON and the Markdown file is deleted. The hint field is not sent to the model.",
+    "UK": "Скопіювати текст цього промпту в тимчасовий Markdown. Після збереження і закриття файлу текст записується назад у JSON, а Markdown видаляється. Поле hint у модель не надсилається.",
+    "RU": "Скопировать текст этого промта во временный Markdown. После сохранения и закрытия файла текст записывается обратно в JSON, а Markdown удаляется. Поле hint в модель не отправляется."
   },
   "tooltip_ai_prompt_rules": {
     "EN": "Rules that auto-run selected prompts after a file is ready (optionally without this window).",
@@ -955,14 +955,19 @@
     "RU": "▶ Перезапуск задания AI: {name}"
   },
   "log_file_header": {
-    "EN": "{mark} {name}{note}  [{status}]",
-    "UK": "{mark} {name}{note}  [{status}]",
-    "RU": "{mark} {name}{note}  [{status}]"
+    "EN": "{mark} {name}  ",
+    "UK": "{mark} {name}  ",
+    "RU": "{mark} {name}  "
   },
   "log_file_header_indexed": {
-    "EN": "{mark} ({current}/{total}) {name}{note}  [{status}]",
-    "UK": "{mark} ({current}/{total}) {name}{note}  [{status}]",
-    "RU": "{mark} ({current}/{total}) {name}{note}  [{status}]"
+    "EN": "{mark} ({current}/{total}) {name}  ",
+    "UK": "{mark} ({current}/{total}) {name}  ",
+    "RU": "{mark} ({current}/{total}) {name}  "
+  },
+  "log_file_header_status": {
+    "EN": "  [{status}]",
+    "UK": "  [{status}]",
+    "RU": "  [{status}]"
   },
   "log_file_note": {
     "EN": "Brief: {note}",
@@ -2718,6 +2723,26 @@
     "EN": "❌ Failed to open redactor file: {error}",
     "UK": "❌ Не вдалося відкрити файл промптів: {error}",
     "RU": "❌ Не удалось открыть файл промптов: {error}"
+  },
+  "redactor_prompt_saved": {
+    "EN": "Saved prompt {name} from Markdown.",
+    "UK": "Збережено промпт {name} з Markdown.",
+    "RU": "Сохранён промт {name} из Markdown."
+  },
+  "redactor_prompt_editing": {
+    "EN": "📝 {name} — save and close the file to write the prompt back to JSON.",
+    "UK": "📝 {name} — збережіть і закрийте файл, щоб записати промпт назад у JSON.",
+    "RU": "📝 {name} — сохраните и закройте файл, чтобы записать промт обратно в JSON."
+  },
+  "redactor_prompt_unchanged": {
+    "EN": "Prompt {name} was not changed (empty Markdown).",
+    "UK": "Промпт {name} не змінено (порожній Markdown).",
+    "RU": "Промт {name} не изменён (пустой Markdown)."
+  },
+  "redactor_prompt_busy": {
+    "EN": "Prompt {name} is already open for editing.",
+    "UK": "Промпт {name} уже відкрито для редагування.",
+    "RU": "Промт {name} уже открыт для редактирования."
   },
   "install_step_progress": {
     "EN": "▶ {name}",
