@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "2.0.3",
+      "date": "23.09.2026",
+      "notes": {
+        "EN": [
+          "Run AI prompts from Archive (Prompts button), from yesterday’s work-log cards, and from a new AI column (▶) in the queue."
+        ],
+        "UK": [
+          "Запуск промптів AI з архіву (кнопка «Промпти»), зі вчорашніх карток у логу та з нової колонки AI (▶) у черзі."
+        ],
+        "RU": [
+          "Запуск промтов AI из архива (кнопка «Промты»), со вчерашних карточек в логе и из новой колонки AI (▶) в очереди."
+        ]
+      }
+    },
+    {
       "version": "2.0.2",
       "date": "21.09.2026",
       "notes": {

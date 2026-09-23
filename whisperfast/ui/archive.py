@@ -78,12 +78,14 @@ def show_archive_window(app):
     loc_btn = ttk.Button(actions, text=t("archive_show_folder"))
     del_btn = ttk.Button(actions, text=t("archive_delete"))
     qa_btn = ttk.Button(actions, text=t("archive_ask"))
+    ai_btn = ttk.Button(actions, text=t("archive_ai"))
     spk_btn = ttk.Button(actions, text=t("archive_rename_speakers"))
     hint_lbl = ttk.Label(actions, text=t("archive_click_hint"))
     open_btn.pack(side="left")
     loc_btn.pack(side="left", padx=4)
     del_btn.pack(side="left", padx=4)
     qa_btn.pack(side="left", padx=4)
+    ai_btn.pack(side="left", padx=4)
     spk_btn.pack(side="left", padx=4)
     hint_lbl.pack(side="left", padx=10)
 
@@ -200,6 +202,20 @@ def show_archive_window(app):
             return
         show_archive_qa_dialog(app, job)
 
+    def _run_ai():
+        job = _selected_job()
+        if not job:
+            return
+        from whisperfast.ui.ai_jobs import prompt_input_from_archive_job
+
+        path = prompt_input_from_archive_job(job, require_file=True)
+        if not path:
+            messagebox.showinfo(t("archive_title"), t("archive_ai_no_text"), parent=dialog)
+            return
+        ok = app.ai_jobs.start_prompts_for_path(path, log_file_id=job.get("id"))
+        if not ok:
+            messagebox.showinfo(t("archive_title"), t("archive_ai_no_text"), parent=dialog)
+
     def _rename_speakers():
         job = _selected_job()
         if not job:
@@ -218,6 +234,7 @@ def show_archive_window(app):
         loc_btn.config(text=t("archive_show_folder"))
         del_btn.config(text=t("archive_delete"))
         qa_btn.config(text=t("archive_ask"))
+        ai_btn.config(text=t("archive_ai"))
         spk_btn.config(text=t("archive_rename_speakers"))
         tree.heading("when", text=t("archive_col_when"))
         tree.heading("name", text=t("archive_col_name"))
@@ -232,6 +249,7 @@ def show_archive_window(app):
     loc_btn.config(command=_show_loc)
     del_btn.config(command=_delete)
     qa_btn.config(command=_ask)
+    ai_btn.config(command=_run_ai)
     spk_btn.config(command=_rename_speakers)
 
     def _on_close():

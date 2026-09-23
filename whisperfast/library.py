@@ -302,6 +302,22 @@ class ConversationLibrary:
             row = self._conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
         return self._row_to_job(row) if row else None
 
+    def find_by_source(self, path: str) -> Optional[Dict[str, Any]]:
+        path_n = _norm_path(path)
+        if not path_n:
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT * FROM jobs
+                WHERE source=?
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT 1
+                """,
+                (path_n,),
+            ).fetchone()
+        return self._row_to_job(row) if row else None
+
     def list_jobs(self, limit: int = 200) -> List[Dict[str, Any]]:
         with self._lock:
             rows = self._conn.execute(

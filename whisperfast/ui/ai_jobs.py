@@ -10,6 +10,96 @@ from tkinter import messagebox
 
 from whisperfast.i18n import t
 from whisperfast.postprocess.ai_postprocess import start_ai_postprocess_async
+
+_PROMPT_INPUT_EXTS = (".txt", ".md")
+
+
+def _abspath_if(path: str) -> str:
+    path = (path or "").strip()
+    return os.path.abspath(path) if path else ""
+
+
+def prompt_input_from_outputs(outputs, require_file: bool = False) -> str:
+    """First transcript (.txt then .md) from a log/library outputs list."""
+    ranked = []
+    for out in outputs or []:
+        if isinstance(out, str):
+            path, role = out, ""
+        elif isinstance(out, dict):
+            path, role = (out.get("path") or ""), (out.get("role") or "").lower()
+        else:
+            continue
+        path = str(path).strip()
+        if not path:
+            continue
+        ext = os.path.splitext(path)[1].lower()
+        if role not in ("txt", "md") and ext not in _PROMPT_INPUT_EXTS:
+            continue
+        rank = 0 if role == "txt" or ext == ".txt" else 1
+        ranked.append((rank, path))
+    ranked.sort(key=lambda item: item[0])
+    for _, path in ranked:
+        if not require_file or os.path.isfile(path):
+            return _abspath_if(path)
+    return ""
+
+
+def prompt_input_from_entry(entry, require_file: bool = False) -> str:
+    if not entry:
+        return ""
+    found = prompt_input_from_outputs(entry.get("outputs"), require_file=require_file)
+    if found:
+        return found
+    src = (entry.get("source") or "").strip()
+    if os.path.splitext(src)[1].lower() in _PROMPT_INPUT_EXTS:
+        if not require_file or os.path.isfile(src):
+            return _abspath_if(src)
+    return ""
+
+
+def prompt_input_from_archive_job(job, require_file: bool = True) -> str:
+    if not job:
+        return ""
+    txt = (job.get("txt_path") or "").strip()
+    if txt and (not require_file or os.path.isfile(txt)):
+        return _abspath_if(txt)
+    found = prompt_input_from_outputs(job.get("extra_outputs"), require_file=require_file)
+    if found:
+        return found
+    return prompt_input_from_source(job.get("source") or "", require_file=require_file)
+
+
+def prompt_input_from_source(
+    path,
+    library=None,
+    log_store=None,
+    require_file: bool = True,
+) -> str:
+    """Resolve a .txt/.md next to a queue/archive source file."""
+    path = (path or "").strip()
+    if not path:
+        return ""
+    path = os.path.abspath(path)
+    ext = os.path.splitext(path)[1].lower()
+    if ext in _PROMPT_INPUT_EXTS and (not require_file or os.path.isfile(path)):
+        return path
+    if library is not None:
+        finder = getattr(library, "find_by_source", None)
+        job = finder(path) if callable(finder) else None
+        if job:
+            found = prompt_input_from_archive_job(job, require_file=require_file)
+            if found:
+                return found
+    if log_store is not None:
+        entry = log_store.find_file_by_source(path) or log_store.find_file_by_output(path)
+        found = prompt_input_from_entry(entry, require_file=require_file)
+        if found:
+            return found
+    stem, _ = os.path.splitext(path)
+    for cand in (stem + ".txt", stem + ".md"):
+        if os.path.isfile(cand):
+            return cand
+    return ""
 from whisperfast.postprocess.cursor_postprocess import (
     ensure_redactor_file,
     is_one_liner_output,
@@ -247,8 +337,68 @@ class AiJobQueue:
         else:
             self.app.log_action(msg, cb)
 
+    def _job_for_txt_path(self, txt_path: str):
+        want = os.path.normcase(os.path.abspath(txt_path))
+        for job in self._jobs.values():
+            have = os.path.normcase(os.path.abspath(job.get("txt_path") or ""))
+            if have == want:
+                return job
+        return None
+
+    def start_prompts_for_path(self, source_or_txt, log_file_id=None) -> bool:
+        """Open the prompt picker for a transcript (or a source that has one)."""
+        app = self.app
+        panel = getattr(app, "log_panel", None)
+        store = getattr(panel, "_store", None) if panel is not None else None
+        path = prompt_input_from_source(
+            source_or_txt,
+            library=getattr(app, "library", None),
+            log_store=store,
+            require_file=True,
+        )
+        if not path:
+            return False
+        existing = self._job_for_txt_path(path)
+        if existing:
+            if log_file_id and not existing.get("log_file_id"):
+                existing["log_file_id"] = log_file_id
+            if existing.get("status") == "running":
+                return True
+            self.open_prompt_dialog(existing["id"])
+            return True
+        fid = log_file_id or (
+            app.find_file_log_id(path) if hasattr(app, "find_file_log_id") else None
+        )
+        self.schedule_postprocess(path, log_file_id=fid, force_dialog=True)
+        return True
+
+    def start_prompts_for_log_file(self, file_id) -> bool:
+        panel = getattr(self.app, "log_panel", None)
+        entry = panel._store.get_file(file_id) if panel is not None else None
+        path = prompt_input_from_entry(entry, require_file=True)
+        if not path and entry:
+            path = prompt_input_from_source(
+                entry.get("source") or "",
+                library=getattr(self.app, "library", None),
+                log_store=getattr(panel, "_store", None),
+                require_file=True,
+            )
+        if not path:
+            if file_id and hasattr(self.app, "log_file_event"):
+                self.app.log_file_event(t("ai_no_transcript"), file_id=file_id)
+            else:
+                self.app.log(t("ai_no_transcript"))
+            return False
+        return self.start_prompts_for_path(path, log_file_id=file_id)
+
     def schedule_postprocess(
-        self, txt_path, cursor_api_key="", export_md_to_docx=None, job_id=None, log_file_id=None
+        self,
+        txt_path,
+        cursor_api_key="",
+        export_md_to_docx=None,
+        job_id=None,
+        log_file_id=None,
+        force_dialog=False,
     ):
         """Після TXT/MD: клікабельний «Передаю в AI» + одразу вікно промптів для цього файлу."""
         del cursor_api_key  # сумісність виклику; ключі з settings / env
@@ -270,7 +420,7 @@ class AiJobQueue:
             app.log_panel.attach_file(job["log_file_id"])
         file_name = os.path.basename(txt_path)
         self.log_select_prompt_action(t("ai_handoff", name=file_name), job_id)
-        if self._maybe_autorun(job):
+        if not force_dialog and self._maybe_autorun(job):
             return
         # Одразу вікно для цього файлу (паралельно з іншими відкритими «Промты»)
         app.root.after(0, lambda jid=job_id: self.open_prompt_dialog(jid))

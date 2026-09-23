@@ -29,6 +29,16 @@
     "UK": "Коротко",
     "RU": "Кратко"
   },
+  "col_ai": {
+    "EN": "AI",
+    "UK": "AI",
+    "RU": "AI"
+  },
+  "col_ai_run": {
+    "EN": "▶",
+    "UK": "▶",
+    "RU": "▶"
+  },
   "col_start": {
     "EN": "Start",
     "UK": "Початок",
@@ -2913,6 +2923,21 @@
     "EN": "Ask…",
     "UK": "Запитати…",
     "RU": "Спросить…"
+  },
+  "archive_ai": {
+    "EN": "Prompts",
+    "UK": "Промпти",
+    "RU": "Промты"
+  },
+  "archive_ai_no_text": {
+    "EN": "This conversation has no transcript (.txt/.md) to send to AI.",
+    "UK": "У цієї розмови немає транскрипту (.txt/.md) для AI.",
+    "RU": "У этого разговора нет транскрипта (.txt/.md) для AI."
+  },
+  "ai_no_transcript": {
+    "EN": "No transcript (.txt/.md) found for this file.",
+    "UK": "Для цього файлу немає транскрипту (.txt/.md).",
+    "RU": "Для этого файла нет транскрипта (.txt/.md)."
   },
   "archive_click_hint": {
     "EN": "Double-click a line to hear that moment.",

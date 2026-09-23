@@ -112,6 +112,9 @@ class TestMakeQueueItem(unittest.TestCase):
         self.assertEqual(values[0], 3)
         self.assertEqual(values[1], "talk.mp4")
         self.assertEqual(values[2], "sales call")
+        self.assertEqual(values[3], "")
+        item["processed"] = True
+        self.assertEqual(queue_tree_values(3, item)[3], "▶")
 
 
 class TestLogFileNoteHeader(unittest.TestCase):
@@ -178,6 +181,47 @@ class TestLogFileNoteHeader(unittest.TestCase):
             windows = [item for item in box.dump("1.0", "end", window=True) if item[0] == "window"]
             self.assertEqual(len(windows), 1)
             self.assertEqual(len(panel._file_note_widgets), 1)
+
+    def test_prompt_button_shows_when_txt_output_exists(self):
+        import tkinter as tk
+        import tempfile
+
+        from whisperfast.i18n import t
+        from whisperfast.log_store import LogStore
+        from whisperfast.ui.log_panel import LogPanel
+
+        try:
+            root = tk.Tk()
+        except tk.TclError as e:
+            raise unittest.SkipTest(f"no Tk display available: {e}")
+        root.withdraw()
+        self.addCleanup(root.destroy)
+        with tempfile.TemporaryDirectory() as tmp:
+            panel = LogPanel(root)
+            panel._store = LogStore(path=os.path.join(tmp, "app_log.json"))
+            box = tk.Text(root)
+            panel.bind_widget(box)
+            panel.setup_styles()
+            media = os.path.join(tmp, "a.mp4")
+            txt = os.path.join(tmp, "a.txt")
+            with open(txt, "w", encoding="utf-8") as f:
+                f.write("hi")
+            file_id = panel.begin_file(media, name="a.mp4")
+            root.update()
+            panel.add_file_output("txt", txt, file_id=file_id)
+            root.update()
+            self.assertFalse(panel._file_action_callbacks)
+            self.assertIn(t("log_file_select_prompt_btn"), box.get("1.0", "end"))
+            clicked = []
+            panel.on_select_prompts = lambda fid: clicked.append(fid)
+            # Tag on the prompt line is file_action_{id}; invoke the same branch as a click.
+            ranges = box.tag_ranges(f"file_action_{file_id}")
+            self.assertGreaterEqual(len(ranges), 2)
+            bbox = box.bbox(ranges[0])
+            if bbox:
+                event = type("E", (), {"x": bbox[0] + 2, "y": bbox[1] + 2})()
+                panel.on_action_click(event)
+                self.assertEqual(clicked, [file_id])
 
 
 if __name__ == "__main__":

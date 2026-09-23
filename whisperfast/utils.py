@@ -64,14 +64,18 @@ def normalize_queue_note(text) -> str:
 
 
 def queue_tree_values(num, item):
-    """Treeview row: #, filename, note, start, end seg 1/2, end, status."""
+    """Treeview row: #, filename, note, AI, start, end seg 1/2, end, status."""
     from whisperfast.i18n import t
 
     status_text = t("status_processed") if item.get("processed") else t("status_not_processed")
+    path = item.get("path") or ""
+    ext = os.path.splitext(path)[1].lower()
+    ai_text = t("col_ai_run") if item.get("processed") or ext in (".txt", ".md") else ""
     return (
         num,
-        os.path.basename(item.get("path") or ""),
+        os.path.basename(path),
         normalize_queue_note(item.get("note")),
+        ai_text,
         item.get("start") or "",
         item.get("end_segment_1") or "",
         item.get("end_segment_2") or "",

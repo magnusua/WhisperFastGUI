@@ -39,6 +39,28 @@ _FILES_CREATED_MARKERS = (
     "файлы созданы для",
 )
 
+_PROMPT_INPUT_EXTS = (".txt", ".md")
+
+
+def _prompt_input_from_entry(entry) -> str:
+    """Path of a stored transcript in a file-session (no disk check — for showing the button)."""
+    if not entry:
+        return ""
+    for out in entry.get("outputs") or []:
+        if not isinstance(out, dict):
+            continue
+        path = (out.get("path") or "").strip()
+        if not path:
+            continue
+        role = (out.get("role") or "").lower()
+        ext = os.path.splitext(path)[1].lower()
+        if role in ("txt", "md") or ext in _PROMPT_INPUT_EXTS:
+            return path
+    src = (entry.get("source") or "").strip()
+    if os.path.splitext(src)[1].lower() in _PROMPT_INPUT_EXTS:
+        return src
+    return ""
+
 # Верхня межа callback-словників у довгій tray-сесії; понад поріг звільняємо
 # найстаріші записи (insertion order), щоб пам'ять не росла необмежено.
 _MAX_RETAINED_CALLBACKS = 2000
@@ -78,6 +100,7 @@ class LogPanel:
         self._file_note_widgets = {}  # file_id -> Entry embedded in the header
         self._note_edit_state = {}  # file_id -> in-progress edit across re-renders
         self.on_note_commit = None  # callback(file_id, note)
+        self.on_select_prompts = None  # callback(file_id) — «Обрати промти» without a live job
 
     def bind_widget(self, log_box):
         self.log_box = log_box
@@ -861,7 +884,10 @@ class LogPanel:
 
         # 3.2 Created files (+ окрема кнопка промтів поза списком файлів)
         outputs = entry.get("outputs") or []
-        has_prompt = self._file_action_callbacks.get(file_id) is not None
+        has_prompt = (
+            self._file_action_callbacks.get(file_id) is not None
+            or bool(_prompt_input_from_entry(entry))
+        )
         has_retry = self._file_retry_callbacks.get(file_id) is not None
         if outputs or has_prompt:
             mark = "▼" if out_expanded else "▶"
@@ -1263,6 +1289,13 @@ class LogPanel:
                 if cb is not None:
                     try:
                         cb()
+                    except Exception:
+                        pass
+                    return "break"
+                fallback = getattr(self, "on_select_prompts", None)
+                if callable(fallback):
+                    try:
+                        fallback(fid)
                     except Exception:
                         pass
                     return "break"

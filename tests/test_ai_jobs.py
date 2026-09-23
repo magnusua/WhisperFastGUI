@@ -188,5 +188,53 @@ class TestApplyOneLinerBrief(unittest.TestCase):
                     lib.close()
 
 
+class TestPromptInputResolve(unittest.TestCase):
+    def test_outputs_prefer_txt_then_sibling(self):
+        from whisperfast.ui.ai_jobs import prompt_input_from_outputs, prompt_input_from_source
+
+        with tempfile.TemporaryDirectory() as tmp:
+            txt = os.path.join(tmp, "a.txt")
+            md = os.path.join(tmp, "a.md")
+            with open(txt, "w", encoding="utf-8") as f:
+                f.write("t")
+            with open(md, "w", encoding="utf-8") as f:
+                f.write("m")
+            found = prompt_input_from_outputs(
+                [{"role": "md", "path": md}, {"role": "txt", "path": txt}],
+                require_file=True,
+            )
+            self.assertEqual(os.path.normcase(found), os.path.normcase(txt))
+            media = os.path.join(tmp, "a.mp4")
+            with open(media, "wb") as f:
+                f.write(b"x")
+            self.assertEqual(
+                os.path.normcase(prompt_input_from_source(media, require_file=True)),
+                os.path.normcase(txt),
+            )
+            self.assertEqual(prompt_input_from_source(os.path.join(tmp, "none.mp4")), "")
+
+
+class TestStartPromptsForPath(unittest.TestCase):
+    def test_reuses_existing_job(self):
+        app = FakeApp()
+        q = AiJobQueue(app)
+        with tempfile.TemporaryDirectory() as tmp:
+            txt = os.path.join(tmp, "talk.txt")
+            with open(txt, "w", encoding="utf-8") as f:
+                f.write("hi")
+            job_id = q.register_job(txt, log_file_id="file1")
+            q._jobs[job_id]["status"] = "skipped"
+            opened = []
+            q.open_prompt_dialog = lambda jid: opened.append(jid)
+            self.assertTrue(q.start_prompts_for_path(txt))
+            self.assertEqual(opened, [job_id])
+            self.assertEqual(len(q._jobs), 1)
+
+    def test_missing_transcript_returns_false(self):
+        app = FakeApp()
+        q = AiJobQueue(app)
+        self.assertFalse(q.start_prompts_for_path(os.path.join("no", "such.mp4")))
+
+
 if __name__ == "__main__":
     unittest.main()

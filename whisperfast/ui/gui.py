@@ -165,6 +165,7 @@ class WhisperGUI:
         )
         self.queue = self.queue_ctrl.queue  # сумісність: той самий list
         self.log_panel.on_note_commit = self._on_log_note_commit
+        self.log_panel.on_select_prompts = self.ai_jobs.start_prompts_for_log_file
         self.cancel_requested = False
         self._process_queue_lock = threading.Lock()  # только одна обработка очереди одновременно
         
@@ -405,9 +406,10 @@ class WhisperGUI:
             return
         if idx < 0 or idx >= len(self.queue):
             return
-        col = self.queue_list.identify_column(event.x)
-        if col == "#3":
+        if self._queue_column_name(event) == "note":
             self._edit_queue_note_cell(iid, idx)
+            return
+        if self._queue_column_name(event) == "ai":
             return
         row = self.queue[idx]
         d = tk.Toplevel(self.root)
@@ -677,11 +679,12 @@ class WhisperGUI:
 
         q_frame = ttk.Frame(main)
         q_frame.pack(fill="both", pady=5)
-        cols = ("num", "filename", "note", "start", "end_seg1", "end_seg2", "end", "status")
+        cols = ("num", "filename", "note", "ai", "start", "end_seg1", "end_seg2", "end", "status")
         self.queue_list = ttk.Treeview(q_frame, columns=cols, show="headings", height=8, selectmode="extended")
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))
+        self.queue_list.heading("ai", text=t("col_ai"))
         self.queue_list.heading("start", text=t("col_start"))
         self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
         self.queue_list.heading("end_seg2", text=t("col_end_seg2"))
@@ -691,6 +694,7 @@ class WhisperGUI:
         self.queue_list.column("num", width=_num_w, minwidth=_num_w)
         self.queue_list.column("filename", width=200)
         self.queue_list.column("note", width=180, minwidth=80)
+        self.queue_list.column("ai", width=44, minwidth=36, stretch=False, anchor="center")
         self.queue_list.column("start", width=90)
         self.queue_list.column("end_seg1", width=90)
         self.queue_list.column("end_seg2", width=90)
@@ -702,6 +706,7 @@ class WhisperGUI:
         scroll_q.pack(side="right", fill="y")
         self.queue_list.bind("<Double-1>", self._on_queue_row_double_click)
         self.queue_list.bind("<Button-1>", self.on_drag_start)
+        self.queue_list.bind("<ButtonRelease-1>", self._on_queue_button_release)
         self.queue_list.bind("<Shift-Button-1>", self._on_queue_shift_click)
         self.queue_list.bind("<B1-Motion>", self.on_drag_motion)
         self.queue_list.bind("<Delete>", self.delete_selected_queue_items)
@@ -2077,14 +2082,58 @@ class WhisperGUI:
             self.queue_ctrl.add_files(file_paths)
 
     def on_drag_start(self, event):
+        if self._queue_column_name(event) == "ai":
+            self._queue_ai_armed = True
+            self._drag_iid = None
+            self._drag_index = -1
+            return "break"
         iid = self.queue_list.identify_row(event.y)
         if iid and (event.state & 0x0001):
             return self._on_queue_shift_click(event)
+        self._queue_ai_armed = False
         self._drag_iid = iid
         try:
             self._drag_index = self.queue_list.index(iid) if iid else -1
         except tk.TclError:
             self._drag_index = -1
+
+    def _queue_column_name(self, event):
+        col = self.queue_list.identify_column(event.x)
+        if not col or not col.startswith("#"):
+            return ""
+        try:
+            idx = int(col[1:]) - 1
+        except ValueError:
+            return ""
+        names = self.queue_list["columns"]
+        if 0 <= idx < len(names):
+            return names[idx]
+        return ""
+
+    def _on_queue_button_release(self, event):
+        if not getattr(self, "_queue_ai_armed", False):
+            return
+        self._queue_ai_armed = False
+        if self._queue_column_name(event) != "ai":
+            return "break"
+        self._run_queue_row_ai(event)
+        return "break"
+
+    def _run_queue_row_ai(self, event):
+        iid = self.queue_list.identify_row(event.y)
+        if not iid:
+            return
+        try:
+            idx = self.queue_list.index(iid)
+        except tk.TclError:
+            return
+        if idx < 0 or idx >= len(self.queue):
+            return
+        row = self.queue[idx]
+        path = row.get("path") or ""
+        ok = self.ai_jobs.start_prompts_for_path(path)
+        if not ok:
+            messagebox.showinfo(t("app_title"), t("ai_no_transcript"), parent=self.root)
 
     def _on_queue_shift_click(self, event):
         """Shift+клік по рядку черги — відкрити розташування файлу в Провіднику."""
@@ -2178,6 +2227,7 @@ class WhisperGUI:
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))
+        self.queue_list.heading("ai", text=t("col_ai"))
         self.queue_list.heading("start", text=t("col_start"))
         self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
         self.queue_list.heading("end_seg2", text=t("col_end_seg2"))

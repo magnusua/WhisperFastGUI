@@ -67,6 +67,23 @@ class TestConversationLibrary(unittest.TestCase):
         self.assertTrue(self.lib.set_summary_if_empty("job2", "from one_liner"))
         self.assertEqual(self.lib.get_job("job2")["summary"], "from one_liner")
 
+    def test_find_by_source(self):
+        src = os.path.join(self._tmp.name, "talk.mp4")
+        self.lib.upsert_job(
+            {
+                "id": "src1",
+                "created_at": "2026-09-22T12:00:00",
+                "source": src,
+                "name": "talk.mp4",
+                "txt_path": self.txt,
+            }
+        )
+        found = self.lib.find_by_source(src)
+        self.assertIsNotNone(found)
+        self.assertEqual(found["id"], "src1")
+        self.assertEqual(found["txt_path"], self.txt)
+        self.assertIsNone(self.lib.find_by_source(os.path.join(self._tmp.name, "missing.mp4")))
+
 
 if __name__ == "__main__":
     unittest.main()
