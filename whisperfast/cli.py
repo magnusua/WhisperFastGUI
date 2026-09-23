@@ -15,8 +15,15 @@ def maybe_run_cli(argv: List[str]) -> bool:
     if len(argv) < 2:
         return False
     cmd = argv[1].strip().lower()
-    if cmd not in ("sessions", "process", "record"):
+    if cmd not in ("sessions", "process", "record", "--telegram", "telegram"):
         return False
+    if cmd in ("--telegram", "telegram"):
+        from whisperfast.telegram.worker import run_from_settings
+
+        code = run_from_settings()
+        if code:
+            sys.exit(code)
+        return True
     if cmd == "sessions":
         return _cmd_sessions()
     if cmd == "process":

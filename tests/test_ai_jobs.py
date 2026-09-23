@@ -134,6 +134,44 @@ class TestAiJobRetry(unittest.TestCase):
         self.assertTrue(any("a.txt" in str(m) for m in app.file_events))
 
 
+class TestAutoProcess(unittest.TestCase):
+    def _job(self, auto, rules=None, nums=None):
+        app = FakeApp()
+        app.ai_prompt_rules = [] if rules is None else rules
+        app.ai_default_prompt_nums = [1, 9] if nums is None else nums
+        app.ai_auto_process = SimpleNamespace(get=lambda: auto)
+        jobs = AiJobQueue(app)
+        job_id = jobs.register_job(os.path.join(tempfile.gettempdir(), "a.txt"), log_file_id="file1")
+        return jobs, jobs._jobs[job_id]
+
+    def test_checked_prompts_run_without_a_window(self):
+        jobs, job = self._job(True)
+        seen = []
+        jobs.start_after_prompt_choice = lambda _job, selected, _provider: seen.append(
+            [item[0] for item in selected]
+        )
+        prompts = [(1, "a", "a"), (2, "b", "b"), (9, "c", "c")]
+        with patch("whisperfast.settings.load_app_settings", return_value={}):
+            with patch("whisperfast.postprocess.usage.budget_exceeded", return_value=False):
+                with patch(
+                    "whisperfast.postprocess.cursor_postprocess.parse_redactor_prompts",
+                    return_value=prompts,
+                ):
+                    with patch("whisperfast.ui.ai_jobs.ensure_redactor_file"):
+                        handled = jobs._maybe_autorun(job)
+        self.assertTrue(handled)
+        self.assertEqual(seen, [[1, 9]])
+        self.assertEqual(job["status"], "running")
+
+    def test_without_the_check_the_window_stays(self):
+        jobs, job = self._job(False)
+        with patch("whisperfast.settings.load_app_settings", return_value={}):
+            with patch("whisperfast.postprocess.usage.budget_exceeded", return_value=False):
+                handled = jobs._maybe_autorun(job)
+        self.assertFalse(handled)
+        self.assertEqual(job["status"], "pending")
+
+
 class TestApplyOneLinerBrief(unittest.TestCase):
     def test_fills_library_log_and_queue(self):
         from whisperfast.library import ConversationLibrary

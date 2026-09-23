@@ -490,9 +490,18 @@ def start_background_polls(app) -> None:
 
 
 def _poll_ipc(app) -> None:
-    cmd = take_command()
-    if not cmd:
-        return
+    from whisperfast.core.ipc_cmd import take_queued_commands
+
+    commands = []
+    single = take_command()
+    if single:
+        commands.append(single)
+    commands.extend(take_queued_commands())
+    for cmd in commands:
+        _dispatch_ipc(app, cmd)
+
+
+def _dispatch_ipc(app, cmd) -> None:
     action = str(cmd.get("action") or "").strip().lower()
     if action == "record_start":
         start_capture(app, trigger="manual")
@@ -506,6 +515,10 @@ def _poll_ipc(app) -> None:
             paths = get_valid_files_from_directory(folder)
             if paths:
                 app.queue_ctrl.add_files(paths)
+    elif action == "telegram_file":
+        from whisperfast.telegram.gui_bridge import apply_telegram_command
+
+        apply_telegram_command(app, cmd)
 
 
 def _poll_max_duration(app) -> None:

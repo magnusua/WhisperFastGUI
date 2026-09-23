@@ -81,8 +81,10 @@ from whisperfast.postprocess.providers import PROVIDER_CURSOR, normalize_provide
 from whisperfast.i18n import t, set_language
 from whisperfast.library import get_library
 from whisperfast.settings import (
+    format_chat_ids,
     load_app_settings,
     normalize_default_prompt_nums,
+    parse_chat_id_text,
     save_app_settings,
 )
 from whisperfast.postprocess.prompt_rules import normalize_prompt_rules
@@ -206,6 +208,15 @@ class WhisperGUI:
         self.openai_compatible_base_url = tk.StringVar(value="")
         self.openai_compatible_api_key = tk.StringVar(value="")
         self.openai_compatible_model = tk.StringVar(value="")
+        self.telegram_bot_token = tk.StringVar(value="")
+        self.telegram_api_id = tk.StringVar(value="")
+        self.telegram_api_hash = tk.StringVar(value="")
+        self.telegram_bot_api_exe = tk.StringVar(value="")
+        self.telegram_api_base = tk.StringVar(value="http://127.0.0.1:8081")
+        self.telegram_allowed_chat_ids_text = tk.StringVar(value="")
+        self.telegram_work_dir = tk.StringVar(value="")
+        self.telegram_mode = tk.StringVar(value="bot")
+        self.telegram_phone = tk.StringVar(value="")
         self.export_json = tk.BooleanVar(value=False)
         self.export_vtt = tk.BooleanVar(value=False)
         self.word_timestamps = tk.BooleanVar(value=False)
@@ -232,6 +243,7 @@ class WhisperGUI:
         self.ai_default_prompt_nums = normalize_default_prompt_nums(
             saved.get("ai_default_prompt_nums")
         )
+        self.ai_auto_process = tk.BooleanVar(value=bool(saved.get("ai_auto_process", False)))
         self.export_md_to_docx.set(bool(saved.get("export_md_to_docx", False)))
         self.ai_provider.set(normalize_provider_id(saved.get("ai_provider") or PROVIDER_CURSOR))
         self.cursor_api_key.set((saved.get("cursor_api_key") or "").strip())
@@ -269,6 +281,18 @@ class WhisperGUI:
         self.openai_compatible_model.set(
             (saved.get("openai_compatible_model") or "").strip()
         )
+        self.telegram_bot_token.set((saved.get("telegram_bot_token") or "").strip())
+        self.telegram_api_id.set(str(saved.get("telegram_api_id") or "").strip())
+        self.telegram_api_hash.set((saved.get("telegram_api_hash") or "").strip())
+        self.telegram_bot_api_exe.set((saved.get("telegram_bot_api_exe") or "").strip())
+        self.telegram_api_base.set(
+            (saved.get("telegram_api_base") or "").strip() or "http://127.0.0.1:8081"
+        )
+        self.telegram_allowed_chat_ids_text.set(format_chat_ids(saved.get("telegram_allowed_chat_ids")))
+        self.telegram_work_dir.set((saved.get("telegram_work_dir") or "").strip())
+        mode = str(saved.get("telegram_mode") or "bot").strip().lower()
+        self.telegram_mode.set(mode if mode in ("bot", "account") else "bot")
+        self.telegram_phone.set((saved.get("telegram_phone") or "").strip())
         self.export_json.set(bool(saved.get("export_json", False)))
         self.export_vtt.set(bool(saved.get("export_vtt", False)))
         self.word_timestamps.set(bool(saved.get("word_timestamps", False)))
@@ -803,6 +827,12 @@ class WhisperGUI:
             command=self._show_ai_api_keys_dialog,
         )
         self.cursor_api_key_btn.pack(side="left", padx=2)
+        self.telegram_btn = ttk.Button(
+            tools_center,
+            text=t("telegram_btn"),
+            command=self._show_telegram_settings_dialog,
+        )
+        self.telegram_btn.pack(side="left", padx=2)
 
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         docx_frame = ttk.Frame(tools_center)
@@ -909,6 +939,7 @@ class WhisperGUI:
         tip(self.send_txt_cursor_check, "tooltip_send_txt_to_ai")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
         tip(self.cursor_api_key_btn, "tooltip_ai_api_keys")
+        tip(self.telegram_btn, "tooltip_telegram")
         tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
         tip(self.export_md_docx_btn, "tooltip_export_md_to_docx")
         tip(self.system_btn, "tooltip_system")
@@ -1454,6 +1485,12 @@ class WhisperGUI:
                 self.library.set_meta(file_id, status=status)
             except Exception as e:
                 self.log(f"[library] set_meta: {e}")
+            try:
+                from whisperfast.telegram.gui_bridge import maybe_deliver_telegram
+
+                maybe_deliver_telegram(self, file_id=file_id)
+            except Exception:
+                pass
 
     def set_file_source(self, file_id, path, reindex=True):
         self.log_panel.set_file_source(path, file_id=file_id)
@@ -1563,6 +1600,9 @@ class WhisperGUI:
 
     def _show_ai_api_keys_dialog(self):
         ui_dialogs.show_ai_api_keys_dialog(self)
+
+    def _show_telegram_settings_dialog(self):
+        ui_dialogs.show_telegram_settings_dialog(self)
 
     def _center_toplevel(self, win, parent=None):
         ui_dialogs.center_toplevel(self, win, parent)
@@ -1835,6 +1875,7 @@ class WhisperGUI:
             "ai_default_prompt_nums": normalize_default_prompt_nums(
                 getattr(self, "ai_default_prompt_nums", None)
             ),
+            "ai_auto_process": bool(self.ai_auto_process.get()),
             "export_md_to_docx": self.export_md_to_docx.get(),
             "ai_provider": normalize_provider_id(self.ai_provider.get()),
             "cursor_api_key": (self.cursor_api_key.get() or "").strip(),
@@ -1866,6 +1907,18 @@ class WhisperGUI:
             "openai_compatible_model": (
                 (self.openai_compatible_model.get() or "").strip()
             ),
+            "telegram_bot_token": (self.telegram_bot_token.get() or "").strip(),
+            "telegram_api_id": (self.telegram_api_id.get() or "").strip(),
+            "telegram_api_hash": (self.telegram_api_hash.get() or "").strip(),
+            "telegram_bot_api_exe": (self.telegram_bot_api_exe.get() or "").strip(),
+            "telegram_api_base": (self.telegram_api_base.get() or "").strip()
+            or "http://127.0.0.1:8081",
+            "telegram_allowed_chat_ids": parse_chat_id_text(
+                self.telegram_allowed_chat_ids_text.get()
+            ),
+            "telegram_work_dir": (self.telegram_work_dir.get() or "").strip(),
+            "telegram_mode": (self.telegram_mode.get() or "bot").strip().lower(),
+            "telegram_phone": (self.telegram_phone.get() or "").strip(),
             "ai_month_budget": float(self.ai_month_budget.get() or 0.0),
             "ai_prompt_rules": normalize_prompt_rules(
                 getattr(self, "ai_prompt_rules", None)
@@ -2251,6 +2304,8 @@ class WhisperGUI:
         except (tk.TclError, ValueError):
             pass
         self.model_btn.config(text=self._model_button_label())
+        if getattr(self, "telegram_btn", None) is not None:
+            self.telegram_btn.config(text=t("telegram_btn"))
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))

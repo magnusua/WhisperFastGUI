@@ -37,6 +37,9 @@ EXCLUDE_DIR_NAMES = frozenset(
         "dist",
         "captures",
         "downloads",
+        "telegram_inbox",
+        ".ftw_cmds",
+        ".ftw_tg_out",
         ".pytest_cache",
     }
 )
@@ -71,6 +74,8 @@ def should_skip(rel_path: str) -> bool:
     if name in EXCLUDE_FILE_NAMES:
         return True
     if name.endswith((".pyc", ".pyo", ".pyd")):
+        return True
+    if name == "telegram_user.session" or name.startswith("telegram_user.session"):
         return True
     return False
 

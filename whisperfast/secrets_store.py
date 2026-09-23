@@ -22,6 +22,8 @@ SECRET_SETTING_KEYS = (
     "openai_compatible_api_key",
     "google_calendar_client_secret",
     "google_calendar_refresh_token",
+    "telegram_bot_token",
+    "telegram_api_hash",
 )
 
 

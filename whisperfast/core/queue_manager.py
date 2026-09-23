@@ -360,6 +360,12 @@ class QueueController:
                 }
                 if item.get("end"):
                     overrides["end"] = item.get("end")
+                for key in ("telegram_chat_id", "telegram_message_id"):
+                    if item.get(key) is not None:
+                        try:
+                            overrides[key] = int(item.get(key))
+                        except (TypeError, ValueError):
+                            pass
                 self.queue.append(make_queue_item(path, **overrides))
             self.refresh_treeview()
         except (json.JSONDecodeError, OSError):
@@ -368,8 +374,9 @@ class QueueController:
     def save_to_file(self):
         self._save_pending = False
         try:
-            data = [
-                {
+            data = []
+            for q in self.queue:
+                row = {
                     "path": q["path"],
                     "note": q.get("note") or "",
                     "start": q["start"],
@@ -378,8 +385,10 @@ class QueueController:
                     "end": q["end"],
                     "processed": q.get("processed", False),
                 }
-                for q in self.queue
-            ]
+                for key in ("telegram_chat_id", "telegram_message_id"):
+                    if q.get(key) is not None:
+                        row[key] = q.get(key)
+                data.append(row)
             with open(self._request_queue_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except OSError:

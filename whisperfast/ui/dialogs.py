@@ -1406,6 +1406,226 @@ def show_ai_api_keys_dialog(app):
     center_toplevel(app, dialog)
 
 
+def show_telegram_settings_dialog(app):
+    """Account or bot intake. Save writes settings.json; sign-in also stores the account fields."""
+    from tkinter import simpledialog
+
+    from whisperfast.settings import format_chat_ids, parse_chat_id_text
+
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("telegram_settings_title"))
+    dialog.transient(app.root)
+    dialog.resizable(True, True)
+    dialog.minsize(520, 480)
+    dialog.grab_set()
+
+    frame = ttk.Frame(dialog, padding=15)
+    frame.pack(fill="both", expand=True)
+
+    ttk.Label(frame, text=t("telegram_settings_hint"), wraplength=480, justify="left").pack(
+        anchor="w", pady=(0, 10)
+    )
+
+    saved_mode = (app.telegram_mode.get() or "bot").strip().lower()
+    mode = tk.StringVar(value=saved_mode if saved_mode in ("bot", "account") else "bot")
+    token = tk.StringVar(value=app.telegram_bot_token.get())
+    api_id = tk.StringVar(value=app.telegram_api_id.get())
+    api_hash = tk.StringVar(value=app.telegram_api_hash.get())
+    exe = tk.StringVar(value=app.telegram_bot_api_exe.get())
+    base = tk.StringVar(value=app.telegram_api_base.get() or "http://127.0.0.1:8081")
+    chats = tk.StringVar(value=app.telegram_allowed_chat_ids_text.get())
+    work_dir = tk.StringVar(value=app.telegram_work_dir.get())
+    phone = tk.StringVar(value=app.telegram_phone.get())
+    status = tk.StringVar(value=t("telegram_not_signed_in"))
+
+    mode_row = ttk.Frame(frame)
+    mode_row.pack(fill="x", pady=(0, 4))
+
+    def labeled_entry(parent, label_key, variable, secret=False):
+        ttk.Label(parent, text=t(label_key)).pack(anchor="w", pady=(8, 0))
+        ttk.Entry(parent, textvariable=variable, show="*" if secret else "").pack(fill="x")
+
+    def browse_row(parent, label_key, variable, choose):
+        ttk.Label(parent, text=t(label_key)).pack(anchor="w", pady=(8, 0))
+        row = ttk.Frame(parent)
+        row.pack(fill="x")
+        ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
+        ttk.Button(row, text=t("browse"), command=choose).pack(side="left", padx=(6, 0))
+
+    labeled_entry(frame, "telegram_api_id_label", api_id)
+    labeled_entry(frame, "telegram_api_hash_label", api_hash, secret=True)
+
+    slot = ttk.Frame(frame)
+    slot.pack(fill="x")
+    account_box = ttk.Frame(slot)
+    bot_box = ttk.Frame(slot)
+
+    labeled_entry(account_box, "telegram_phone_label", phone)
+    account_actions = ttk.Frame(account_box)
+    account_actions.pack(fill="x", pady=(8, 0))
+    sign_btn = ttk.Button(account_actions, text=t("telegram_sign_in"))
+    sign_btn.pack(side="left")
+    ttk.Label(account_box, textvariable=status, wraplength=480, justify="left").pack(anchor="w", pady=(6, 0))
+
+    def choose_exe():
+        path = filedialog.askopenfilename(
+            parent=dialog,
+            title=t("telegram_exe_label"),
+            filetypes=[(t("telegram_exe_filter"), "*.exe"), (t("all_files_type"), "*.*")],
+        )
+        if path:
+            exe.set(path)
+
+    def choose_dir():
+        path = filedialog.askdirectory(parent=dialog, title=t("telegram_work_dir_label"))
+        if path:
+            work_dir.set(path)
+
+    labeled_entry(bot_box, "telegram_token_label", token, secret=True)
+    browse_row(bot_box, "telegram_exe_label", exe, choose_exe)
+    labeled_entry(bot_box, "telegram_base_label", base)
+
+    chats_label = ttk.Label(frame, text="")
+    chats_label.pack(anchor="w", pady=(8, 0))
+    ttk.Entry(frame, textvariable=chats).pack(fill="x")
+    browse_row(frame, "telegram_work_dir_label", work_dir, choose_dir)
+
+    def apply_mode():
+        account_box.pack_forget()
+        bot_box.pack_forget()
+        if mode.get() == "account":
+            account_box.pack(fill="x")
+            chats_label.config(text=t("telegram_chats_account_label"))
+            refresh_status()
+        else:
+            bot_box.pack(fill="x")
+            chats_label.config(text=t("telegram_chats_label"))
+
+    def refresh_status():
+        if mode.get() != "account":
+            return
+        api = (api_id.get() or "").strip()
+        api_hash_value = (api_hash.get() or "").strip()
+
+        def work():
+            from whisperfast.telegram.account import signed_in_label
+
+            label = signed_in_label(api, api_hash_value) if api and api_hash_value else ""
+
+            def ui():
+                if not dialog.winfo_exists():
+                    return
+                if label:
+                    status.set(t("telegram_signed_in", name=label))
+                    return
+                try:
+                    import telethon  # noqa: F401
+                except ImportError:
+                    status.set(t("telegram_telethon_missing"))
+                    return
+                status.set(t("telegram_not_signed_in"))
+
+            dialog.after(0, ui)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def ask_on_ui(title, prompt, secret=False):
+        box = {}
+        done = threading.Event()
+
+        def ui():
+            if dialog.winfo_exists():
+                box["value"] = simpledialog.askstring(title, prompt, parent=dialog, show="*" if secret else "")
+            done.set()
+
+        dialog.after(0, ui)
+        done.wait()
+        return box.get("value") or ""
+
+    def on_sign_in():
+        api = (api_id.get() or "").strip()
+        api_hash_value = (api_hash.get() or "").strip()
+        phone_value = (phone.get() or "").strip()
+        if not api or not api_hash_value or not phone_value:
+            messagebox.showerror(t("telegram_settings_title"), t("telegram_credentials_required"), parent=dialog)
+            return
+        status.set(t("telegram_signing_in"))
+        sign_btn.state(["disabled"])
+
+        def work():
+            from whisperfast.telegram.account import sign_in
+
+            try:
+                label = sign_in(
+                    api,
+                    api_hash_value,
+                    phone_value,
+                    lambda: ask_on_ui(t("telegram_code_title"), t("telegram_code_prompt")),
+                    lambda: ask_on_ui(t("telegram_password_title"), t("telegram_password_prompt"), secret=True),
+                )
+            except Exception as exc:
+                def fail():
+                    if not dialog.winfo_exists():
+                        return
+                    status.set(t("telegram_not_signed_in"))
+                    sign_btn.state(["!disabled"])
+                    messagebox.showerror(t("telegram_settings_title"), str(exc), parent=dialog)
+
+                dialog.after(0, fail)
+                return
+
+            def ok():
+                if not dialog.winfo_exists():
+                    return
+                app.telegram_mode.set("account")
+                app.telegram_phone.set(phone_value)
+                app.telegram_api_id.set(api)
+                app.telegram_api_hash.set(api_hash_value)
+                app._persist_settings()
+                status.set(t("telegram_signed_in", name=label))
+                sign_btn.state(["!disabled"])
+
+            dialog.after(0, ok)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    sign_btn.config(command=on_sign_in)
+    ttk.Radiobutton(
+        mode_row, text=t("telegram_mode_account"), value="account", variable=mode, command=apply_mode
+    ).pack(side="left")
+    ttk.Radiobutton(
+        mode_row, text=t("telegram_mode_bot"), value="bot", variable=mode, command=apply_mode
+    ).pack(side="left", padx=(12, 0))
+    apply_mode()
+
+    buttons = ttk.Frame(frame)
+    buttons.pack(fill="x", pady=(16, 0))
+
+    def close_without_saving():
+        dialog.destroy()
+
+    def save_telegram():
+        chosen = mode.get() if mode.get() in ("bot", "account") else "bot"
+        app.telegram_mode.set(chosen)
+        app.telegram_phone.set((phone.get() or "").strip())
+        app.telegram_bot_token.set((token.get() or "").strip())
+        app.telegram_api_id.set((api_id.get() or "").strip())
+        app.telegram_api_hash.set((api_hash.get() or "").strip())
+        app.telegram_bot_api_exe.set((exe.get() or "").strip())
+        app.telegram_api_base.set((base.get() or "").strip() or "http://127.0.0.1:8081")
+        ids = parse_chat_id_text(chats.get())
+        app.telegram_allowed_chat_ids_text.set(format_chat_ids(ids))
+        app.telegram_work_dir.set((work_dir.get() or "").strip())
+        app._persist_settings()
+        dialog.destroy()
+
+    ttk.Button(buttons, text=t("cancel_btn"), command=close_without_saving).pack(side="right", padx=(5, 0))
+    ttk.Button(buttons, text=t("save"), command=save_telegram).pack(side="right")
+    dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
+    dialog.bind("<Escape>", lambda event: close_without_saving())
+    center_toplevel(app, dialog)
+
+
 def show_ai_prompts_dialog(
     app,
     file_name,
@@ -1656,6 +1876,27 @@ def show_ai_prompts_overview_dialog(app):
     hint_lbl = ttk.Label(frame, text=t("ai_prompts_overview_hint"), wraplength=520)
     hint_lbl.pack(anchor="w", pady=(0, 8))
 
+    auto_flag = getattr(app, "ai_auto_process", None)
+    auto_var = tk.BooleanVar(
+        value=bool(auto_flag.get()) if auto_flag is not None and hasattr(auto_flag, "get") else False
+    )
+
+    def _save_auto():
+        if auto_flag is not None and hasattr(auto_flag, "set"):
+            auto_flag.set(bool(auto_var.get()))
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
+
+    auto_cb = ttk.Checkbutton(
+        frame,
+        text=t("ai_auto_process"),
+        variable=auto_var,
+        command=_save_auto,
+    )
+    auto_cb.pack(anchor="w", pady=(0, 8))
+    dialog._wf_auto_tip = Tooltip(auto_cb, "tooltip_ai_auto_process", is_key=True)
+
     list_wrap = ttk.Frame(frame)
     list_wrap.pack(fill="both", expand=True)
 
@@ -1773,6 +2014,7 @@ def show_ai_prompts_overview_dialog(app):
     def apply_language():
         dialog.title(t("ai_prompts_overview_title"))
         hint_lbl.config(text=t("ai_prompts_overview_hint"))
+        auto_cb.config(text=t("ai_auto_process"))
         rules_btn.config(text=t("ai_prompt_rules_button"))
         rebuild_rows()
 

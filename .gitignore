@@ -17,8 +17,13 @@ library.sqlite
 library.sqlite-wal
 library.sqlite-shm
 captures/
+telegram_inbox/
 .whisperfastgui.pid
 .whisperfastgui.pid.tmp
+.ftw_cmds/
+.ftw_tg_out/
+telegram_user.session
+telegram_user.session-journal
 
 # Тимчасові файли оновлення програми
 _update_staging/

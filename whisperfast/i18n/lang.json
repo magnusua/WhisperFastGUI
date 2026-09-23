@@ -529,6 +529,11 @@
     "UK": "Відкрити ключі AI (Cursor, Gemini, Azure OpenAI / Copilot). Порожні облікові дані → браузерний/Chat fallback.",
     "RU": "Открыть ключи AI (Cursor, Gemini, Azure OpenAI / Copilot). Пустые учётные данные → браузерный/Chat fallback."
   },
+  "tooltip_telegram": {
+    "EN": "Telegram bot: token, local Bot API, and chats whose audio and video go into the FTW queue.",
+    "UK": "Telegram-бот: токен, локальний Bot API і чати, чиє аудіо та відео потрапляють у чергу FTW.",
+    "RU": "Telegram-бот: токен, локальный Bot API и чаты, чьи аудио и видео попадают в очередь FTW."
+  },
   "cursor_waiting": {
     "EN": "⏳ Waiting {seconds}s before Cursor post-process…",
     "UK": "⏳ Очікування {seconds} с перед постпроцесингом Cursor…",
@@ -605,9 +610,9 @@
     "RU": "Промты"
   },
   "ai_prompts_overview_hint": {
-    "EN": "The check mark (left) turns the prompt on for default AI processing. Hover a name for what the prompt does. Edit copies the prompt text to a temporary Markdown file; after you save and close it, the text is written back to JSON and the Markdown file is deleted.",
-    "UK": "Галочка ліворуч вмикає промпт у обробку AI за замовчуванням. Наведіть на назву, щоб побачити навіщо він. «Змінити» копіює текст промпту в тимчасовий Markdown; після збереження і закриття файлу текст записується назад у JSON, а Markdown видаляється.",
-    "RU": "Галочка слева включает промт в обработку AI по умолчанию. Наведите на название, чтобы увидеть, зачем он. «Изменить» копирует текст промта во временный Markdown; после сохранения и закрытия файла текст записывается обратно в JSON, а Markdown удаляется."
+    "EN": "Check the prompts to use. “Run automatically” starts those prompts after each file, with no confirmation window. Hover a name for what the prompt does. Edit copies the prompt text to a temporary Markdown file; after you save and close it, the text is written back to JSON and the Markdown file is deleted.",
+    "UK": "Позначте промпти, які використовувати. «Автоматично» запускає їх після кожного файлу, без вікна підтвердження. Наведіть на назву, щоб побачити навіщо промпт. «Змінити» копіює текст промпту в тимчасовий Markdown; після збереження і закриття файлу текст записується назад у JSON, а Markdown видаляється.",
+    "RU": "Отметьте промты, которые использовать. «Автоматически» запускает их после каждого файла, без окна подтверждения. Наведите на название, чтобы увидеть, зачем промт. «Изменить» копирует текст промта во временный Markdown; после сохранения и закрытия файла текст записывается обратно в JSON, а Markdown удаляется."
   },
   "ai_prompts_overview_edit": {
     "EN": "Edit prompts",
@@ -620,9 +625,19 @@
     "RU": "Изменить"
   },
   "tooltip_ai_prompt_checkbox": {
-    "EN": "Check to include this prompt in default AI processing.",
-    "UK": "Позначте, щоб цей промпт виконувався в AI за замовчуванням.",
-    "RU": "Отметьте, чтобы этот промт выполнялся в AI по умолчанию."
+    "EN": "Include this prompt in processing. The “Run automatically” check starts them without a window.",
+    "UK": "Включити цей промпт в обробку. Галочка «Автоматично» запускає їх без вікна.",
+    "RU": "Включить этот промт в обработку. Галочка «Автоматически» запускает их без окна."
+  },
+  "ai_auto_process": {
+    "EN": "Run the checked prompts automatically, without a window",
+    "UK": "Обробляти позначені промпти автоматично, без вікна",
+    "RU": "Обрабатывать отмеченные промты автоматически, без окна"
+  },
+  "tooltip_ai_auto_process": {
+    "EN": "After each file, run the checked prompts immediately. Leave this off to confirm them in the window every time.",
+    "UK": "Після кожного файлу одразу виконує позначені промпти. Без цієї галочки вікно вибору відкривається щоразу.",
+    "RU": "После каждого файла сразу выполняет отмеченные промты. Без этой галочки окно выбора открывается каждый раз."
   },
   "tooltip_ai_prompt_edit": {
     "EN": "Copy this prompt’s text to a temporary Markdown file. After you save and close it, the text is written back to JSON and the Markdown file is deleted. The hint field is not sent to the model.",
@@ -3700,5 +3715,250 @@
     "EN": "Longest utterance",
     "UK": "Найдовша репліка",
     "RU": "Самая длинная реплика"
+  },
+  "telegram_queued": {
+    "EN": "Queued ({position}).",
+    "UK": "У черзі ({position}).",
+    "RU": "В очереди ({position})."
+  },
+  "telegram_processing": {
+    "EN": "Processing {name}.",
+    "UK": "Обробляю {name}.",
+    "RU": "Обрабатываю {name}."
+  },
+  "telegram_failed": {
+    "EN": "Failed: {error}",
+    "UK": "Помилка: {error}",
+    "RU": "Ошибка: {error}"
+  },
+  "telegram_start_id": {
+    "EN": "This chat id is {chat_id}. Add it to telegram_allowed_chat_ids in settings.json.",
+    "UK": "Id цього чату: {chat_id}. Додайте його в telegram_allowed_chat_ids у settings.json.",
+    "RU": "Id этого чата: {chat_id}. Добавьте его в telegram_allowed_chat_ids в settings.json."
+  },
+  "telegram_no_token": {
+    "EN": "telegram_bot_token is empty in settings.json.",
+    "UK": "telegram_bot_token порожній у settings.json.",
+    "RU": "telegram_bot_token пустой в settings.json."
+  },
+  "telegram_no_server": {
+    "EN": "Local telegram-bot-api is not running and telegram_bot_api_exe is not set. Download https://github.com/tdlib/telegram-bot-api and set the path in settings.json. Before the first local start, call logOut on the cloud Bot API for this token.",
+    "UK": "Локальний telegram-bot-api не запущений, і telegram_bot_api_exe не задано. Завантажте https://github.com/tdlib/telegram-bot-api і вкажіть шлях у settings.json. Перед першим локальним запуском викличте logOut хмарного Bot API для цього токена.",
+    "RU": "Локальный telegram-bot-api не запущен, и telegram_bot_api_exe не задан. Скачайте https://github.com/tdlib/telegram-bot-api и укажите путь в settings.json. Перед первым локальным запуском вызовите logOut облачного Bot API для этого токена."
+  },
+  "telegram_server_missing_exe": {
+    "EN": "telegram-bot-api not found: {path}",
+    "UK": "telegram-bot-api не знайдено: {path}",
+    "RU": "telegram-bot-api не найден: {path}"
+  },
+  "telegram_no_api_credentials": {
+    "EN": "api_id and api_hash are required to start the local Bot API server.",
+    "UK": "Для запуску локального Bot API потрібні api_id і api_hash.",
+    "RU": "Для запуска локального Bot API нужны api_id и api_hash."
+  },
+  "telegram_server_timeout": {
+    "EN": "telegram-bot-api did not open {host}:{port}.",
+    "UK": "telegram-bot-api не відкрив {host}:{port}.",
+    "RU": "telegram-bot-api не открыл {host}:{port}."
+  },
+  "telegram_gui_warning": {
+    "EN": "FTW GUI is already running (pid {pid}). Do not transcribe in both at once; they share the GPU.",
+    "UK": "GUI FTW уже запущено (pid {pid}). Не транскрибуйте в обох одразу: вони ділять GPU.",
+    "RU": "GUI FTW уже запущен (pid {pid}). Не транскрибируйте в обоих сразу: они делят GPU."
+  },
+  "telegram_gui_required": {
+    "EN": "FTW is not running. Start the app, then send the file again.",
+    "UK": "FTW не запущено. Відкрийте програму і надішліть файл ще раз.",
+    "RU": "FTW не запущен. Откройте программу и пришлите файл ещё раз."
+  },
+  "telegram_gui_added": {
+    "EN": "Added to the FTW queue: {name}.",
+    "UK": "Додано в чергу FTW: {name}.",
+    "RU": "Добавлено в очередь FTW: {name}."
+  },
+  "telegram_ai_no_key": {
+    "EN": "AI provider {provider} has no API credentials. Add a key in settings.json.",
+    "UK": "У провайдера AI {provider} немає облікових даних API. Додайте ключ у settings.json.",
+    "RU": "У провайдера AI {provider} нет учётных данных API. Добавьте ключ в settings.json."
+  },
+  "telegram_no_prompts": {
+    "EN": "No AI prompts selected (ai_default_prompt_nums).",
+    "UK": "Не вибрано промпти AI (ai_default_prompt_nums).",
+    "RU": "Не выбраны промпты AI (ai_default_prompt_nums)."
+  },
+  "telegram_ai_no_output": {
+    "EN": "AI produced no files.",
+    "UK": "AI не створив файлів.",
+    "RU": "AI не создал файлов."
+  },
+  "telegram_caption_transcript": {
+    "EN": "Transcript",
+    "UK": "Розшифровка",
+    "RU": "Расшифровка"
+  },
+  "telegram_caption_ai": {
+    "EN": "AI: {name}",
+    "UK": "AI: {name}",
+    "RU": "AI: {name}"
+  },
+  "telegram_ignored_chat": {
+    "EN": "Ignored chat_id={chat_id} (not in telegram_allowed_chat_ids).",
+    "UK": "Проігноровано chat_id={chat_id} (немає в telegram_allowed_chat_ids).",
+    "RU": "Проигнорирован chat_id={chat_id} (нет в telegram_allowed_chat_ids)."
+  },
+  "telegram_server_started": {
+    "EN": "Local Bot API is listening on {base}.",
+    "UK": "Локальний Bot API слухає {base}.",
+    "RU": "Локальный Bot API слушает {base}."
+  },
+  "telegram_btn": {
+    "EN": "Telegram",
+    "UK": "Telegram",
+    "RU": "Telegram"
+  },
+  "telegram_settings_title": {
+    "EN": "Telegram",
+    "UK": "Telegram",
+    "RU": "Telegram"
+  },
+  "telegram_settings_hint": {
+    "EN": "Choose this account to read private chats of the signed-in user, or a bot. Either way, run python main.py --telegram while this window is open: audio and video are added to the queue and the results go back to the same chat. api_id and api_hash come from my.telegram.org. The bot also needs a token from @BotFather and the local telegram-bot-api (files up to about 2 GB). Before the first local bot start, call logOut on the cloud Bot API for that token.",
+    "UK": "Оберіть цей акаунт, щоб читати особисті чати увійшовшого користувача, або бота. У будь-якому разі запустіть python main.py --telegram, поки це вікно відкрите: аудіо та відео додаються в чергу, а результати повертаються в той самий чат. api_id і api_hash — на my.telegram.org. Боту також потрібен токен від @BotFather і локальний telegram-bot-api (файли приблизно до 2 ГБ). Перед першим локальним запуском бота викличте logOut хмарного Bot API для цього токена.",
+    "RU": "Выберите этот аккаунт, чтобы забирать файлы из личных чатов, или бота. В обоих случаях запустите python main.py --telegram, пока это окно открыто: аудио и видео попадают в очередь, а результаты возвращаются в тот же чат. api_id и api_hash — на my.telegram.org. Боту также нужен токен от @BotFather и локальный telegram-bot-api (файлы примерно до 2 ГБ). Перед первым локальным запуском бота вызовите logOut облачного Bot API для этого токена."
+  },
+  "telegram_token_label": {
+    "EN": "Bot token",
+    "UK": "Токен бота",
+    "RU": "Токен бота"
+  },
+  "telegram_api_id_label": {
+    "EN": "api_id",
+    "UK": "api_id",
+    "RU": "api_id"
+  },
+  "telegram_api_hash_label": {
+    "EN": "api_hash",
+    "UK": "api_hash",
+    "RU": "api_hash"
+  },
+  "telegram_exe_label": {
+    "EN": "telegram-bot-api executable",
+    "UK": "Файл telegram-bot-api",
+    "RU": "Файл telegram-bot-api"
+  },
+  "telegram_exe_filter": {
+    "EN": "Executable",
+    "UK": "Виконуваний файл",
+    "RU": "Программа"
+  },
+  "telegram_base_label": {
+    "EN": "Local Bot API address",
+    "UK": "Адреса локального Bot API",
+    "RU": "Адрес локального Bot API"
+  },
+  "telegram_chats_label": {
+    "EN": "Allowed chat ids (comma or space separated)",
+    "UK": "Дозволені chat id (через кому або пробіл)",
+    "RU": "Разрешённые chat id (через запятую или пробел)"
+  },
+  "telegram_work_dir_label": {
+    "EN": "Folder for downloaded files",
+    "UK": "Папка для завантажених файлів",
+    "RU": "Папка для скачанных файлов"
+  },
+  "browse": {
+    "EN": "Browse…",
+    "UK": "Огляд…",
+    "RU": "Обзор…"
+  },
+  "telegram_mode_account": {
+    "EN": "This account",
+    "UK": "Цей акаунт",
+    "RU": "Этот аккаунт"
+  },
+  "telegram_mode_bot": {
+    "EN": "Bot",
+    "UK": "Бот",
+    "RU": "Бот"
+  },
+  "telegram_phone_label": {
+    "EN": "Phone number",
+    "UK": "Номер телефону",
+    "RU": "Номер телефона"
+  },
+  "telegram_sign_in": {
+    "EN": "Sign in",
+    "UK": "Увійти",
+    "RU": "Войти"
+  },
+  "telegram_signing_in": {
+    "EN": "Signing in…",
+    "UK": "Вхід…",
+    "RU": "Вход…"
+  },
+  "telegram_signed_in": {
+    "EN": "Signed in as {name}.",
+    "UK": "Вхід виконано: {name}.",
+    "RU": "Вход выполнен: {name}."
+  },
+  "telegram_not_signed_in": {
+    "EN": "Not signed in.",
+    "UK": "Вхід не виконано.",
+    "RU": "Вход не выполнен."
+  },
+  "telegram_telethon_missing": {
+    "EN": "Install telethon (pip install -r requirements.txt) to use this account.",
+    "UK": "Встановіть telethon (pip install -r requirements.txt), щоб користуватися цим акаунтом.",
+    "RU": "Установите telethon (pip install -r requirements.txt), чтобы работать от этого аккаунта."
+  },
+  "telegram_phone_required": {
+    "EN": "Enter the phone number and sign in from the Telegram settings.",
+    "UK": "Вкажіть номер телефону і увійдіть у налаштуваннях Telegram.",
+    "RU": "Укажите номер телефона и войдите в настройках Telegram."
+  },
+  "telegram_sign_in_first": {
+    "EN": "This account is not signed in. Open Telegram settings in FTW and sign in.",
+    "UK": "Цей акаунт не увійшов. Відкрийте налаштування Telegram у FTW і увійдіть.",
+    "RU": "Этот аккаунт не авторизован. Откройте настройки Telegram в FTW и войдите."
+  },
+  "telegram_code_title": {
+    "EN": "Telegram code",
+    "UK": "Код Telegram",
+    "RU": "Код Telegram"
+  },
+  "telegram_code_prompt": {
+    "EN": "Enter the login code sent to this account.",
+    "UK": "Введіть код входу, надісланий цьому акаунту.",
+    "RU": "Введите код входа, отправленный этому аккаунту."
+  },
+  "telegram_password_title": {
+    "EN": "Telegram password",
+    "UK": "Пароль Telegram",
+    "RU": "Пароль Telegram"
+  },
+  "telegram_password_prompt": {
+    "EN": "This account has two-step verification. Enter the password.",
+    "UK": "На акаунті увімкнено двоетапну перевірку. Введіть пароль.",
+    "RU": "На аккаунте включена двухэтапная проверка. Введите пароль."
+  },
+  "telegram_code_cancelled": {
+    "EN": "Sign-in was cancelled.",
+    "UK": "Вхід скасовано.",
+    "RU": "Вход отменён."
+  },
+  "telegram_account_listening": {
+    "EN": "Listening to private chats as {name}.",
+    "UK": "Слухаю особисті чати як {name}.",
+    "RU": "Слушаю личные чаты как {name}."
+  },
+  "telegram_chats_account_label": {
+    "EN": "Private chats only. Empty = all of them. Or list chat ids.",
+    "UK": "Лише особисті чати. Порожньо = усі. Або перелічіть chat id.",
+    "RU": "Только личные чаты. Пусто = все. Или перечислите chat id."
+  },
+  "telegram_credentials_required": {
+    "EN": "Enter api_id, api_hash and the phone number first.",
+    "UK": "Спочатку вкажіть api_id, api_hash і номер телефону.",
+    "RU": "Сначала укажите api_id, api_hash и номер телефона."
   }
 }

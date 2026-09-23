@@ -48,6 +48,7 @@ _DEFAULTS = {
     "send_txt_to_ai": False,
     "send_txt_to_cursor": False,  # legacy alias → send_txt_to_ai
     "ai_default_prompt_nums": [1],  # промпти, позначені за замовчуванням у вікні AI
+    "ai_auto_process": False,  # запускати ці промпти без вікна підтвердження
     "export_md_to_docx": False,
     "ai_provider": "cursor",
     "cursor_api_key": "",
@@ -85,6 +86,15 @@ _DEFAULTS = {
     "openai_compatible_api_key": "",
     "openai_compatible_model": "",
     "capture_consent_shown": False,
+    "telegram_bot_token": "",
+    "telegram_api_id": "",
+    "telegram_api_hash": "",
+    "telegram_bot_api_exe": "",
+    "telegram_api_base": "http://127.0.0.1:8081",
+    "telegram_allowed_chat_ids": [],
+    "telegram_work_dir": "",
+    "telegram_mode": "bot",
+    "telegram_phone": "",
 }
 _DEFAULTS.update(CAPTURE_DEFAULTS)
 
@@ -99,7 +109,41 @@ def default_settings():
     data["ai_default_prompt_nums"] = list(_DEFAULTS["ai_default_prompt_nums"])
     data["python_discovered"] = list(_DEFAULTS["python_discovered"])
     data["ai_prompt_rules"] = [dict(r) for r in _DEFAULTS["ai_prompt_rules"]]
+    data["telegram_allowed_chat_ids"] = list(_DEFAULTS["telegram_allowed_chat_ids"])
     return data
+
+
+def format_chat_ids(value):
+    """Comma-separated chat ids for the settings field."""
+    return ", ".join(str(n) for n in normalize_chat_ids(value if isinstance(value, list) else []))
+
+
+def parse_chat_id_text(text):
+    """Split a text field (commas, spaces, newlines) into chat ids."""
+    raw = str(text or "").replace(";", ",").replace("\n", ",")
+    parts = []
+    for chunk in raw.split(","):
+        parts.extend(chunk.split())
+    return normalize_chat_ids(parts)
+
+
+def normalize_chat_ids(value):
+    """Unique chat ids. Non-lists become []. Booleans are ignored. Negatives kept (groups)."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    seen = set()
+    for item in value:
+        if isinstance(item, bool):
+            continue
+        try:
+            n = int(item)
+        except (TypeError, ValueError):
+            continue
+        if n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
 
 
 def normalize_default_prompt_nums(value):
@@ -154,6 +198,35 @@ def _sanitize_loaded_settings(data, defaults):
                 sanitized[key] = normalized
                 if data[key] != normalized:
                     changed = True
+            continue
+        if key == "telegram_allowed_chat_ids":
+            if key not in data:
+                sanitized[key] = []
+                changed = True
+            else:
+                normalized = normalize_chat_ids(data[key])
+                sanitized[key] = normalized
+                if data[key] != normalized:
+                    changed = True
+            continue
+        if key == "telegram_api_id":
+            if key not in data or data[key] in (None, ""):
+                sanitized[key] = ""
+                if key not in data:
+                    changed = True
+            else:
+                text = str(data[key]).strip()
+                sanitized[key] = text
+                if data[key] != text:
+                    changed = True
+            continue
+        if key == "telegram_mode":
+            mode = str(data.get(key) or "bot").strip().lower()
+            if mode not in ("bot", "account"):
+                mode = "bot"
+            sanitized[key] = mode
+            if data.get(key) != mode:
+                changed = True
             continue
         if key == "ai_prompt_rules":
             if key not in data:

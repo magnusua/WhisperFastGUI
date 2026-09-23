@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.0.5",
+      "date": "23.09.2026",
+      "notes": {
+        "EN": [
+          "Telegram: audio and video from a bot or from this account’s private chats go into the open FTW queue, and the results return to the same chat. Choose the mode in Telegram settings.",
+          "Prompts: “Run the checked prompts automatically, without a window” starts them after each file, with no confirmation."
+        ],
+        "UK": [
+          "Telegram: аудіо й відео з бота або з особистих чатів цього акаунта потрапляють у чергу відкритого FTW, а результати повертаються в той самий чат. Режим обирається в налаштуваннях Telegram.",
+          "Промпти: галочка «Обробляти позначені промпти автоматично, без вікна» запускає їх після кожного файлу без підтвердження."
+        ],
+        "RU": [
+          "Telegram: аудио и видео из бота или из личных чатов этого аккаунта попадают в очередь открытого FTW, а результаты возвращаются в тот же чат. Режим выбирается в настройках Telegram.",
+          "Промпты: галочка «Обрабатывать отмеченные промты автоматически, без окна» запускает их после каждого файла без подтверждения."
+        ]
+      }
+    },
+    {
       "version": "2.0.4",
       "date": "23.09.2026",
       "notes": {

@@ -282,6 +282,15 @@ class AiJobQueue:
             )
             if not will_continue:
                 play_finish_sound()
+        try:
+            from whisperfast.telegram.gui_bridge import maybe_deliver_telegram
+
+            for job in list(self._jobs.values()):
+                txt = job.get("txt_path")
+                if txt:
+                    maybe_deliver_telegram(self.app, source_path=None, file_id=job.get("log_file_id"))
+        except Exception:
+            pass
         self._prune_old_jobs()
 
     def _prune_old_jobs(self):
@@ -425,12 +434,20 @@ class AiJobQueue:
         # Одразу вікно для цього файлу (паралельно з іншими відкритими «Промты»)
         app.root.after(0, lambda jid=job_id: self.open_prompt_dialog(jid))
 
+    def _auto_process_enabled(self, settings) -> bool:
+        flag = getattr(self.app, "ai_auto_process", None)
+        if flag is None:
+            return bool(settings.get("ai_auto_process"))
+        if hasattr(flag, "get"):
+            return bool(flag.get())
+        return bool(flag)
+
     def _maybe_autorun(self, job) -> bool:
         """Run matching prompt rules without a dialog. Returns True if handled."""
         from whisperfast.postprocess.cursor_postprocess import parse_redactor_prompts
         from whisperfast.postprocess.prompt_rules import first_matching_rule, select_prompts
         from whisperfast.postprocess.usage import budget_exceeded
-        from whisperfast.settings import load_app_settings
+        from whisperfast.settings import load_app_settings, normalize_default_prompt_nums
 
         app = self.app
         settings = load_app_settings()
@@ -444,7 +461,9 @@ class AiJobQueue:
             job["status"] = "skipped"
             self._job_end()
             return True
-        rules = getattr(app, "ai_prompt_rules", None) or settings.get("ai_prompt_rules") or []
+        rules = getattr(app, "ai_prompt_rules", None)
+        if rules is None:
+            rules = settings.get("ai_prompt_rules") or []
         source = job.get("txt_path") or ""
         watch_dirs = []
         try:
@@ -454,9 +473,17 @@ class AiJobQueue:
         except Exception:
             pass
         rule = first_matching_rule(rules, source, watch_dirs=watch_dirs)
-        if not rule or not rule.get("skip_dialog"):
+        if rule:
+            if not rule.get("skip_dialog"):
+                return False
+            nums = rule.get("prompt_nums") or []
+        elif not self._auto_process_enabled(settings):
             return False
-        nums = rule.get("prompt_nums") or []
+        else:
+            stored = getattr(app, "ai_default_prompt_nums", None)
+            if stored is None:
+                stored = settings.get("ai_default_prompt_nums")
+            nums = normalize_default_prompt_nums(stored)
         if not nums:
             return False
         ensure_redactor_file()

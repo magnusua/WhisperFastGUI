@@ -143,6 +143,7 @@ class TestNewSoftphoneSettings(SettingsTmpTestCase):
         self.assertFalse(data["export_json"])
         self.assertFalse(data["diarization_enabled"])
         self.assertEqual(data["ai_prompt_rules"], [])
+        self.assertFalse(data["ai_auto_process"])
         self.assertEqual(data["ai_month_budget"], 0.0)
         self.assertEqual(data["ollama_base_url"], "http://127.0.0.1:11434")
 

@@ -31,7 +31,7 @@ def on_app_closing(root, app=None, WhisperModelSingleton=None):
 
 
 def main():
-    # CLI without GUI: sessions / process / record
+    # CLI without GUI: sessions / process / record / --telegram
     from whisperfast.cli import maybe_run_cli
 
     if maybe_run_cli(sys.argv):
