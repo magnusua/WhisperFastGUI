@@ -88,6 +88,7 @@ from whisperfast.settings import (
 from whisperfast.postprocess.prompt_rules import normalize_prompt_rules
 from whisperfast.open_path import open_file_location
 from whisperfast.platform_util import win_no_window_kwargs
+from whisperfast import autostart as win_autostart
 from whisperfast.ui.widgets import (
     Tooltip,
     UI_DESIGN_WIDTH,
@@ -179,6 +180,7 @@ class WhisperGUI:
         self.mp3_output_dir = tk.StringVar()
         self.watch_dir = tk.StringVar()  # каталоги через кому (settings.json)
         self.watch_enabled = tk.BooleanVar(value=False)
+        self.autostart_enabled = tk.BooleanVar(value=win_autostart.is_enabled())
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
         self.send_txt_to_ai = tk.BooleanVar(value=False)
@@ -745,7 +747,7 @@ class WhisperGUI:
         self.root.bind_all("<Return>", self._on_enter_key)
         self.root.bind_all("<space>", self._on_space_key)
         self.output_folder_btn = ttk.Button(
-            tools_center, text=t("output_folder"), command=self._show_output_settings_dialog
+            tools_center, command=self._show_output_settings_dialog
         )
         self.output_folder_btn.pack(side="left", padx=2)
 
@@ -761,7 +763,7 @@ class WhisperGUI:
         )
         self.save_audio_check.pack(side="left")
         self.mp3_settings_btn = ttk.Button(
-            mp3_frame, text=t("save_audio_mp3"), command=self._show_mp3_settings_dialog
+            mp3_frame, command=self._show_mp3_settings_dialog
         )
         self.mp3_settings_btn.pack(side="left", padx=(0, 0))
 
@@ -777,7 +779,7 @@ class WhisperGUI:
         )
         self.watch_folder_check.pack(side="left")
         self.watch_dirs_btn = ttk.Button(
-            watch_frame, text=t("watch_folder_label"), command=self._open_watch_dirs_dialog
+            watch_frame, command=self._open_watch_dirs_dialog
         )
         self.watch_dirs_btn.pack(side="left", padx=(0, 0))
 
@@ -793,12 +795,11 @@ class WhisperGUI:
         )
         self.send_txt_cursor_check.pack(side="left")
         self.edit_redactor_btn = ttk.Button(
-            cursor_frame, text=t("send_txt_to_ai"), command=self.ai_jobs.show_prompts_overview
+            cursor_frame, command=self.ai_jobs.show_prompts_overview
         )
         self.edit_redactor_btn.pack(side="left", padx=(0, 0))
         self.cursor_api_key_btn = ttk.Button(
             tools_center,
-            text=t("ai_api_keys_button"),
             command=self._show_ai_api_keys_dialog,
         )
         self.cursor_api_key_btn.pack(side="left", padx=2)
@@ -814,8 +815,11 @@ class WhisperGUI:
             width=2,
         )
         self.export_md_docx_check.pack(side="left")
-        self.export_md_docx_label = ttk.Label(docx_frame, text=t("export_md_to_docx"))
-        self.export_md_docx_label.pack(side="left", padx=(0, 0))
+        self.export_md_docx_btn = ttk.Button(
+            docx_frame, command=self._toggle_export_md_to_docx
+        )
+        self.export_md_docx_btn.pack(side="left", padx=(0, 0))
+        toolbar_icons.apply_static(self)
 
         ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
         ensure_redactor_file()
@@ -830,18 +834,18 @@ class WhisperGUI:
         ttk.Frame(log_header).pack(side="left", fill="x", expand=True)
         log_center = ttk.Frame(log_header)
         log_center.pack(side="left")
-        self.clear_log_btn = ttk.Button(log_center, text=t("clear_log"), command=self.log_panel.clear)
+        self.clear_log_btn = ttk.Button(log_center, command=self.log_panel.clear)
         self.clear_log_btn.pack(side="left")
         ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
         self.dev_f = ttk.LabelFrame(log_center, text=t("device_label"))
         self.dev_f.pack(side="left", padx=5)
         for device in ["AUTO", "GPU", "CPU"]:
             ttk.Radiobutton(self.dev_f, text=device, variable=self.device_mode, value=device).pack(side="left", padx=5)
-        self.system_btn = ttk.Button(log_center, text=t("system_check"), command=lambda: check_system(self.log))
+        self.system_btn = ttk.Button(log_center, command=lambda: check_system(self.log))
         self.system_btn.pack(side="left", padx=2)
-        self.updates_btn = ttk.Button(log_center, text=t("updates"), command=self.run_updates_check)
+        self.updates_btn = ttk.Button(log_center, command=self.run_updates_check)
         self.updates_btn.pack(side="left", padx=2)
-        self.dependencies_btn = ttk.Button(log_center, text=t("dependencies"), command=self.run_install)
+        self.dependencies_btn = ttk.Button(log_center, command=self.run_install)
         self.dependencies_btn.pack(side="left", padx=2)
         ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
         self.model_btn = ttk.Button(log_center, text=self._model_button_label(), width=14, command=self._show_model_dialog)
@@ -853,11 +857,22 @@ class WhisperGUI:
         self.tray_mode_combo.current(idx)
         self.tray_mode_combo.bind("<<ComboboxSelected>>", self._on_tray_mode_change)
         ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
-        self.autostart_btn = ttk.Button(log_center, text=t("autostart"), command=self._run_autostart_script)
-        self.autostart_btn.pack(side="left", padx=2)
+        autostart_frame = ttk.Frame(log_center)
+        autostart_frame.pack(side="left", padx=5)
+        self.autostart_check = ttk.Checkbutton(
+            autostart_frame,
+            text="",
+            variable=self.autostart_enabled,
+            command=self._on_autostart_toggled,
+            width=2,
+        )
+        self.autostart_check.pack(side="left")
+        self.autostart_btn = ttk.Button(autostart_frame, command=self._toggle_autostart)
+        self.autostart_btn.pack(side="left", padx=(0, 0))
         ttk.Frame(log_header).pack(side="left", fill="x", expand=True)
-        self.cancel_btn = ttk.Button(log_header, text=t("cancel"), command=self.cancel_action, state="disabled")
+        self.cancel_btn = ttk.Button(log_header, command=self.cancel_action, state="disabled")
         self.cancel_btn.pack(side="right")
+        toolbar_icons.apply_static(self)
         
         self.log_box = scrolledtext.ScrolledText(main, height=18, state="disabled", wrap="word", font=("Consolas", 9))
         self.log_box.pack(fill="both", expand=True, pady=5)
@@ -895,12 +910,13 @@ class WhisperGUI:
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
         tip(self.cursor_api_key_btn, "tooltip_ai_api_keys")
         tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
-        tip(self.export_md_docx_label, "tooltip_export_md_to_docx")
+        tip(self.export_md_docx_btn, "tooltip_export_md_to_docx")
         tip(self.system_btn, "tooltip_system")
         tip(self.updates_btn, "tooltip_updates")
         tip(self.dependencies_btn, "tooltip_dependencies")
         self._tooltips.append(Tooltip(self.model_btn, t("tooltip_model_btn", cache_dir=get_whisper_cache_dir()), is_key=False))
         tip(self.tray_mode_combo, "tooltip_tray_mode")
+        tip(self.autostart_check, "tooltip_autostart")
         tip(self.autostart_btn, "tooltip_autostart")
         tip(self.output_folder_btn, "tooltip_output_folder")
         tip(self.watch_folder_check, "tooltip_watch_folder")
@@ -1757,25 +1773,40 @@ class WhisperGUI:
             self._apply_tray_mode()
             self._persist_settings()
 
-    def _run_autostart_script(self):
-        """Запускає autorun_delayed.bat у папці програми (додає ярлик у автозавантаження)."""
-        bat_path = os.path.join(BASE_DIR, "autorun_delayed.bat")
-        if not os.path.isfile(bat_path):
-            messagebox.showerror(t("error"), t("autostart_bat_not_found", path=bat_path))
+    def _toggle_autostart(self):
+        try:
+            self.autostart_enabled.set(not bool(self.autostart_enabled.get()))
+        except tk.TclError:
+            return
+        self._on_autostart_toggled()
+
+    def _on_autostart_toggled(self):
+        want = False
+        try:
+            want = bool(self.autostart_enabled.get())
+        except tk.TclError:
             return
         try:
-            if sys.platform == "win32":
-                # Run via cmd /c with quoted path so paths with spaces and special chars work.
-                # CREATE_NO_WINDOW prevents flashing cmd windows on Windows.
-                subprocess.Popen(
-                    ["cmd", "/c", f'"{bat_path}"'],
-                    cwd=BASE_DIR,
-                    **win_no_window_kwargs(),
-                )
+            if want:
+                win_autostart.enable()
             else:
-                subprocess.Popen([bat_path], cwd=BASE_DIR)
+                win_autostart.disable()
+        except FileNotFoundError as e:
+            self.autostart_enabled.set(win_autostart.is_enabled())
+            toolbar_icons.apply_autostart_state(self)
+            messagebox.showerror(
+                t("error"),
+                t("autostart_bat_not_found", path=e.filename or str(e)),
+            )
+            return
         except OSError as e:
+            self.autostart_enabled.set(win_autostart.is_enabled())
+            toolbar_icons.apply_autostart_state(self)
             messagebox.showerror(t("error"), f"{t('autostart_run_error')}: {e}")
+            return
+        self.autostart_enabled.set(win_autostart.is_enabled())
+        toolbar_icons.apply_autostart_state(self)
+        self.log(t("autostart_enabled_log" if want else "autostart_disabled_log"))
 
     def on_window_close(self):
         """Вызывается при нажатии X на окне: в режиме «Трей» — свернуть в трей, иначе — диалог закрытия."""
@@ -1885,6 +1916,13 @@ class WhisperGUI:
 
     def auto_start_record(self):
         capture_ui.start_capture(self, trigger="manual")
+
+    def _toggle_export_md_to_docx(self):
+        try:
+            self.export_md_to_docx.set(not bool(self.export_md_to_docx.get()))
+        except tk.TclError:
+            return
+        self._on_export_md_to_docx_toggled()
 
     def _on_export_md_to_docx_toggled(self):
         self._persist_settings()
@@ -2212,18 +2250,7 @@ class WhisperGUI:
             self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
         except (tk.TclError, ValueError):
             pass
-        self.mp3_settings_btn.config(text=t("save_audio_mp3"))
-        self.edit_redactor_btn.config(text=t("send_txt_to_ai"))
-        self.cursor_api_key_btn.config(text=t("ai_api_keys_button"))
-        self.export_md_docx_label.config(text=t("export_md_to_docx"))
-        self.system_btn.config(text=t("system_check"))
-        self.updates_btn.config(text=t("updates"))
-        self.dependencies_btn.config(text=t("dependencies"))
         self.model_btn.config(text=self._model_button_label())
-        self.output_folder_btn.config(text=t("output_folder"))
-        self.watch_dirs_btn.config(text=t("watch_folder_label"))
-        self.clear_log_btn.config(text=t("clear_log"))
-        self.cancel_btn.config(text=t("cancel"))
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))
@@ -2234,7 +2261,6 @@ class WhisperGUI:
         self.queue_list.heading("end", text=t("col_end"))
         self.queue_list.heading("status", text=t("col_status"))
         self.tray_mode_combo["values"] = [t("tray_mode_panel"), t("tray_mode_tray"), t("tray_mode_panel_tray")]
-        self.autostart_btn.config(text=t("autostart"))
         try:
             idx = self.TRAY_MODE_KEYS.index(self.tray_mode.get()) if self.tray_mode.get() in self.TRAY_MODE_KEYS else 0
             self.tray_mode_combo.current(idx)

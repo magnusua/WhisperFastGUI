@@ -27,6 +27,7 @@ class TestToolbarIcons(unittest.TestCase):
         ]
         self.assertEqual(missing, [], f"missing toolbar PNG for: {missing}")
         self.assertEqual(toolbar_icons.FILE_MAP["archive"], "search.png")
+        self.assertEqual(toolbar_icons.FILE_MAP["clear_log"], "delete.png")
 
     def test_load_and_apply_on_buttons(self):
         root = _make_root()
@@ -48,6 +49,19 @@ class TestToolbarIcons(unittest.TestCase):
             capture_pause_btn=ttk.Button(root),
             play_sound_btn=ttk.Button(root),
             play_sound_on_finish=tk.BooleanVar(value=True),
+            output_folder_btn=ttk.Button(root),
+            mp3_settings_btn=ttk.Button(root),
+            watch_dirs_btn=ttk.Button(root),
+            edit_redactor_btn=ttk.Button(root),
+            cursor_api_key_btn=ttk.Button(root),
+            export_md_docx_btn=ttk.Button(root),
+            clear_log_btn=ttk.Button(root),
+            system_btn=ttk.Button(root),
+            updates_btn=ttk.Button(root),
+            dependencies_btn=ttk.Button(root),
+            autostart_btn=ttk.Button(root),
+            autostart_enabled=tk.BooleanVar(value=False),
+            cancel_btn=ttk.Button(root),
         )
         toolbar_icons.apply_static(app)
         self.assertEqual(app.add_files_btn._toolbar_icon_key, "add_files")
@@ -56,12 +70,35 @@ class TestToolbarIcons(unittest.TestCase):
         self.assertEqual(app.archive_btn._toolbar_icon_key, "archive")
         self.assertEqual(app.capture_settings_btn._toolbar_icon_key, "capture_settings")
         self.assertEqual(app.play_sound_btn._toolbar_icon_key, "notify_on")
+        self.assertEqual(app.output_folder_btn._toolbar_icon_key, "output_folder")
+        self.assertEqual(app.mp3_settings_btn._toolbar_icon_key, "mp3_settings")
+        self.assertEqual(app.watch_dirs_btn._toolbar_icon_key, "watch_dirs")
+        self.assertEqual(app.edit_redactor_btn._toolbar_icon_key, "prompts")
+        self.assertEqual(app.cursor_api_key_btn._toolbar_icon_key, "api_keys")
+        self.assertEqual(app.export_md_docx_btn._toolbar_icon_key, "export_md_docx")
+        self.assertEqual(app.clear_log_btn._toolbar_icon_key, "clear_log")
+        self.assertEqual(app.system_btn._toolbar_icon_key, "system")
+        self.assertEqual(app.updates_btn._toolbar_icon_key, "updates")
+        self.assertEqual(app.dependencies_btn._toolbar_icon_key, "dependencies")
+        self.assertEqual(app.autostart_btn._toolbar_icon_key, "autostart_off")
+        self.assertEqual(app.cancel_btn._toolbar_icon_key, "cancel")
         self.assertEqual(app.add_files_btn.cget("text"), "")
         self.assertEqual(app.play_sound_btn.cget("text"), "")
+        self.assertEqual(app.output_folder_btn.cget("text"), "")
+        self.assertEqual(app.export_md_docx_btn.cget("text"), "")
+        self.assertEqual(app.clear_log_btn.cget("text"), "")
+        self.assertEqual(app.cancel_btn.cget("text"), "")
 
         app.play_sound_on_finish.set(False)
         toolbar_icons.apply_notify_state(app)
         self.assertEqual(app.play_sound_btn._toolbar_icon_key, "notify_off")
+
+        app.autostart_enabled.set(True)
+        toolbar_icons.apply_autostart_state(app)
+        self.assertEqual(app.autostart_btn._toolbar_icon_key, "autostart_on")
+        app.autostart_enabled.set(False)
+        toolbar_icons.apply_autostart_state(app)
+        self.assertEqual(app.autostart_btn._toolbar_icon_key, "autostart_off")
 
         toolbar_icons.apply_capture_state(app, running=False, paused=False)
         self.assertEqual(app.capture_btn._toolbar_icon_key, "capture_start")

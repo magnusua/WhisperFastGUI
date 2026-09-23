@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.0.4",
+      "date": "23.09.2026",
+      "notes": {
+        "EN": [
+          "Named tools and log-row buttons are pictograms (labels stay in tooltips). Clear log is a trash can.",
+          "Autostart is a toggle: a checkbox plus a green power icon when the Startup shortcut is present; click to add or remove it."
+        ],
+        "UK": [
+          "Кнопки з написами в рядку інструментів і логу — піктограми (підписи в підказках). Очистити лог — кошик.",
+          "Автозапуск — перемикач: чекбокс і зелена іконка, коли ярлик уже в Startup; клік додає або прибирає його."
+        ],
+        "RU": [
+          "Кнопки с подписями в строке инструментов и лога — пиктограммы (подписи в подсказках). Очистить лог — корзина.",
+          "Автозапуск — переключатель: чекбокс и зелёная иконка, когда ярлык уже в Startup; клик добавляет или убирает его."
+        ]
+      }
+    },
+    {
       "version": "2.0.3",
       "date": "23.09.2026",
       "notes": {

@@ -2595,9 +2595,19 @@
     "RU": "Автозапуск"
   },
   "tooltip_autostart": {
-    "EN": "Add app to Windows startup (delayed 25 s). Runs autorun_delayed.bat.",
-    "UK": "Додати програму в автозавантаження Windows (з затримкою 25 с). Запускає autorun_delayed.bat.",
-    "RU": "Добавить программу в автозагрузку Windows (с задержкой 25 с). Запускает autorun_delayed.bat."
+    "EN": "Windows startup (25 s delay). Checked = shortcut is in Startup. Click to add or remove it.",
+    "UK": "Автозавантаження Windows (затримка 25 с). Галочка — ярлик уже в Startup. Клік додає або прибирає його.",
+    "RU": "Автозагрузка Windows (задержка 25 с). Галочка — ярлык уже в Startup. Клик добавляет или убирает его."
+  },
+  "autostart_enabled_log": {
+    "EN": "Autostart enabled (Startup shortcut, 25 s delay).",
+    "UK": "Автозапуск увімкнено (ярлик у Startup, затримка 25 с).",
+    "RU": "Автозапуск включён (ярлык в Startup, задержка 25 с)."
+  },
+  "autostart_disabled_log": {
+    "EN": "Autostart disabled (Startup shortcut removed).",
+    "UK": "Автозапуск вимкнено (ярлик зі Startup прибрано).",
+    "RU": "Автозапуск выключен (ярлык из Startup убран)."
   },
   "autostart_bat_not_found": {
     "EN": "File not found: {path}",
@@ -2605,9 +2615,9 @@
     "RU": "Файл не найден: {path}"
   },
   "autostart_run_error": {
-    "EN": "Failed to run autostart script",
-    "UK": "Не вдалося запустити скрипт автозапуску",
-    "RU": "Не удалось запустить скрипт автозапуска"
+    "EN": "Failed to change autostart",
+    "UK": "Не вдалося змінити автозапуск",
+    "RU": "Не удалось изменить автозапуск"
   },
   "tooltip_dependencies": {
     "EN": "Install or reinstall pip packages (PyTorch, faster-whisper, markitdown…) and system tools (FFmpeg, Pandoc). Option: Force Reinstall.",

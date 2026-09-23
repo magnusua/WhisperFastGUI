@@ -1,4 +1,4 @@
-"""Queue-header pictograms (Material Design Icons, Apache 2.0).
+"""Toolbar pictograms (Material Design Icons, Apache 2.0).
 
 PNGs live in resources/icons/. Labels stay in tooltips so language changes
 do not put words back on the icon-only buttons.
@@ -27,6 +27,24 @@ FILE_MAP = {
     "capture_settings": "settings.png",
     "notify_on": "notifications.png",
     "notify_off": "notifications-off.png",
+    "output_folder": "folder.png",
+    "mp3_settings": "audiotrack.png",
+    "watch_dirs": "visibility.png",
+    "prompts": "forum.png",
+    "api_keys": "vpn-key.png",
+    "export_md_docx": "description.png",
+    "clear_log": "delete.png",
+    "system": "computer.png",
+    "updates": "refresh.png",
+    "dependencies": "extension.png",
+    "autostart_off": "power-settings-new.png",
+    "autostart_on": "power-settings-new.png",
+    "cancel": "cancel.png",
+}
+
+# Recolor a black Material glyph (RGB kept, alpha from the PNG).
+TINT_MAP = {
+    "autostart_on": (22, 163, 74),
 }
 
 # Segoe MDL2 Assets (Windows) if a PNG is missing.
@@ -44,9 +62,33 @@ UNICODE_FALLBACK = {
     "capture_settings": "\uE713",
     "notify_on": "\uEA8F",
     "notify_off": "\uE7ED",
+    "output_folder": "\uE8B7",
+    "mp3_settings": "\uE8D6",
+    "watch_dirs": "\uE890",
+    "prompts": "\uE8BD",
+    "api_keys": "\uE192",
+    "export_md_docx": "\uE8A5",
+    "clear_log": "\uE74D",
+    "system": "\uE770",
+    "updates": "\uE72C",
+    "dependencies": "\uE90F",
+    "autostart_off": "\uE7E8",
+    "autostart_on": "\uE7E8",
+    "cancel": "\uE711",
 }
 
 _ICON_SIZE = 20
+
+
+def _tint_rgba(img, rgb: tuple[int, int, int]):
+    from PIL import Image
+
+    alpha = img.getchannel("A")
+    color = Image.new("RGB", img.size, rgb)
+    out = Image.new("RGBA", img.size)
+    out.paste(color, mask=alpha)
+    out.putalpha(alpha)
+    return out
 
 
 def icon_path(key: str) -> str:
@@ -70,6 +112,9 @@ def load(master) -> dict:
                 img = Image.open(path).convert("RGBA")
                 if img.size != (_ICON_SIZE, _ICON_SIZE):
                     img = img.resize((_ICON_SIZE, _ICON_SIZE), Image.Resampling.LANCZOS)
+                tint = TINT_MAP.get(key)
+                if tint:
+                    img = _tint_rgba(img, tint)
                 photos[key] = ImageTk.PhotoImage(img, master=master)
             else:
                 photos[key] = tk.PhotoImage(file=path, master=master)
@@ -106,9 +151,21 @@ def apply_static(app) -> None:
         ("archive_btn", "archive"),
         ("capture_clip_btn", "capture_clip"),
         ("capture_settings_btn", "capture_settings"),
+        ("output_folder_btn", "output_folder"),
+        ("mp3_settings_btn", "mp3_settings"),
+        ("watch_dirs_btn", "watch_dirs"),
+        ("edit_redactor_btn", "prompts"),
+        ("cursor_api_key_btn", "api_keys"),
+        ("export_md_docx_btn", "export_md_docx"),
+        ("clear_log_btn", "clear_log"),
+        ("system_btn", "system"),
+        ("updates_btn", "updates"),
+        ("dependencies_btn", "dependencies"),
+        ("cancel_btn", "cancel"),
     ):
         set_icon(getattr(app, attr, None), photos, key)
     apply_notify_state(app)
+    apply_autostart_state(app)
 
 
 def apply_notify_state(app) -> None:
@@ -121,6 +178,18 @@ def apply_notify_state(app) -> None:
         except tk.TclError:
             pass
     set_icon(getattr(app, "play_sound_btn", None), photos, "notify_on" if on else "notify_off")
+
+
+def apply_autostart_state(app) -> None:
+    photos = getattr(app, "_toolbar_photos", None) or {}
+    on = False
+    var = getattr(app, "autostart_enabled", None)
+    if var is not None:
+        try:
+            on = bool(var.get())
+        except tk.TclError:
+            pass
+    set_icon(getattr(app, "autostart_btn", None), photos, "autostart_on" if on else "autostart_off")
 
 
 def apply_capture_state(app, running: bool, paused: bool) -> None:
