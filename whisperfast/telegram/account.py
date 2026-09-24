@@ -217,13 +217,16 @@ def run_account(
             pump = asyncio.create_task(_pump())
             own_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
             own_list = ", ".join(own_names) if own_names else t("telegram_own_only_saved")
-            log(
-                t(
-                    "telegram_account_listening",
-                    name=(me.first_name or me.username or str(me.id)),
-                    chats=own_list,
-                )
+            started = t(
+                "telegram_account_listening",
+                name=(me.first_name or me.username or str(me.id)),
+                chats=own_list,
             )
+            log(started)
+            try:
+                await client.send_message("me", started)
+            except Exception as exc:
+                log(t("telegram_start_notice_failed", error=str(exc)))
             try:
                 await client.run_until_disconnected()
             finally:

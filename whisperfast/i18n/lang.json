@@ -4016,6 +4016,11 @@
     "UK": "Слухаю особисті чати і групи як {name}. Власні повідомлення також обробляю в: {chats}.",
     "RU": "Слушаю личные чаты и группы как {name}. Свои сообщения также обрабатываю в: {chats}."
   },
+  "telegram_start_notice_failed": {
+    "EN": "Could not send the start notice to Saved Messages: {error}",
+    "UK": "Не вдалося надіслати повідомлення про запуск в Обране: {error}",
+    "RU": "Не удалось отправить сообщение о запуске в Избранное: {error}"
+  },
   "telegram_own_only_saved": {
     "EN": "Saved Messages only",
     "UK": "лише Обране",
