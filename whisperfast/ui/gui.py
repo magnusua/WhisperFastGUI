@@ -82,7 +82,9 @@ from whisperfast.i18n import t, set_language
 from whisperfast.library import get_library
 from whisperfast.settings import (
     format_chat_ids,
+    format_chat_names,
     load_app_settings,
+    normalize_chat_names,
     normalize_default_prompt_nums,
     parse_chat_id_text,
     save_app_settings,
@@ -218,6 +220,7 @@ class WhisperGUI:
         self.telegram_work_dir = tk.StringVar(value="")
         self.telegram_mode = tk.StringVar(value="bot")
         self.telegram_phone = tk.StringVar(value="")
+        self.telegram_self_chat_names_text = tk.StringVar(value="")
         self.export_json = tk.BooleanVar(value=False)
         self.export_vtt = tk.BooleanVar(value=False)
         self.word_timestamps = tk.BooleanVar(value=False)
@@ -294,6 +297,7 @@ class WhisperGUI:
         mode = str(saved.get("telegram_mode") or "bot").strip().lower()
         self.telegram_mode.set(mode if mode in ("bot", "account") else "bot")
         self.telegram_phone.set((saved.get("telegram_phone") or "").strip())
+        self.telegram_self_chat_names_text.set(format_chat_names(saved.get("telegram_self_chat_names")))
         self.export_json.set(bool(saved.get("export_json", False)))
         self.export_vtt.set(bool(saved.get("export_vtt", False)))
         self.word_timestamps.set(bool(saved.get("word_timestamps", False)))
@@ -824,12 +828,23 @@ class WhisperGUI:
             command=self._show_ai_api_keys_dialog,
         )
         self.cursor_api_key_btn.pack(side="left", padx=2)
-        self.telegram_btn = ttk.Button(
-            tools_center,
-            text=t("telegram_btn"),
-            command=self._show_telegram_settings_dialog,
+
+        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        telegram_frame = ttk.Frame(tools_center)
+        telegram_frame.pack(side="left", padx=5)
+        self.telegram_listener_on = tk.BooleanVar(value=False)
+        self.telegram_listener_check = ttk.Checkbutton(
+            telegram_frame,
+            text="",
+            variable=self.telegram_listener_on,
+            command=self._on_telegram_listener_toggled,
+            width=2,
         )
-        self.telegram_btn.pack(side="left", padx=2)
+        self.telegram_listener_check.pack(side="left")
+        self.telegram_btn = ttk.Button(
+            telegram_frame, command=self._show_telegram_settings_dialog
+        )
+        self.telegram_btn.pack(side="left", padx=(0, 0))
 
         ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
         docx_frame = ttk.Frame(tools_center)
@@ -936,6 +951,7 @@ class WhisperGUI:
         tip(self.send_txt_cursor_check, "tooltip_send_txt_to_ai")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
         tip(self.cursor_api_key_btn, "tooltip_ai_api_keys")
+        tip(self.telegram_listener_check, "tooltip_telegram_listener")
         tip(self.telegram_btn, "tooltip_telegram")
         tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
         tip(self.export_md_docx_btn, "tooltip_export_md_to_docx")
@@ -1598,6 +1614,67 @@ class WhisperGUI:
     def _show_ai_api_keys_dialog(self):
         ui_dialogs.show_ai_api_keys_dialog(self)
 
+    def _telegram_settings_snapshot(self):
+        mode = (self.telegram_mode.get() or "bot").strip().lower()
+        return {
+            "telegram_mode": mode if mode in ("bot", "account") else "bot",
+            "telegram_api_id": (self.telegram_api_id.get() or "").strip(),
+            "telegram_api_hash": (self.telegram_api_hash.get() or "").strip(),
+            "telegram_phone": (self.telegram_phone.get() or "").strip(),
+            "telegram_bot_token": (self.telegram_bot_token.get() or "").strip(),
+        }
+
+    def sync_telegram_listener_check(self):
+        """Match the checkbox to the listener thread without starting or stopping it."""
+        from whisperfast.telegram.service import is_running
+
+        var = getattr(self, "telegram_listener_on", None)
+        if var is None:
+            return
+        try:
+            var.set(is_running())
+        except tk.TclError:
+            pass
+
+    def _on_telegram_listener_toggled(self):
+        from whisperfast.telegram.service import listener_kind, start as start_listener, stop as stop_listener
+
+        if not self.telegram_listener_on.get():
+            stop_listener()
+            return
+        kind = listener_kind(self._telegram_settings_snapshot())
+        if not kind:
+            self.telegram_listener_on.set(False)
+            messagebox.showerror(t("telegram_settings_title"), t("telegram_not_configured"), parent=self.root)
+            return
+
+        def on_done(code):
+            def ui():
+                from whisperfast.telegram.service import is_running
+
+                if is_running():
+                    return
+                try:
+                    self.telegram_listener_on.set(False)
+                except tk.TclError:
+                    return
+                if code:
+                    messagebox.showerror(
+                        t("telegram_settings_title"), t("telegram_listener_off"), parent=self.root
+                    )
+
+            try:
+                self.root.after(0, ui)
+            except tk.TclError:
+                pass
+
+        start_listener(log=lambda msg: self.root.after(0, lambda m=msg: self.log(m)), on_done=on_done)
+        messagebox.showinfo(
+            t("telegram_settings_title"),
+            t("telegram_listener_started_account" if kind == "account" else "telegram_listener_started_bot"),
+            parent=self.root,
+        )
+
     def _show_telegram_settings_dialog(self):
         ui_dialogs.show_telegram_settings_dialog(self)
 
@@ -1918,6 +1995,7 @@ class WhisperGUI:
             "telegram_work_dir": (self.telegram_work_dir.get() or "").strip(),
             "telegram_mode": (self.telegram_mode.get() or "bot").strip().lower(),
             "telegram_phone": (self.telegram_phone.get() or "").strip(),
+            "telegram_self_chat_names": normalize_chat_names(self.telegram_self_chat_names_text.get()),
             "ai_month_budget": float(self.ai_month_budget.get() or 0.0),
             "ai_prompt_rules": normalize_prompt_rules(
                 getattr(self, "ai_prompt_rules", None)
@@ -2303,8 +2381,6 @@ class WhisperGUI:
         except (tk.TclError, ValueError):
             pass
         self.model_btn.config(text=self._model_button_label())
-        if getattr(self, "telegram_btn", None) is not None:
-            self.telegram_btn.config(text=t("telegram_btn"))
         self.queue_list.heading("num", text=t("col_num"))
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))

@@ -54,6 +54,7 @@ class TestToolbarIcons(unittest.TestCase):
             watch_dirs_btn=ttk.Button(root),
             edit_redactor_btn=ttk.Button(root),
             cursor_api_key_btn=ttk.Button(root),
+            telegram_btn=ttk.Button(root),
             export_md_docx_btn=ttk.Button(root),
             clear_log_btn=ttk.Button(root),
             system_btn=ttk.Button(root),
@@ -75,6 +76,8 @@ class TestToolbarIcons(unittest.TestCase):
         self.assertEqual(app.watch_dirs_btn._toolbar_icon_key, "watch_dirs")
         self.assertEqual(app.edit_redactor_btn._toolbar_icon_key, "prompts")
         self.assertEqual(app.cursor_api_key_btn._toolbar_icon_key, "api_keys")
+        self.assertEqual(app.telegram_btn._toolbar_icon_key, "telegram")
+        self.assertEqual(app.telegram_btn.cget("text"), "")
         self.assertEqual(app.export_md_docx_btn._toolbar_icon_key, "export_md_docx")
         self.assertEqual(app.clear_log_btn._toolbar_icon_key, "clear_log")
         self.assertEqual(app.system_btn._toolbar_icon_key, "system")

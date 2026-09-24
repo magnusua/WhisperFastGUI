@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from typing import Any, Dict, Optional
 
@@ -30,12 +31,21 @@ def cmd_queue_dir() -> str:
     return os.path.join(BASE_DIR, ".ftw_cmds")
 
 
+_append_seq = 0
+_append_lock = threading.Lock()
+
+
 def append_command(action: str, **payload: Any) -> str:
     """Append one command. Unlike write_command, a later call does not erase this one."""
+    global _append_seq
     folder = cmd_queue_dir()
     os.makedirs(folder, exist_ok=True)
     data = {"action": action, "ts": time.time(), **payload}
-    name = f"{time.time_ns()}_{os.getpid()}.json"
+    with _append_lock:
+        _append_seq += 1
+        seq = _append_seq
+    # time_ns() can repeat on Windows when two files arrive in the same tick.
+    name = f"{time.time_ns()}_{os.getpid()}_{seq:06d}.json"
     path = os.path.join(folder, name)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

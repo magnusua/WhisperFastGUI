@@ -87,7 +87,7 @@ If another task is running, new files wait in the queue and start automatically 
 Enable **To AI** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from the `promts/` folder (one JSON file each).
 
 - The **To AI** label opens the prompt list. A check mark means the prompt runs by default; **Edit** on a row opens that prompt file. Hover a name for a short description.
-- **API keys** opens one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Sign in to Gemini** opens the browser and copies the auth URL (same pattern as Cursor Chat / Google Calendar). **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
+- **API keys** opens one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Sign in to Gemini** opens the browser and copies the auth URL (same pattern as Cursor Chat / Google Calendar). **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). On macOS they go into the login Keychain. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
 
 After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens (unless an auto-run rule matches):
 
@@ -113,6 +113,17 @@ After Whisper or document conversion, the log shows a clickable **Send to AI** l
 
 Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `## Prompt #2 "TW_core"`). Empty sections are skipped.
 
+## Telegram
+
+The Telegram icon in the toolbar opens settings. The checkbox to its left starts or stops the listener in this FTW window. If the account or bot is not filled in yet, an error asks you to open settings first. Keep FTW open while the listener runs. Hover a field for where the value comes from.
+
+- **Account** — private chats of this Telegram user. You need `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org) (API development tools, platform Desktop) and a phone number such as `+380501111111`. **Sign in** receives the code inside Telegram, not by SMS; a cloud password is asked for when the account has one. The listener can start only after you are signed in.
+- **Bot** — a bot from @BotFather: send `/newbot`, the username must end with `bot`, and the token looks like `123456789:AAH…`. You also need `api_id`, `api_hash`, and a local `telegram-bot-api.exe` (files up to about 2 GB) from [tdlib/telegram-bot-api](https://github.com/tdlib/telegram-bot-api/releases). The default address is `http://127.0.0.1:8081`. Before the first local start, call `logOut` on the cloud Bot API for this token.
+
+Audio and video go into the queue, and the results return to the same chat: the transcript (TXT), every AI file, an MP3 extracted from a video, and a later audio clip (caption “Clip of the audio”). An MP3 made from an audio file is not sent back.
+
+In account mode, messages you send yourself are skipped, except **Saved Messages** and the chats named in “Also process your own audio and video in these chats” (first name, full name, or `@username`, ignoring case). An empty chat-id list means every private chat. In bot mode, while the chat-id list is empty, the bot ignores media and answers `/start` with that chat’s id.
+
 ## Log
 
 - The log is stored in `app_log.json` next to the program (batched writes).
@@ -136,6 +147,7 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 - **Autostart** — add delayed startup on Windows.
 - **To AI** — enable AI post-processing; the label opens a prompt list (defaults + edit file).
 - **API keys** — Cursor / Gemini / Claude / Azure OpenAI / Ollama / OpenAI-compatible keys.
+- **Telegram** — account or bot settings. The checkbox to the left starts or stops the listener.
 - **Help** — open this file in the interface language. Use the document list at the top to also read architecture, setup, and other docs from `docs/`.
 
 ## Display modes

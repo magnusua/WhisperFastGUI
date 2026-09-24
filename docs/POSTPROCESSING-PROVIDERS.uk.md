@@ -43,7 +43,7 @@ FTW вміє передавати вже готовий текст (`.txt` пі�
 
 ## Провайдер Cursor
 
-Реалізований окремо і найбільш повно — `postprocess/cursor_postprocess.py`. Ключ: `resolve_cursor_api_key()` — спершу env `CURSOR_API_KEY`, потім `settings.json: cursor_api_key`. З ключем (Cursor SDK) на кожен промпт піднімається окремий локальний bridge-процес (`Cursor.exe`/`node.exe` на Windows — без вікна консолі, через `CREATE_NO_WINDOW`), з дренажем stderr і повтором при помилці з'єднання до вже «мертвого» bridge (`WinError 10061`). Без ключа — фолбек на Cursor Chat: текст промпту в буфері обміну, відкривається сам застосунок Cursor.
+Реалізований окремо і найбільш повно — `postprocess/cursor_postprocess.py`. Ключ: `resolve_cursor_api_key()` — спершу env `CURSOR_API_KEY`, потім `settings.json: cursor_api_key`. З ключем (Cursor SDK) на кожен промпт піднімається окремий локальний bridge-процес (`Cursor.exe`/`node.exe` на Windows — без вікна консолі, через `CREATE_NO_WINDOW`), з дренажем stderr. Невдача (мережа, обірваний bridge, статус `error` у відповіді агента) повторюється до п’яти разів (`CURSOR_SDK_NETWORK_ATTEMPTS`). Помилка автентифікації (відхилений ключ, 401/403) не повторюється. Без ключа — фолбек на Cursor Chat: текст промпту в буфері обміну, відкривається сам застосунок Cursor.
 
 ## Провайдер Gemini
 
@@ -69,7 +69,7 @@ FTW вміє передавати вже готовий текст (`.txt` пі�
 
 Усі провайдери налаштовуються в одному вікні — кнопка **[API keys]** (включно з Ollama URL і OpenAI-compatible). Закриття через × не зберігає зміни (тільки явне «Зберегти»). Модулі провайдерів не пишуть значення ключа в лог.
 
-На **Windows** ключі в `settings.json` шифруються DPAPI (`whisperfast/secrets_store.py`, префікс `dpapi:`). На POSIX — відкритий текст і `chmod 0600`. Якщо той самий ключ заданий і в середовищі, і в файлі — виграє середовище. Деталі — [CONFIGURATION.uk.md](CONFIGURATION.uk.md#settingsjson).
+На **Windows** ключі в `settings.json` шифруються DPAPI (`whisperfast/secrets_store.py`, префікс `dpapi:`). На **macOS** секрет пишеться в login Keychain (`keychain:<ім'я>` у файлі). На **Linux** — відкритий текст і `chmod 0600`. Якщо той самий ключ заданий і в середовищі, і в файлі — виграє середовище. Деталі — [CONFIGURATION.uk.md](CONFIGURATION.uk.md#settingsjson).
 
 ## Межа цього документа
 

@@ -95,6 +95,7 @@ _DEFAULTS = {
     "telegram_work_dir": "",
     "telegram_mode": "bot",
     "telegram_phone": "",
+    "telegram_self_chat_names": [],
 }
 _DEFAULTS.update(CAPTURE_DEFAULTS)
 
@@ -110,12 +111,39 @@ def default_settings():
     data["python_discovered"] = list(_DEFAULTS["python_discovered"])
     data["ai_prompt_rules"] = [dict(r) for r in _DEFAULTS["ai_prompt_rules"]]
     data["telegram_allowed_chat_ids"] = list(_DEFAULTS["telegram_allowed_chat_ids"])
+    data["telegram_self_chat_names"] = list(_DEFAULTS["telegram_self_chat_names"])
     return data
 
 
 def format_chat_ids(value):
     """Comma-separated chat ids for the settings field."""
     return ", ".join(str(n) for n in normalize_chat_ids(value if isinstance(value, list) else []))
+
+
+def normalize_chat_names(value):
+    """Unique chat names, order kept, comparison is case-insensitive."""
+    if isinstance(value, str):
+        raw = value.replace(";", ",").replace("\n", ",")
+        parts = [part.strip() for part in raw.split(",")]
+    elif isinstance(value, (list, tuple)):
+        parts = [str(part).strip() for part in value]
+    else:
+        parts = []
+    seen = set()
+    names = []
+    for part in parts:
+        if not part:
+            continue
+        key = part.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        names.append(part)
+    return names
+
+
+def format_chat_names(value):
+    return ", ".join(normalize_chat_names(value if isinstance(value, list) else []))
 
 
 def parse_chat_id_text(text):
@@ -199,12 +227,16 @@ def _sanitize_loaded_settings(data, defaults):
                 if data[key] != normalized:
                     changed = True
             continue
-        if key == "telegram_allowed_chat_ids":
+        if key in ("telegram_allowed_chat_ids", "telegram_self_chat_names"):
             if key not in data:
                 sanitized[key] = []
                 changed = True
             else:
-                normalized = normalize_chat_ids(data[key])
+                normalized = (
+                    normalize_chat_ids(data[key])
+                    if key == "telegram_allowed_chat_ids"
+                    else normalize_chat_names(data[key])
+                )
                 sanitized[key] = normalized
                 if data[key] != normalized:
                     changed = True

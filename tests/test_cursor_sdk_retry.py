@@ -33,17 +33,17 @@ class TestNetworkRequestFailedClassifier(unittest.TestCase):
 
 
 class TestSdkRetryPlan(unittest.TestCase):
-    def test_network_retries_until_third_attempt(self):
+    def test_network_retries_until_fifth_attempt(self):
         err = RuntimeError("internal: Network request failed")
         self.assertEqual(
             _sdk_retry_plan(err, 1),
             ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S),
         )
         self.assertEqual(
-            _sdk_retry_plan(err, 2),
+            _sdk_retry_plan(err, 4),
             ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S),
         )
-        self.assertIsNone(_sdk_retry_plan(err, 3))
+        self.assertIsNone(_sdk_retry_plan(err, 5))
         self.assertIsNone(_sdk_retry_plan(err, CURSOR_SDK_NETWORK_ATTEMPTS))
 
     def test_connecterror_network_uses_network_plan_not_bridge(self):
@@ -53,13 +53,19 @@ class TestSdkRetryPlan(unittest.TestCase):
             ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S),
         )
 
-    def test_bridge_retries_once(self):
+    def test_bridge_retries_until_fifth_attempt(self):
         err = OSError("WinError 10061: connection refused")
         self.assertEqual(_sdk_retry_plan(err, 1), ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S))
-        self.assertIsNone(_sdk_retry_plan(err, 2))
+        self.assertEqual(_sdk_retry_plan(err, 4), ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S))
+        self.assertIsNone(_sdk_retry_plan(err, 5))
 
-    def test_other_errors_are_not_retried(self):
+    def test_other_errors_retry_until_auth(self):
+        self.assertEqual(
+            _sdk_retry_plan(RuntimeError("agent crashed"), 1),
+            ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S),
+        )
         self.assertIsNone(_sdk_retry_plan(RuntimeError("invalid api key"), 1))
+        self.assertIsNone(_sdk_retry_plan(RuntimeError("401 Unauthorized"), 2))
 
 
 class _FakeClient:
@@ -141,23 +147,19 @@ class TestRunSdkOneNetworkRetry(unittest.TestCase):
             [CURSOR_SDK_NETWORK_RETRY_DELAY_S, CURSOR_SDK_NETWORK_RETRY_DELAY_S],
         )
         self.assertEqual(len(logs), 2)
-        self.assertIn("2/3", logs[0])
-        self.assertIn("3/3", logs[1])
+        self.assertIn("2/5", logs[0])
+        self.assertIn("3/5", logs[1])
         self.assertIn("Network request failed", logs[0])
         self.assertEqual(_FakeClient.launched, 3)
 
-    def test_raises_after_three_network_failures(self):
-        _FakeAgent.side_effects = [
-            RuntimeError("internal: Network request failed"),
-            RuntimeError("internal: Network request failed"),
-            RuntimeError("internal: Network request failed"),
-        ]
+    def test_raises_after_five_network_failures(self):
+        _FakeAgent.side_effects = [RuntimeError("internal: Network request failed") for _ in range(5)]
         with patch("whisperfast.postprocess.cursor_postprocess._prepare_cursor_sdk"):
             with patch("whisperfast.postprocess.cursor_postprocess.time.sleep") as sleep:
                 with self.assertRaises(RuntimeError) as ctx:
                     _run_sdk_one("in.txt", "out.md", "clean up", "key", prompt_num=1)
         self.assertIn("Network request failed", str(ctx.exception))
-        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual(sleep.call_count, 4)
 
     def test_does_not_retry_unrelated_error(self):
         _FakeAgent.side_effects = [RuntimeError("invalid api key")]

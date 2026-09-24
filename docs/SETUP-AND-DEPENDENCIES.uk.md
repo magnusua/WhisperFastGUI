@@ -53,6 +53,7 @@
 | `tkinterdnd2-universal` | Drag & Drop файлів у вікно й у таблиці черги. |
 | `pystray`, `Pillow` | Іконка й меню в системному треї. |
 | `cursor-sdk` | Постпроцесинг через Cursor SDK. |
+| `telethon` | Прийом аудіо й відео з особистих чатів Telegram (режим акаунта). |
 | `markitdown` | Конвертація PDF/DOC/DOCX у Markdown (`[pdf,docx,pptx,xlsx,xls]` extras). |
 | `packaging` | Порівняння версій пакетів при перевірці оновлень. |
 | `audioop-lts` | Заміна видаленого в Python 3.13+ модуля `audioop` (потрібен для `pydub`). |

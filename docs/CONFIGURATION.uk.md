@@ -14,6 +14,9 @@
 | `request_queue.json` | Збережена черга файлів (шлях + діапазон часу + прапорець «оброблено») | `whisperfast/core/queue_manager.py` |
 | `app_log.json` | Лог програми по днях (у `.gitignore`) | `whisperfast/log_store.py` |
 | `library.sqlite` | Архів розмов (FTS-пошук, шляхи txt/srt/mp3/AI) | `whisperfast/library.py` |
+| `.ftw_tg_origin.json` | Який чат Telegram надіслав файл (лишається після зникнення рядка з черги і після перенесення джерела) | `whisperfast/telegram/origin.py` |
+| `telegram_user.session` | Сесія входу в акаунт Telegram (Telethon) | `whisperfast/telegram/account.py` |
+| `telegram_inbox/` | Типова папка, куди лягають файли з Telegram до черги, якщо `telegram_work_dir` порожній | `whisperfast/telegram/worker.py` |
 | `captures/` | Каталог стерео WAV запису зустрічі (`capture_YYYYMMDD_HHMMSS.wav`); поруч може бути `.inprogress` | `whisperfast/core/capture.py` |
 | `promts/*.json` | Бібліотека AI-промптів (`num`, `name`, `body`; `hint` лише UI) | `whisperfast/postprocess/prompt_library.py` |
 | `whisperfast/i18n/lang.json` | Тексти інтерфейсу EN/UK/RU | `whisperfast/i18n/lang_manager.py` |
@@ -72,8 +75,18 @@
 | `python_path_chosen` | `false` | Чи користувач уже підтвердив вибір інтерпретатора. |
 | `python_discovered` | `[]` | Раніше знайдені інтерпретатори. |
 | `skip_app_update_version` | `""` | Версія на GitHub, яку користувач попросив не пропонувати повторно. |
+| `telegram_mode` | `"bot"` | `account` — особисті чати цього акаунта (Telethon); `bot` — бот і локальний telegram-bot-api. |
+| `telegram_api_id` | `""` | Число App api_id з my.telegram.org. |
+| `telegram_api_hash` | `""` | App api_hash. На Windows шифрується DPAPI. |
+| `telegram_phone` | `""` | Номер акаунта в міжнародному форматі. Потрібен лише для `account`. |
+| `telegram_bot_token` | `""` | Токен від @BotFather. На Windows шифрується DPAPI. Потрібен для `bot`. |
+| `telegram_bot_api_exe` | `""` | Шлях до `telegram-bot-api.exe` (режим бота, файли приблизно до 2 ГБ). |
+| `telegram_api_base` | `"http://127.0.0.1:8081"` | Адреса локального Bot API. |
+| `telegram_allowed_chat_ids` | `[]` | Дозволені chat id. Порожній список: для акаунта — усі особисті чати; для бота — медіа ігнорується, `/start` відповідає id чату. |
+| `telegram_self_chat_names` | `[]` | Імена особистих чатів (ім’я, повне ім’я або `@username`, без урахування регістру), у яких обробляються й власні аудіо/відео. Обране (`Saved Messages`) входить завжди. |
+| `telegram_work_dir` | `""` | Куди зберігати файли з Telegram перед чергою. Порожньо — `telegram_inbox/` поруч із програмою. |
 
-**⚠️ Ключі API.** На Windows значення шифруються DPAPI (`dpapi:` + base64) при записі в `settings.json` (`whisperfast/secrets_store.py`) і розшифровуються лише в пам'яті. На POSIX лишається `chmod 0600`. Якщо ключ заданий і через змінну середовища, і в `settings.json` — виграє змінна середовища.
+**Ключі API.** На Windows значення шифруються DPAPI (`dpapi:` + base64) при записі в `settings.json` (`whisperfast/secrets_store.py`) і розшифровуються лише в пам'яті. На macOS секрет лежить у login Keychain, а в файлі лишається позначка `keychain:<ім'я ключа>`. На Linux лишається відкритий текст і `chmod 0600`. Якщо ключ заданий і через змінну середовища, і в `settings.json` — виграє змінна середовища.
 
 **Legacy-псевдонім `send_txt_to_cursor`.** Історично прапорець «В AI» називався «В Cursor». При завантаженні `settings.json`, якщо є старий `send_txt_to_cursor`, але немає `send_txt_to_ai` — значення копіюється (`load_app_settings`), після чого обидва ключі завжди тримаються синхронізованими. Це працює, але означає, що будь-яка майбутня зміна цього прапорця в коді має враховувати обидва ключі одразу.
 

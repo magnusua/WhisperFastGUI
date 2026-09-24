@@ -1405,7 +1405,7 @@ def show_telegram_settings_dialog(app):
     """Account or bot intake. Save writes settings.json; sign-in also stores the account fields."""
     from tkinter import simpledialog
 
-    from whisperfast.settings import format_chat_ids, parse_chat_id_text
+    from whisperfast.settings import format_chat_ids, normalize_chat_names, parse_chat_id_text
 
     dialog = tk.Toplevel(app.root)
     dialog.title(t("telegram_settings_title"))
@@ -1417,10 +1417,6 @@ def show_telegram_settings_dialog(app):
     frame = ttk.Frame(dialog, padding=15)
     frame.pack(fill="both", expand=True)
 
-    ttk.Label(frame, text=t("telegram_settings_hint"), wraplength=480, justify="left").pack(
-        anchor="w", pady=(0, 10)
-    )
-
     saved_mode = (app.telegram_mode.get() or "bot").strip().lower()
     mode = tk.StringVar(value=saved_mode if saved_mode in ("bot", "account") else "bot")
     token = tk.StringVar(value=app.telegram_bot_token.get())
@@ -1431,35 +1427,69 @@ def show_telegram_settings_dialog(app):
     chats = tk.StringVar(value=app.telegram_allowed_chat_ids_text.get())
     work_dir = tk.StringVar(value=app.telegram_work_dir.get())
     phone = tk.StringVar(value=app.telegram_phone.get())
+    names_holder = getattr(app, "telegram_self_chat_names_text", None)
+    self_chats = tk.StringVar(value=names_holder.get() if names_holder is not None else "")
     status = tk.StringVar(value=t("telegram_not_signed_in"))
 
     mode_row = ttk.Frame(frame)
-    mode_row.pack(fill="x", pady=(0, 4))
+    mode_row.pack(fill="x", pady=(0, 8))
+    hint_label = ttk.Label(frame, text="", wraplength=480, justify="left")
+    hint_label.pack(anchor="w", pady=(0, 8))
 
-    def labeled_entry(parent, label_key, variable, placeholder_key, secret=False):
-        ttk.Label(parent, text=t(label_key)).pack(anchor="w", pady=(8, 0))
-        placeholder_entry(parent, variable, placeholder_key, secret=secret).pack(fill="x")
+    tips = []
+    dialog._wf_tips = tips
 
-    def browse_row(parent, label_key, variable, placeholder_key, choose):
-        ttk.Label(parent, text=t(label_key)).pack(anchor="w", pady=(8, 0))
+    def tip(widget, key):
+        tips.append(Tooltip(widget, key, is_key=True))
+
+    def labeled_entry(parent, label_key, variable, placeholder_key, secret=False, tip_key=None):
+        label = ttk.Label(parent, text=t(label_key))
+        label.pack(anchor="w", pady=(8, 0))
+        entry = placeholder_entry(parent, variable, placeholder_key, secret=secret)
+        entry.pack(fill="x")
+        if tip_key:
+            tip(label, tip_key)
+            tip(entry, tip_key)
+        return label, entry
+
+    def browse_row(parent, label_key, variable, placeholder_key, choose, tip_key=None):
+        label = ttk.Label(parent, text=t(label_key))
+        label.pack(anchor="w", pady=(8, 0))
         row = ttk.Frame(parent)
         row.pack(fill="x")
-        placeholder_entry(row, variable, placeholder_key).pack(side="left", fill="x", expand=True)
-        ttk.Button(row, text=t("browse"), command=choose).pack(side="left", padx=(6, 0))
+        entry = placeholder_entry(row, variable, placeholder_key)
+        entry.pack(side="left", fill="x", expand=True)
+        button = ttk.Button(row, text=t("browse"), command=choose)
+        button.pack(side="left", padx=(6, 0))
+        if tip_key:
+            tip(label, tip_key)
+            tip(entry, tip_key)
+            tip(button, tip_key)
+        return label, entry
 
-    labeled_entry(frame, "telegram_api_id_label", api_id, "telegram_ph_api_id")
-    labeled_entry(frame, "telegram_api_hash_label", api_hash, "telegram_ph_api_hash", secret=True)
+    labeled_entry(frame, "telegram_api_id_label", api_id, "telegram_ph_api_id", tip_key="telegram_tip_api_id")
+    labeled_entry(
+        frame, "telegram_api_hash_label", api_hash, "telegram_ph_api_hash", secret=True, tip_key="telegram_tip_api_hash"
+    )
 
     slot = ttk.Frame(frame)
     slot.pack(fill="x")
     account_box = ttk.Frame(slot)
     bot_box = ttk.Frame(slot)
 
-    labeled_entry(account_box, "telegram_phone_label", phone, "telegram_ph_phone")
+    labeled_entry(account_box, "telegram_phone_label", phone, "telegram_ph_phone", tip_key="telegram_tip_phone")
+    labeled_entry(
+        account_box,
+        "telegram_self_chats_label",
+        self_chats,
+        "telegram_ph_self_chats",
+        tip_key="telegram_tip_self_chats",
+    )
     account_actions = ttk.Frame(account_box)
     account_actions.pack(fill="x", pady=(8, 0))
     sign_btn = ttk.Button(account_actions, text=t("telegram_sign_in"))
     sign_btn.pack(side="left")
+    tip(sign_btn, "telegram_tip_sign_in")
     ttk.Label(account_box, textvariable=status, wraplength=480, justify="left").pack(anchor="w", pady=(6, 0))
 
     def choose_exe():
@@ -1476,23 +1506,32 @@ def show_telegram_settings_dialog(app):
         if path:
             work_dir.set(path)
 
-    labeled_entry(bot_box, "telegram_token_label", token, "telegram_ph_token", secret=True)
-    browse_row(bot_box, "telegram_exe_label", exe, "telegram_ph_exe", choose_exe)
-    labeled_entry(bot_box, "telegram_base_label", base, "telegram_ph_base")
+    labeled_entry(bot_box, "telegram_token_label", token, "telegram_ph_token", secret=True, tip_key="telegram_tip_token")
+    browse_row(bot_box, "telegram_exe_label", exe, "telegram_ph_exe", choose_exe, tip_key="telegram_tip_exe")
+    labeled_entry(bot_box, "telegram_base_label", base, "telegram_ph_base", tip_key="telegram_tip_base")
 
     chats_label = ttk.Label(frame, text="")
     chats_label.pack(anchor="w", pady=(8, 0))
-    placeholder_entry(frame, chats, "telegram_ph_chats").pack(fill="x")
-    browse_row(frame, "telegram_work_dir_label", work_dir, "telegram_ph_work_dir", choose_dir)
+    chats_entry = placeholder_entry(frame, chats, "telegram_ph_chats")
+    chats_entry.pack(fill="x")
+    chats_tip = Tooltip(chats_label, "telegram_tip_chats_bot", is_key=True)
+    chats_entry_tip = Tooltip(chats_entry, "telegram_tip_chats_bot", is_key=True)
+    tips.extend((chats_tip, chats_entry_tip))
+    browse_row(frame, "telegram_work_dir_label", work_dir, "telegram_ph_work_dir", choose_dir, tip_key="telegram_tip_work_dir")
 
     def apply_mode():
         account_box.pack_forget()
         bot_box.pack_forget()
+        chats_key = "telegram_tip_chats_account" if mode.get() == "account" else "telegram_tip_chats_bot"
+        chats_tip._text_or_key = chats_key
+        chats_entry_tip._text_or_key = chats_key
         if mode.get() == "account":
+            hint_label.config(text=t("telegram_hint_account"))
             account_box.pack(fill="x")
             chats_label.config(text=t("telegram_chats_account_label"))
             refresh_status()
         else:
+            hint_label.config(text=t("telegram_hint_bot"))
             bot_box.pack(fill="x")
             chats_label.config(text=t("telegram_chats_label"))
 
@@ -1595,12 +1634,16 @@ def show_telegram_settings_dialog(app):
         threading.Thread(target=work, daemon=True).start()
 
     sign_btn.config(command=on_sign_in)
-    ttk.Radiobutton(
+    account_mode_btn = ttk.Radiobutton(
         mode_row, text=t("telegram_mode_account"), value="account", variable=mode, command=apply_mode
-    ).pack(side="left")
-    ttk.Radiobutton(
+    )
+    account_mode_btn.pack(side="left")
+    bot_mode_btn = ttk.Radiobutton(
         mode_row, text=t("telegram_mode_bot"), value="bot", variable=mode, command=apply_mode
-    ).pack(side="left", padx=(12, 0))
+    )
+    bot_mode_btn.pack(side="left", padx=(12, 0))
+    tip(account_mode_btn, "telegram_tip_mode_account")
+    tip(bot_mode_btn, "telegram_tip_mode_bot")
     apply_mode()
 
     buttons = ttk.Frame(frame)
@@ -1611,6 +1654,7 @@ def show_telegram_settings_dialog(app):
     listener_status = tk.StringVar(value="")
     listen_btn = ttk.Button(buttons, text=t("telegram_listener_start"))
     listen_btn.pack(side="left")
+    tip(listen_btn, "telegram_tip_listener")
     ttk.Label(buttons, textvariable=listener_status).pack(side="left", padx=(8, 0))
 
     def refresh_listener():
@@ -1631,6 +1675,8 @@ def show_telegram_settings_dialog(app):
         chosen = mode.get() if mode.get() in ("bot", "account") else "bot"
         app.telegram_mode.set(chosen)
         app.telegram_phone.set((phone.get() or "").strip())
+        if names_holder is not None:
+            names_holder.set(", ".join(normalize_chat_names(self_chats.get())))
         app.telegram_bot_token.set((token.get() or "").strip())
         app.telegram_api_id.set((api_id.get() or "").strip())
         app.telegram_api_hash.set((api_hash.get() or "").strip())
@@ -1645,6 +1691,9 @@ def show_telegram_settings_dialog(app):
         if is_running():
             stop_listener()
             refresh_listener()
+            sync = getattr(app, "sync_telegram_listener_check", None)
+            if callable(sync):
+                sync()
             return
         remember_fields()
 
@@ -1652,6 +1701,9 @@ def show_telegram_settings_dialog(app):
             def ui():
                 if dialog.winfo_exists():
                     refresh_listener()
+                sync = getattr(app, "sync_telegram_listener_check", None)
+                if callable(sync):
+                    sync()
                 if code:
                     app.log(t("telegram_listener_off"))
             try:
@@ -1661,6 +1713,9 @@ def show_telegram_settings_dialog(app):
 
         start_listener(log=lambda msg: app.root.after(0, lambda m=msg: app.log(m)), on_done=on_done)
         refresh_listener()
+        sync = getattr(app, "sync_telegram_listener_check", None)
+        if callable(sync):
+            sync()
 
     listen_btn.config(command=toggle_listener)
     refresh_listener()

@@ -22,6 +22,7 @@ optional/runtime installs chosen by the user.
 | pygame | LGPL | Queue-finished sound | https://www.pygame.org/wiki/about |
 | Pillow | HPND-derived | Tray icon | https://github.com/python-pillow/Pillow/blob/main/LICENSE |
 | Material Design Icons (toolbar PNGs in `resources/icons/`) | Apache-2.0 | Toolbar pictograms | https://github.com/google/material-design-icons |
+| Simple Icons, Telegram mark (`resources/icons/telegram.png`) | CC0-1.0 | Toolbar Telegram button | https://github.com/simple-icons/simple-icons |
 | pystray | LGPL | System tray | https://github.com/moses-palmer/pystray |
 | tkinterdnd2-universal | MIT | Drag-and-drop onto the queue | https://pypi.org/project/tkinterdnd2-universal/ |
 | markitdown | MIT | PDF / Office → Markdown | https://github.com/microsoft/markitdown |

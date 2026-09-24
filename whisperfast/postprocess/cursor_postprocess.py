@@ -19,7 +19,7 @@ from whisperfast.postprocess.prompt_library import (
 )
 
 CURSOR_POSTPROCESS_DELAY_S = 5.0
-CURSOR_SDK_NETWORK_ATTEMPTS = 3
+CURSOR_SDK_NETWORK_ATTEMPTS = 5
 CURSOR_SDK_NETWORK_RETRY_DELAY_S = 2.0
 CURSOR_SDK_BRIDGE_RETRY_DELAY_S = 0.5
 
@@ -162,21 +162,32 @@ def _is_network_request_failed(exc: BaseException) -> bool:
     return "network request failed" in _exception_text(exc)
 
 
+def _is_auth_error(exc: BaseException) -> bool:
+    text = _exception_text(exc)
+    markers = (
+        "unauthorized",
+        "unauthenticated",
+        "authentication",
+        "invalid api key",
+        "invalid_api_key",
+        "401",
+        "403",
+        "forbidden",
+    )
+    return any(marker in text for marker in markers)
+
+
 def _sdk_retry_plan(
     exc: BaseException,
     attempt: int,
     max_network_attempts: int = CURSOR_SDK_NETWORK_ATTEMPTS,
 ) -> Optional[Tuple[str, float]]:
     """attempt — 1-based номер невдалої спроби. None = більше не повторювати."""
-    if _is_network_request_failed(exc) and attempt < max_network_attempts:
-        return ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S)
-    if (
-        _is_bridge_connection_error(exc)
-        and not _is_network_request_failed(exc)
-        and attempt == 1
-    ):
+    if _is_auth_error(exc) or attempt >= max_network_attempts:
+        return None
+    if _is_bridge_connection_error(exc) and not _is_network_request_failed(exc):
         return ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S)
-    return None
+    return ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S)
 
 
 def _prepare_cursor_sdk() -> None:
@@ -631,6 +642,12 @@ def _run_sdk_one(
     for attempt in range(1, CURSOR_SDK_NETWORK_ATTEMPTS + 1):
         try:
             result = _prompt_once()
+            if getattr(result, "status", None) == "error":
+                from whisperfast.i18n import t
+
+                raise RuntimeError(
+                    t("cursor_agent_failed", run_id=str(getattr(result, "id", "") or ""))
+                )
             last_err = None
             break
         except Exception as err:
@@ -644,27 +661,19 @@ def _run_sdk_one(
                     close_default_client()
                 except Exception:
                     pass
-            else:
-                _log_sdk_retry(
-                    log_func,
-                    prompt_num,
-                    err,
-                    next_attempt=attempt + 1,
-                    total=CURSOR_SDK_NETWORK_ATTEMPTS,
-                    delay_s=delay_s,
-                )
+            _log_sdk_retry(
+                log_func,
+                prompt_num,
+                err,
+                next_attempt=attempt + 1,
+                total=CURSOR_SDK_NETWORK_ATTEMPTS,
+                delay_s=delay_s,
+            )
             time.sleep(delay_s)
     if last_err is not None:
         raise last_err
     if result is None:
         raise RuntimeError("Cursor SDK returned no result")
-
-    status = getattr(result, "status", None)
-    if status == "error":
-        from whisperfast.i18n import t
-        raise RuntimeError(
-            t("cursor_agent_failed", run_id=str(getattr(result, "id", "") or ""))
-        )
 
 
 def run_sdk_chain(

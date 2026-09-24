@@ -1,6 +1,39 @@
 {
   "releases": [
     {
+      "version": "2.0.8",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "A checkbox left of the Telegram icon starts or stops the listener. If the account or bot is not filled in, FTW asks you to open Telegram settings first.",
+          "In account mode you can name private chats (first name, full name, or @username) where files you send yourself are processed too. Saved Messages are always included.",
+          "The same chat receives the transcript, every AI file, an MP3 extracted from a video, and a later audio clip. An MP3 made from an audio file is not sent back.",
+          "Telegram settings show a short hint for the selected mode, and every field has a hover tip.",
+          "Cursor SDK retries a failed prompt up to five times. A rejected API key is not retried.",
+          "Two media files that arrive from Telegram in the same instant both stay in the queue.",
+          "On macOS, API keys are stored in the login Keychain."
+        ],
+        "UK": [
+          "Галочка ліворуч від іконки Telegram запускає або зупиняє слухача. Якщо акаунт або бот ще не заповнені, FTW просить спочатку відкрити налаштування.",
+          "У режимі акаунта можна назвати особисті чати (ім’я, повне ім’я або @username), у яких обробляються й файли, надіслані вами. Обране обробляється завжди.",
+          "У той самий чат повертаються розшифровка, кожен файл AI, MP3 з відео і пізніший відрізок аудіо. MP3 зі звукового файлу назад не надсилається.",
+          "У вікні Telegram короткий текст залежить від режиму, а на кожному полі є пояснення при наведенні.",
+          "Cursor SDK повторює невдалий промпт до п’яти разів. Відхилений ключ API не повторюється.",
+          "Два медіа з Telegram, що прийшли в одну мить, обидва лишаються в черзі.",
+          "На macOS ключі API зберігаються в login Keychain."
+        ],
+        "RU": [
+          "Галочка слева от иконки Telegram запускает или останавливает слушателя. Если аккаунт или бот ещё не заполнены, FTW просит сначала открыть настройки.",
+          "В режиме аккаунта можно назвать личные чаты (имя, полное имя или @username), в которых обрабатываются и файлы, отправленные вами. Избранное обрабатывается всегда.",
+          "В тот же чат возвращаются расшифровка, каждый файл AI, MP3 из видео и более поздний отрезок аудио. MP3 из звукового файла обратно не отправляется.",
+          "В окне Telegram короткий текст зависит от режима, а у каждого поля есть пояснение при наведении.",
+          "Cursor SDK повторяет неудачный промт до пяти раз. Отклонённый ключ API не повторяется.",
+          "Два медиа из Telegram, пришедшие в один миг, оба остаются в очереди.",
+          "На macOS ключи API хранятся в login Keychain."
+        ]
+      }
+    },
+    {
       "version": "2.0.7",
       "date": "24.09.2026",
       "notes": {

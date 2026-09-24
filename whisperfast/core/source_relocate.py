@@ -128,6 +128,12 @@ def finalize_source_after_processing(app, source_path: str, output_dir: str, fil
 
     if moved:
         try:
+            from whisperfast.telegram.origin import retarget
+
+            retarget(source_path, final)
+        except Exception:
+            pass
+        try:
             app.log_file_event(
                 t("source_moved", path=final),
                 file_id=file_id,

@@ -343,6 +343,44 @@ class TestGuiHandoff(unittest.TestCase):
             self.assertEqual(sent[0][1], ["clip.txt", "clip_note.md"])
             self.assertNotIn("clip.srt", sent[0][1])
 
+    def test_video_audio_is_sent_and_a_later_clip_returns_to_the_chat(self):
+        from whisperfast.telegram.gui_bridge import select_telegram_files
+        from whisperfast.telegram.origin import lookup, remember
+
+        with tempfile.TemporaryDirectory() as tmp:
+            video = os.path.join(tmp, "clip.mp4")
+            audio = os.path.join(tmp, "clip.mp3")
+            txt = os.path.join(tmp, "clip.txt")
+            full_mp3 = os.path.join(tmp, "clip_audio.mp3")
+            clip_mp3 = os.path.join(tmp, "clip_00-01-00_00-02-00_audio.mp3")
+            ai = os.path.join(tmp, "clip_note.md")
+            for path in (video, audio, txt, full_mp3, clip_mp3, ai):
+                open(path, "wb").close()
+            outputs = [
+                {"role": "txt", "path": txt},
+                {"role": "mp3", "path": full_mp3},
+                {"role": "mp3", "path": clip_mp3},
+                {"role": "ai", "path": ai},
+                {"role": "srt", "path": os.path.join(tmp, "clip.srt")},
+            ]
+            video_files = select_telegram_files(video, outputs)
+            self.assertEqual(
+                [os.path.basename(item["path"]) for item in video_files],
+                ["clip.txt", "clip_audio.mp3", "clip_00-01-00_00-02-00_audio.mp3", "clip_note.md"],
+            )
+            from whisperfast.i18n import t
+
+            self.assertEqual(video_files[2]["caption"], t("telegram_caption_clip"))
+            audio_names = [os.path.basename(item["path"]) for item in select_telegram_files(audio, outputs)]
+            self.assertIn("clip.txt", audio_names)
+            self.assertNotIn("clip_audio.mp3", audio_names)
+            self.assertIn("clip_00-01-00_00-02-00_audio.mp3", audio_names)
+
+            origin = os.path.join(tmp, "origin.json")
+            with patch("whisperfast.telegram.origin._FILE", origin):
+                remember(video, 7, 8)
+                self.assertEqual(lookup(video), {"chat_id": 7, "message_id": 8})
+
 
 class TestPipeline(unittest.TestCase):
     def test_transcribe_then_ai_without_dialog(self):
@@ -536,6 +574,42 @@ class TestAccountMode(unittest.TestCase):
         self.assertFalse(
             accept_private_chat(9, is_private=True, sender_is_bot=False, outgoing=True, self_id=1, allowlist=[])
         )
+        self.assertTrue(
+            accept_private_chat(
+                9,
+                is_private=True,
+                sender_is_bot=False,
+                outgoing=True,
+                self_id=1,
+                allowlist=[],
+                self_names=["олексій", "@maria"],
+                chat_names=["Олексій Коваль", "Олексій"],
+            )
+        )
+        self.assertTrue(
+            accept_private_chat(
+                9,
+                is_private=True,
+                sender_is_bot=False,
+                outgoing=True,
+                self_id=1,
+                allowlist=[],
+                self_names=["Maria"],
+                chat_names=["maria"],
+            )
+        )
+        self.assertFalse(
+            accept_private_chat(
+                9,
+                is_private=True,
+                sender_is_bot=False,
+                outgoing=True,
+                self_id=1,
+                allowlist=[],
+                self_names=["Інший"],
+                chat_names=["Олексій"],
+            )
+        )
         self.assertFalse(
             accept_private_chat(5, is_private=False, sender_is_bot=False, outgoing=False, self_id=1, allowlist=[])
         )
@@ -622,6 +696,24 @@ class TestAccountMode(unittest.TestCase):
         self.assertEqual(items[0]["chat_id"], 42)
         self.assertEqual(items[0]["reply_to"], 3)
         self.assertEqual(os.path.basename(items[0]["files"][0]["path"]), "clip.txt")
+
+
+class TestListenerKind(unittest.TestCase):
+    def test_bot_needs_a_token_and_account_needs_a_session(self):
+        from whisperfast.telegram.service import listener_kind
+
+        self.assertIsNone(listener_kind({"telegram_mode": "bot"}))
+        self.assertEqual(listener_kind({"telegram_mode": "bot", "telegram_bot_token": "123:abc"}), "bot")
+        self.assertIsNone(
+            listener_kind(
+                {
+                    "telegram_mode": "account",
+                    "telegram_api_id": "1",
+                    "telegram_api_hash": "h",
+                    "telegram_phone": "+380501111111",
+                }
+            )
+        )
 
 
 class TestInWindowListener(unittest.TestCase):

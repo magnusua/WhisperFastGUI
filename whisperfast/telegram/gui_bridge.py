@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
+from whisperfast.config import VIDEO_EXTENSIONS
 from whisperfast.core.ipc_cmd import append_command
 from whisperfast.i18n import t
 from whisperfast.single_instance import find_other_instance_pid
 
-_DELIVER_ROLES = {"txt", "md", "ai", "docx"}
+_CLIP_AUDIO = re.compile(r"_\d{2}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_audio\.mp3$", re.IGNORECASE)
 _AI_BUSY = {"pending", "selecting", "running"}
 
 
@@ -83,6 +85,9 @@ def apply_telegram_command(app, cmd: Mapping[str, Any]) -> None:
     ctrl = app.queue_ctrl
     ctrl.add_files([path])
     _stamp(ctrl, path, chat_id, message_id)
+    from whisperfast.telegram.origin import remember
+
+    remember(path, chat_id, message_id)
     kick_gui_queue(app)
 
 
@@ -104,20 +109,21 @@ def _lock(app) -> threading.Lock:
 
 def _meta_for_source(app, source: str) -> Optional[Dict[str, int]]:
     ctrl = getattr(app, "queue_ctrl", None)
-    if ctrl is None or not source:
-        return None
-    for item in ctrl.queue:
-        if not _same_path(str(item.get("path") or ""), source):
-            continue
-        chat_id = item.get("telegram_chat_id")
-        message_id = item.get("telegram_message_id")
-        if chat_id is None or message_id is None:
-            return None
-        try:
-            return {"chat_id": int(chat_id), "message_id": int(message_id)}
-        except (TypeError, ValueError):
-            return None
-    return None
+    if ctrl is not None and source:
+        for item in ctrl.queue:
+            if not _same_path(str(item.get("path") or ""), source):
+                continue
+            chat_id = item.get("telegram_chat_id")
+            message_id = item.get("telegram_message_id")
+            if chat_id is None or message_id is None:
+                break
+            try:
+                return {"chat_id": int(chat_id), "message_id": int(message_id)}
+            except (TypeError, ValueError):
+                break
+    from whisperfast.telegram.origin import lookup
+
+    return lookup(source)
 
 
 def _ai_busy_for_outputs(app, outputs: Sequence[Mapping[str, Any]]) -> bool:
@@ -152,10 +158,37 @@ def _file_entry(app, file_id: Optional[str] = None, source_path: Optional[str] =
     return None
 
 
-def _caption(role: str, path: str) -> str:
-    if role in ("ai", "md", "docx"):
-        return t("telegram_caption_ai", name=os.path.basename(path))
-    return t("telegram_caption_transcript")
+def _is_clip_audio(path: str) -> bool:
+    return bool(_CLIP_AUDIO.search(os.path.basename(path)))
+
+
+def select_telegram_files(source: str, outputs: Sequence[Mapping[str, Any]]) -> List[Dict[str, str]]:
+    """txt always; every AI file; mp3 of a video; a later clip's audio, with a clip caption.
+
+    An mp3 made from an audio source is not sent. A clip cut from that audio is.
+    """
+    ext = os.path.splitext(source or "")[1].lower()
+    video = ext in VIDEO_EXTENSIONS
+    fresh: List[Dict[str, str]] = []
+    for out in outputs:
+        if not isinstance(out, Mapping):
+            continue
+        role = str(out.get("role") or "")
+        path = str(out.get("path") or "")
+        if not path or not os.path.isfile(path):
+            continue
+        if role == "txt":
+            caption = t("telegram_caption_transcript")
+        elif role == "ai":
+            caption = t("telegram_caption_ai", name=os.path.basename(path))
+        elif role == "mp3" and _is_clip_audio(path):
+            caption = t("telegram_caption_clip")
+        elif role == "mp3" and video:
+            caption = t("telegram_caption_audio")
+        else:
+            continue
+        fresh.append({"path": path, "caption": caption})
+    return fresh
 
 
 def maybe_deliver_telegram(
@@ -182,16 +215,12 @@ def maybe_deliver_telegram(
     fresh: List[Dict[str, str]] = []
     with _lock(app):
         sent = _sent_set(app)
-        for out in outputs:
-            role = str(out.get("role") or "")
-            path = str(out.get("path") or "")
-            if role not in _DELIVER_ROLES or not path or not os.path.isfile(path):
-                continue
-            key = os.path.normcase(os.path.abspath(path))
+        for item in select_telegram_files(source, outputs):
+            key = os.path.normcase(os.path.abspath(item["path"]))
             if key in sent:
                 continue
             sent.add(key)
-            fresh.append({"path": path, "caption": _caption(role, path)})
+            fresh.append(item)
         error = str(entry.get("error") or "") if status == "failed" else ""
         error_key = f"err:{meta['chat_id']}:{meta['message_id']}:{error}"
         send_error = bool(error) and error_key not in sent

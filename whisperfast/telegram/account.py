@@ -24,6 +24,30 @@ def session_base_path() -> str:
     return os.path.join(BASE_DIR, "telegram_user")
 
 
+def chat_name_keys(chat) -> set:
+    """Names a private chat can be matched by: full name, first name, username, title."""
+    keys = set()
+
+    def add(value):
+        text = str(value or "").strip().casefold().lstrip("@")
+        if text:
+            keys.add(text)
+
+    add(getattr(chat, "title", ""))
+    first = str(getattr(chat, "first_name", "") or "").strip()
+    last = str(getattr(chat, "last_name", "") or "").strip()
+    add(first)
+    add(f"{first} {last}".strip())
+    add(getattr(chat, "username", ""))
+    return keys
+
+
+def names_match(chat_names: Sequence[str], wanted: Sequence[str]) -> bool:
+    keys = {str(name).strip().casefold().lstrip("@") for name in chat_names if str(name).strip()}
+    targets = {str(name).strip().casefold().lstrip("@") for name in wanted if str(name).strip()}
+    return bool(keys & targets)
+
+
 def accept_private_chat(
     chat_id: int,
     *,
@@ -32,11 +56,13 @@ def accept_private_chat(
     outgoing: bool,
     self_id: int,
     allowlist: Sequence[int],
+    self_names: Sequence[str] = (),
+    chat_names: Sequence[str] = (),
 ) -> bool:
-    """Personal chats only. Empty allowlist means every private chat. Outgoing stays in Saved Messages."""
+    """Personal chats only. Empty allowlist means every private chat. Outgoing stays in Saved Messages, plus named chats."""
     if not is_private or sender_is_bot:
         return False
-    if outgoing and int(chat_id) != int(self_id):
+    if outgoing and int(chat_id) != int(self_id) and not names_match(chat_names, self_names):
         return False
     allowed = set(int(item) for item in allowlist)
     if allowed and int(chat_id) not in allowed:
@@ -90,7 +116,11 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
     chat_id = int(getattr(event, "chat_id", 0) or 0)
     sender = await event.get_sender()
     sender_is_bot = bool(getattr(sender, "bot", False))
+    from whisperfast.settings import normalize_chat_names
+
     allowlist = normalize_chat_ids(settings.get("telegram_allowed_chat_ids"))
+    self_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
+    chat = await event.get_chat()
     if not accept_private_chat(
         chat_id,
         is_private=bool(getattr(event, "is_private", False)),
@@ -98,6 +128,8 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         outgoing=bool(getattr(event, "out", False)),
         self_id=self_id,
         allowlist=allowlist,
+        self_names=self_names,
+        chat_names=chat_name_keys(chat),
     ):
         return
     name, mime = _file_bits(message)

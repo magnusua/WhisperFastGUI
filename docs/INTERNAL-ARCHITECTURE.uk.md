@@ -20,7 +20,7 @@
     ├── log_store.py          — app_log.json: дні + file-сесії, batch flush
     ├── library.py            — library.sqlite: архів розмов + FTS5
     ├── srt_parse.py / audio_player.py — клік по рядку субтитрів
-    ├── secrets_store.py      — DPAPI для ключів API на Windows
+    ├── secrets_store.py      — ключі API: DPAPI (Windows), login Keychain (macOS), chmod 0600 (Linux)
     ├── platform_util.py      — subprocess без вікна консолі на Windows
     ├── open_path.py          — відкрити файл / показати в провіднику
     ├── single_instance.py    — PID-лок, діалог «ПЗ вже запущено»
@@ -29,6 +29,7 @@
     ├── postprocess/          — AI-постпроцесинг (Cursor/Gemini/Claude/Copilot/Ollama/OpenAI-compat)
     ├── setup/                — перший запуск, встановлення залежностей
     ├── updates/               — самооновлення застосунку та моделі
+    ├── telegram/              — прийом медіа з Telegram і відповідь у той самий чат
     └── i18n/                  — переклади інтерфейсу EN/UK/RU (`app_title` = FTW)
 ```
 
@@ -107,6 +108,16 @@
 
 `app_updates.py` (застосунок з **GitHub Release** + обов’язковий SHA-256; GPG не вмикається без ключа в `resources/`), `model_updates.py` (ваги Whisper з Hugging Face Hub), `release_notes.py` (текст «що нового» з `resources/release_notes.json`), `checksums.py` (парсинг `SHA256SUMS`). Детальніше — [UPDATES.uk.md](UPDATES.uk.md).
 
+### telegram/ — прийом і відповідь
+
+| Файл | Відповідає за |
+|---|---|
+| `service.py` | Запуск і зупинка слухача всередині відкритого вікна. `listener_kind` каже, чи вистачає даних для акаунта (api_id, api_hash, телефон і файл сесії) або бота (токен). |
+| `account.py` | Telethon: особисті чати. Власні повідомлення пропускаються, крім Обраного і чатів з `telegram_self_chat_names` (ім’я, повне ім’я, `@username`). |
+| `worker.py` | Режим бота і локальний `telegram-bot-api`. |
+| `gui_bridge.py` | Кладє файл у чергу і повертає результати: TXT, кожен AI, MP3 з відео, відрізок аудіо (`*_ГГ-ХХ-СС_ГГ-ХХ-СС_audio.mp3`). MP3 зі звукового джерела не надсилається. |
+| `origin.py` | `.ftw_tg_origin.json`: chat id і message id за шляхом. `retarget` викликається з `source_relocate`, коли джерело переїжджає. |
+
 ### i18n/
 
 `__init__.py` — публічний API (`t`, `set_language`, `get_language`) з fallback-імпортом; `lang_manager.py` — завантаження та кешування `lang.json`; `fallback.py` — мінімальний резерв, якщо `lang.json` недоступний. Список підтримуваних мов (`EN`/`UK`/`RU`) визначено в `config.SUPPORTED_LANGUAGES`; `lang_manager.py` і `updates/release_notes.py` тепер імпортують цю константу замість того, щоб дублювати той самий кортеж вручну.
@@ -145,6 +156,7 @@
 | Додати переклад / новий рядок інтерфейсу | `whisperfast/i18n/lang.json` (усі три мови одразу) |
 | Змінити запис зустрічі / crash-recovery WAV | `core/capture.py`, `ui/capture_ui.py` |
 | Змінити механізм самооновлення | `updates/app_updates.py` (`_pick_release_assets` — префікс `FTW`, потім `WhisperFastGUI`) |
+| Змінити, що Telegram приймає або відправляє назад | `telegram/account.py`, `telegram/gui_bridge.py`, `telegram/origin.py` |
 
 ## Куди дивитися далі
 

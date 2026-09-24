@@ -530,9 +530,14 @@
     "RU": "Открыть ключи AI (Cursor, Gemini, Azure OpenAI / Copilot). Пустые учётные данные → браузерный/Chat fallback."
   },
   "tooltip_telegram": {
-    "EN": "Telegram bot: token, local Bot API, and chats whose audio and video go into the FTW queue.",
-    "UK": "Telegram-бот: токен, локальний Bot API і чати, чиє аудіо та відео потрапляють у чергу FTW.",
-    "RU": "Telegram-бот: токен, локальный Bot API и чаты, чьи аудио и видео попадают в очередь FTW."
+    "EN": "Telegram settings: this account or a bot. Audio and video from the chosen chats go into the FTW queue.",
+    "UK": "Налаштування Telegram: цей акаунт або бот. Аудіо та відео з обраних чатів потрапляють у чергу FTW.",
+    "RU": "Настройки Telegram: этот аккаунт или бот. Аудио и видео из выбранных чатов попадают в очередь FTW."
+  },
+  "tooltip_telegram_listener": {
+    "EN": "Start or stop the Telegram listener.",
+    "UK": "Запустити або зупинити слухача Telegram.",
+    "RU": "Запустить или остановить слушателя Telegram."
   },
   "cursor_waiting": {
     "EN": "⏳ Waiting {seconds}s before Cursor post-process…",
@@ -3801,6 +3806,16 @@
     "UK": "Розшифровка",
     "RU": "Расшифровка"
   },
+  "telegram_caption_audio": {
+    "EN": "Audio",
+    "UK": "Аудіо",
+    "RU": "Аудио"
+  },
+  "telegram_caption_clip": {
+    "EN": "Clip of the audio",
+    "UK": "Відрізок до аудіо",
+    "RU": "Отрезок к аудио"
+  },
   "telegram_caption_ai": {
     "EN": "AI: {name}",
     "UK": "AI: {name}",
@@ -3826,10 +3841,15 @@
     "UK": "Telegram",
     "RU": "Telegram"
   },
-  "telegram_settings_hint": {
-    "EN": "Choose this account to read private chats of the signed-in user, or a bot. Press Start listener in this window: audio and video are added to the queue and the results go back to the same chat. api_id and api_hash come from my.telegram.org. The bot also needs a token from @BotFather and the local telegram-bot-api (files up to about 2 GB). Before the first local bot start, call logOut on the cloud Bot API for that token.",
-    "UK": "Оберіть цей акаунт, щоб читати особисті чати увійшовшого користувача, або бота. Натисніть «Запустити слухача» в цьому вікні: аудіо та відео додаються в чергу, а результати повертаються в той самий чат. api_id і api_hash — на my.telegram.org. Боту також потрібен токен від @BotFather і локальний telegram-bot-api (файли приблизно до 2 ГБ). Перед першим локальним запуском бота викличте logOut хмарного Bot API для цього токена.",
-    "RU": "Выберите этот аккаунт, чтобы забирать файлы из личных чатов, или бота. Нажмите «Запустить слушателя» в этом окне: аудио и видео попадают в очередь, а результаты возвращаются в тот же чат. api_id и api_hash — на my.telegram.org. Боту также нужен токен от @BotFather и локальный telegram-bot-api (файлы примерно до 2 ГБ). Перед первым локальным запуском бота вызовите logOut облачного Bot API для этого токена."
+  "telegram_hint_account": {
+    "EN": "Private chats of this account. api_id and api_hash are on my.telegram.org; then enter the phone number and sign in. Audio and video go into the FTW queue, and the results return to the same chat.",
+    "UK": "Особисті чати цього акаунта. api_id і api_hash — на my.telegram.org, далі номер телефону і вхід. Аудіо та відео йдуть у чергу FTW, результати повертаються в той самий чат.",
+    "RU": "Личные чаты этого аккаунта. api_id и api_hash — на my.telegram.org, затем номер телефона и вход. Аудио и видео попадают в очередь FTW, результаты возвращаются в тот же чат."
+  },
+  "telegram_hint_bot": {
+    "EN": "A bot from @BotFather. It needs a token, api_id, api_hash, and the local telegram-bot-api. Audio and video from the allowed chats go into the queue, and the results return to the same chat.",
+    "UK": "Бот від @BotFather. Потрібні токен, api_id, api_hash і локальний telegram-bot-api. Аудіо та відео з дозволених чатів ідуть у чергу, результати повертаються в той самий чат.",
+    "RU": "Бот от @BotFather. Нужны токен, api_id, api_hash и локальный telegram-bot-api. Аудио и видео из разрешённых чатов попадают в очередь, результаты возвращаются в тот же чат."
   },
   "telegram_token_label": {
     "EN": "Bot token",
@@ -3877,9 +3897,9 @@
     "RU": "Обзор…"
   },
   "telegram_mode_account": {
-    "EN": "This account",
-    "UK": "Цей акаунт",
-    "RU": "Этот аккаунт"
+    "EN": "Account",
+    "UK": "Акаунт",
+    "RU": "Аккаунт"
   },
   "telegram_mode_bot": {
     "EN": "Bot",
@@ -3996,6 +4016,21 @@
     "UK": "Слухаю особисті чати як {name}.",
     "RU": "Слушаю личные чаты как {name}."
   },
+  "telegram_self_chats_label": {
+    "EN": "Also process your own audio and video in these chats",
+    "UK": "Також обробляти свої аудіо та відео в цих чатах",
+    "RU": "Также обрабатывать свои аудио и видео в этих чатах"
+  },
+  "telegram_ph_self_chats": {
+    "EN": "Alex, Maria",
+    "UK": "Олексій, Марія",
+    "RU": "Алексей, Мария"
+  },
+  "telegram_tip_self_chats": {
+    "EN": "Names of private chats, separated by commas, where files you send yourself are processed too. Match is the person’s first name, full name, or @username, ignoring case. Saved Messages are always included. Other outgoing files stay skipped.",
+    "UK": "Імена особистих чатів через кому, у яких обробляються й файли, надіслані вами. Збіг — ім’я, повне ім’я або @username, без урахування регістру. Обране обробляється завжди. Інші власні повідомлення пропускаються.",
+    "RU": "Имена личных чатов через запятую, в которых обрабатываются и файлы, отправленные вами. Совпадение — имя, полное имя или @username, без учёта регистра. Избранное обрабатывается всегда. Остальные свои сообщения пропускаются."
+  },
   "telegram_chats_account_label": {
     "EN": "Private chats only. Empty = all of them. Or list chat ids.",
     "UK": "Лише особисті чати. Порожньо = усі. Або перелічіть chat id.",
@@ -4025,6 +4060,86 @@
     "EN": "Listener is stopped.",
     "UK": "Слухач зупинений.",
     "RU": "Слушатель остановлен."
+  },
+  "telegram_not_configured": {
+    "EN": "Telegram is not set up. Open the Telegram settings and fill in the account or bot first.",
+    "UK": "Telegram не налаштовано. Спочатку відкрийте налаштування Telegram і заповніть акаунт або бота.",
+    "RU": "Telegram не настроен. Сначала откройте настройки Telegram и заполните аккаунт или бота."
+  },
+  "telegram_listener_started_account": {
+    "EN": "Telegram listener started.",
+    "UK": "Слухача Telegram запущено.",
+    "RU": "Слушатель телеграм запущен"
+  },
+  "telegram_listener_started_bot": {
+    "EN": "Bot started.",
+    "UK": "Бота запущено.",
+    "RU": "Бот запущен"
+  },
+  "telegram_tip_mode_account": {
+    "EN": "Take audio and video from private chats of your own Telegram account. No separate bot. You need api_id, api_hash and the phone number, then Sign in.",
+    "UK": "Забирати аудіо та відео з особистих чатів вашого акаунта Telegram. Окремий бот не потрібен. Потрібні api_id, api_hash і номер телефону, потім «Увійти».",
+    "RU": "Забирать аудио и видео из личных чатов вашего аккаунта Telegram. Отдельный бот не нужен. Нужны api_id, api_hash и номер телефона, затем «Войти»."
+  },
+  "telegram_tip_mode_bot": {
+    "EN": "A bot people send files to. Create it in Telegram with @BotFather: send /newbot, pick a name and a username ending in bot, then paste the token below.",
+    "UK": "Бот, якому надсилають файли. Створіть його в Telegram через @BotFather: надішліть /newbot, оберіть ім’я й username, що закінчується на bot, і вставте токен нижче.",
+    "RU": "Бот, которому отправляют файлы. Создайте его в Telegram через @BotFather: отправьте /newbot, выберите имя и username, заканчивающийся на bot, и вставьте токен ниже."
+  },
+  "telegram_tip_api_id": {
+    "EN": "Open https://my.telegram.org, sign in, then API development tools. Create an application: any title, a short name, platform Desktop, and one line of description. The number App api_id on the next page goes here. If the site shows only ERROR, use a private window with the ad blocker off, on a network in the same country as the phone number.",
+    "UK": "Відкрийте https://my.telegram.org, увійдіть і оберіть API development tools. Створіть застосунок: будь-яка назва, коротке ім’я, платформа Desktop і один рядок опису. Сюди вставте число App api_id з наступної сторінки. Якщо сайт пише лише ERROR, відкрийте приватне вікно без блокувальника реклами в мережі тієї ж країни, що й номер телефону.",
+    "RU": "Откройте https://my.telegram.org, войдите и выберите API development tools. Создайте приложение: любое название, короткое имя, платформа Desktop и одна строка описания. Сюда вставьте число App api_id со следующей страницы. Если сайт пишет только ERROR, откройте приватное окно без блокировщика рекламы в сети той же страны, что и номер телефона."
+  },
+  "telegram_tip_api_hash": {
+    "EN": "On the same my.telegram.org page as api_id, copy App api_hash — the long string. Keep it private. It is created together with api_id when you press Create application.",
+    "UK": "На тій самій сторінці my.telegram.org, що й api_id, скопіюйте App api_hash — довгий рядок. Нікому його не надсилайте. Він з’являється разом з api_id після Create application.",
+    "RU": "На той же странице my.telegram.org, что и api_id, скопируйте App api_hash — длинную строку. Никому её не отправляйте. Она появляется вместе с api_id после Create application."
+  },
+  "telegram_tip_phone": {
+    "EN": "The phone number of this Telegram account, in international form, for example +380501111111. After Sign in, Telegram sends a code. If the account has a cloud password, the program asks for that too.",
+    "UK": "Номер цього акаунта Telegram у міжнародному форматі, наприклад +380501111111. Після «Увійти» код прийде в Telegram. Якщо на акаунті є хмарний пароль, програма запитає і його.",
+    "RU": "Номер этого аккаунта Telegram в международном формате, например +380501111111. После «Войти» код придёт в Telegram. Если на аккаунте есть облачный пароль, программа спросит и его."
+  },
+  "telegram_tip_sign_in": {
+    "EN": "Sign this FTW window into your Telegram account. The listener can start only after this says you are signed in. The code arrives inside Telegram, not by SMS.",
+    "UK": "Увійти цим вікном FTW у ваш акаунт Telegram. Слухача можна запускати лише після напису, що вхід виконано. Код приходить у Telegram, не SMS.",
+    "RU": "Войти этим окном FTW в ваш аккаунт Telegram. Слушателя можно запускать только после надписи, что вход выполнен. Код приходит в Telegram, не по SMS."
+  },
+  "telegram_tip_token": {
+    "EN": "In Telegram open @BotFather and send /newbot. Choose a display name and a username that ends with bot. BotFather replies with a token like 123456789:AAH…. Paste that token here.",
+    "UK": "У Telegram відкрийте @BotFather і надішліть /newbot. Оберіть назву й username, що закінчується на bot. BotFather надішле токен на кшталт 123456789:AAH…. Вставте його сюди.",
+    "RU": "В Telegram откройте @BotFather и отправьте /newbot. Выберите название и username, заканчивающийся на bot. BotFather пришлёт токен вида 123456789:AAH…. Вставьте его сюда."
+  },
+  "telegram_tip_exe": {
+    "EN": "Path to telegram-bot-api.exe from https://github.com/tdlib/telegram-bot-api/releases. The listener starts it so the bot can receive files up to about 2 GB. Before the first local start, call logOut on the cloud Bot API for this token.",
+    "UK": "Шлях до telegram-bot-api.exe з https://github.com/tdlib/telegram-bot-api/releases. Слухач запускає його, щоб бот приймав файли приблизно до 2 ГБ. Перед першим локальним запуском викличте logOut хмарного Bot API для цього токена.",
+    "RU": "Путь к telegram-bot-api.exe с https://github.com/tdlib/telegram-bot-api/releases. Слушатель запускает его, чтобы бот принимал файлы примерно до 2 ГБ. Перед первым локальным запуском вызовите logOut облачного Bot API для этого токена."
+  },
+  "telegram_tip_base": {
+    "EN": "Address of the local Bot API. Leave http://127.0.0.1:8081 unless telegram-bot-api is already running on another port.",
+    "UK": "Адреса локального Bot API. Залиште http://127.0.0.1:8081, якщо telegram-bot-api не запущений на іншому порті.",
+    "RU": "Адрес локального Bot API. Оставьте http://127.0.0.1:8081, если telegram-bot-api не запущен на другом порту."
+  },
+  "telegram_tip_chats_account": {
+    "EN": "Leave empty to take files from every private chat. Or list chat ids separated by commas. Messages you send yourself are skipped, except Saved Messages and the chats named in the field above.",
+    "UK": "Порожньо — файли з усіх особистих чатів. Або перелічіть chat id через кому. Власні повідомлення пропускаються, крім Обраного і чатів, названих у полі вище.",
+    "RU": "Пусто — файлы из всех личных чатов. Или перечислите chat id через запятую. Свои сообщения пропускаются, кроме Избранного и чатов, названных в поле выше."
+  },
+  "telegram_tip_chats_bot": {
+    "EN": "Chat ids allowed to send files to the bot, separated by commas. While the list is empty, the bot ignores media and answers /start with that chat’s id, so you can copy it here.",
+    "UK": "Chat id, яким дозволено надсилати файли боту, через кому. Поки список порожній, бот ігнорує медіа і на /start відповідає id цього чату — його можна скопіювати сюди.",
+    "RU": "Chat id, которым разрешено отправлять файлы боту, через запятую. Пока список пуст, бот игнорирует медиа и на /start отвечает id этого чата — его можно скопировать сюда."
+  },
+  "telegram_tip_work_dir": {
+    "EN": "Folder where Telegram audio and video are saved before they enter the FTW queue. Empty uses the default folder next to the program.",
+    "UK": "Папка, куди зберігаються аудіо та відео з Telegram, перш ніж потрапити в чергу FTW. Порожньо — типова папка поруч із програмою.",
+    "RU": "Папка, куда сохраняются аудио и видео из Telegram, прежде чем попасть в очередь FTW. Пусто — папка по умолчанию рядом с программой."
+  },
+  "telegram_tip_listener": {
+    "EN": "Start or stop intake in this open FTW window. The same switch is the checkbox to the left of the Telegram icon in the main window. Keep FTW open while it runs.",
+    "UK": "Запустити або зупинити прийом у цьому відкритому вікні FTW. Те саме робить галочка ліворуч від іконки Telegram у головному вікні. Поки слухач працює, FTW має лишатися відкритим.",
+    "RU": "Запустить или остановить приём в этом открытом окне FTW. То же делает галочка слева от иконки Telegram в главном окне. Пока слушатель работает, FTW должно оставаться открытым."
   },
   "telegram_listener_stopping": {
     "EN": "Stopping listener…",
