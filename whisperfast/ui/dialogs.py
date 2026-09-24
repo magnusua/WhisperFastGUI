@@ -245,8 +245,98 @@ def add_directory(recursive=True):
     return valid_files
 
 
+def fit_window_text(win):
+    """Довгі підписи переносяться по ширині вікна і не обрізаються рамкою."""
+    labels = []
+
+    def walk(widget):
+        for child in widget.winfo_children():
+            if isinstance(child, (ttk.Label, tk.Label)) and _arm_wrapping_label(child):
+                labels.append(child)
+            walk(child)
+
+    walk(win)
+    try:
+        win.update_idletasks()
+    except tk.TclError:
+        return
+    for label in labels:
+        _apply_label_wrap(label)
+    try:
+        need = win.winfo_reqheight()
+        cur_h = win.winfo_height()
+        cur_w = win.winfo_width()
+    except tk.TclError:
+        return
+    if cur_w > 1 and need > cur_h + 4:
+        win.geometry(f"{cur_w}x{min(need + 8, win.winfo_screenheight() - 40)}")
+
+
+def _arm_wrapping_label(label) -> bool:
+    if getattr(label, "_wf_wrap", False):
+        return True
+    text = str(label.cget("text") or "").strip()
+    if len(text) < 28:
+        return False
+    packed = None
+    try:
+        packed = label.pack_info()
+    except tk.TclError:
+        packed = None
+    if packed:
+        side = packed.get("side") or "top"
+        if side not in ("top", "bottom"):
+            return False
+        if packed.get("fill") not in ("x", "both"):
+            label.pack_configure(fill="x")
+    else:
+        try:
+            grid = label.grid_info()
+        except tk.TclError:
+            return False
+        if not grid:
+            return False
+        sticky = str(grid.get("sticky") or "")
+        span = int(grid.get("columnspan") or 1)
+        if span < 2 and "e" not in sticky:
+            return False
+    try:
+        if str(label.cget("justify") or "center") == "center":
+            label.configure(justify="left")
+    except tk.TclError:
+        pass
+    label._wf_wrap = True
+
+    def _fit(event, lbl=label):
+        if event.widget is not lbl:
+            return
+        _apply_label_wrap(lbl, event.width)
+
+    label.bind("<Configure>", _fit, add="+")
+    return True
+
+
+def _apply_label_wrap(label, width=None):
+    try:
+        if width is None:
+            width = label.winfo_width()
+        width = int(width)
+        if width < 40:
+            return
+        current = int(float(label.cget("wraplength") or 0))
+    except (tk.TclError, TypeError, ValueError):
+        return
+    if abs(current - width) <= 4:
+        return
+    try:
+        label.configure(wraplength=width)
+    except tk.TclError:
+        pass
+
+
 def center_toplevel(app, win, parent=None):
     """Размещает Toplevel по центру родительского окна (или экрана). Не выносит за границы экрана."""
+    fit_window_text(win)
     parent = parent or app.root
     win.update_idletasks()
     w = win.winfo_width()
@@ -2222,6 +2312,13 @@ def show_ai_prompts_overview_dialog(app):
     rules_btn = ttk.Button(buttons, text=t("ai_prompt_rules_button"), command=on_rules)
     rules_btn.pack(side="right")
     dialog._wf_rules_tip = Tooltip(rules_btn, "tooltip_ai_prompt_rules", is_key=True)
+
+    from whisperfast.ui import toolbar_icons
+
+    keys_btn = ttk.Button(buttons, command=lambda: show_ai_api_keys_dialog(app))
+    keys_btn.pack(side="left")
+    toolbar_icons.set_icon(keys_btn, getattr(app, "_toolbar_photos", None), "api_keys")
+    dialog._wf_keys_tip = Tooltip(keys_btn, "tooltip_ai_api_keys", is_key=True)
 
     def apply_language():
         dialog.title(t("ai_prompts_overview_title"))

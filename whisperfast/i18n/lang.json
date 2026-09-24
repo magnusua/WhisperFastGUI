@@ -185,9 +185,29 @@
     "RU": "FTW не смог запуститься на видеокарте."
   },
   "language_switcher": {
-    "EN": "Language Switcher",
-    "UK": "Перемикач мови",
-    "RU": "Переключатель языка"
+    "EN": "Recognition language",
+    "UK": "Мова розпізнавання",
+    "RU": "Язык распознавания"
+  },
+  "recog_lang_auto": {
+    "EN": "AUTO — detect from the recording",
+    "UK": "AUTO — визначити з запису",
+    "RU": "AUTO — определить по записи"
+  },
+  "recog_lang_ru": {
+    "EN": "RU — Russian",
+    "UK": "RU — російська",
+    "RU": "RU — русский"
+  },
+  "recog_lang_uk": {
+    "EN": "UK — Ukrainian",
+    "UK": "UK — українська",
+    "RU": "UK — украинский"
+  },
+  "recog_lang_en": {
+    "EN": "EN — English",
+    "UK": "EN — англійська",
+    "RU": "EN — английский"
   },
   "play_sound_finish": {
     "EN": "Notification",
@@ -279,10 +299,15 @@
     "UK": "MD → Word",
     "RU": "MD → Word"
   },
+  "export_md_docx_about": {
+    "EN": "Export Markdown to Word (.docx) via Pandoc. Without AI — after MD is ready; with AI — after each prompt result. Optional styles: resources/templates/reference.docx. Shift+click the toolbar icon to turn this on or off.",
+    "UK": "Експорт Markdown у Word (.docx) через Pandoc. Без AI — після MD; з AI — після кожного результату промпта. Стилі (опційно): resources/templates/reference.docx. Shift+клік по іконці на панелі вмикає або вимикає експорт.",
+    "RU": "Экспорт Markdown в Word (.docx) через Pandoc. Без AI — после MD; с AI — после каждого результата промпта. Стили (опционально): resources/templates/reference.docx. Shift+клик по иконке на панели включает или выключает экспорт."
+  },
   "tooltip_export_md_to_docx": {
-    "EN": "Export Markdown to Word (.docx) via Pandoc. Without AI — after MD is ready; with AI — after each prompt result. Optional styles: resources/templates/reference.docx",
-    "UK": "Експорт Markdown у Word (.docx) через Pandoc. Без AI — після MD; з AI — після кожного результату промпта. Стилі (опційно): resources/templates/reference.docx",
-    "RU": "Экспорт Markdown в Word (.docx) через Pandoc. Без AI — после MD; с AI — после каждого результата промпта. Стили (опционально): resources/templates/reference.docx"
+    "EN": "Click: Word export details. Shift+click: turn Markdown → Word on or off. Green icon means export is on.",
+    "UK": "Клік: довідка про експорт у Word. Shift+клік: увімкнути або вимкнути Markdown → Word. Зелена іконка — експорт увімкнено.",
+    "RU": "Клик: справка об экспорте в Word. Shift+клик: включить или выключить Markdown → Word. Зелёная иконка — экспорт включён."
   },
   "pandoc_found": {
     "EN": "✅ Pandoc: {version}",
@@ -580,9 +605,9 @@
     "RU": "После обработки открыть «Промты» и выполнить через Cursor / Gemini / Copilot (API или браузерный fallback)."
   },
   "tooltip_edit_redactor": {
-    "EN": "Open the prompt list. A check mark means the prompt runs by default; Edit on a row opens that prompt file.",
-    "UK": "Відкрити список промптів. Галочка — промпт виконується за замовчуванням; «Змінити» в рядку відкриває файл цього промпту.",
-    "RU": "Открыть список промтов. Галочка — промт выполняется по умолчанию; «Изменить» в строке открывает файл этого промта."
+    "EN": "Click: open prompts. Shift+click: turn sending text to AI on or off. Green icon means sending is on.",
+    "UK": "Клік: відкрити промпти. Shift+клік: увімкнути або вимкнути надсилання тексту в AI. Зелена іконка — надсилання увімкнено.",
+    "RU": "Клик: открыть промты. Shift+клик: включить или выключить отправку текста в AI. Зелёная иконка — отправка включена."
   },
   "tooltip_cursor_api_key": {
     "EN": "Open AI API keys (Cursor, Gemini, Azure OpenAI / Copilot). Empty credentials → browser/Chat fallback.",
@@ -595,9 +620,9 @@
     "RU": "Открыть ключи AI (Cursor, Gemini, Azure OpenAI / Copilot). Пустые учётные данные → браузерный/Chat fallback."
   },
   "tooltip_telegram": {
-    "EN": "Telegram settings: this account or a bot. Audio and video from the chosen chats go into the FTW queue.",
-    "UK": "Налаштування Telegram: цей акаунт або бот. Аудіо та відео з обраних чатів потрапляють у чергу FTW.",
-    "RU": "Настройки Telegram: этот аккаунт или бот. Аудио и видео из выбранных чатов попадают в очередь FTW."
+    "EN": "Click: Telegram settings. Shift+click: start or stop the listener. Green icon means the listener is on.",
+    "UK": "Клік: налаштування Telegram. Shift+клік: запустити або зупинити слухача. Зелена іконка — слухач увімкнено.",
+    "RU": "Клик: настройки Telegram. Shift+клик: запустить или остановить слушателя. Зелёная иконка — слушатель включён."
   },
   "tooltip_telegram_listener": {
     "EN": "Start or stop the Telegram listener.",
@@ -2535,9 +2560,9 @@
     "RU": "Держать дискретную NVIDIA включённой, пока открыт FTW, в том числе с закрытой крышкой и без монитора. Включается само, когда выбран GPU."
   },
   "tooltip_language_switcher": {
-    "EN": "Recognition language: AUTO (detect), RU, UK, EN. Does not affect interface language.",
-    "UK": "Мова розпізнавання: AUTO (авто), RU, UK, EN. Не змінює мову інтерфейсу.",
-    "RU": "Язык распознавания: AUTO (авто), RU, UK, EN. Не влияет на язык интерфейса."
+    "EN": "Recognition language. Click to choose AUTO, RU, UK, or EN. Does not change the interface language. The icon shows the current choice.",
+    "UK": "Мова розпізнавання. Клік відкриває вибір AUTO, RU, UK або EN. Не змінює мову інтерфейсу. На іконці видно поточний вибір.",
+    "RU": "Язык распознавания. Клик открывает выбор AUTO, RU, UK или EN. Не меняет язык интерфейса. На иконке виден текущий выбор."
   },
   "tooltip_save_mp3": {
     "EN": "Enable/disable saving extracted audio as MP3. Shortcut: Space (when focus is not in a text field).",
@@ -2545,9 +2570,9 @@
     "RU": "Включить/выключить сохранение извлечённого аудио в MP3. Клавиша: Пробел (когда фокус не в поле ввода)."
   },
   "tooltip_mp3_settings": {
-    "EN": "MP3 location: follow Save settings, next to source, or a selected folder.",
-    "UK": "Місце MP3: як у «Збереження», поруч із файлом або у вибраний каталог.",
-    "RU": "Место MP3: как в «Сохранение», рядом с файлом или в выбранный каталог."
+    "EN": "Click: where to save MP3. Shift+click or Space: turn MP3 saving on or off. Green icon means saving is on.",
+    "UK": "Клік: куди зберігати MP3. Shift+клік або Пробіл: увімкнути або вимкнути збереження MP3. Зелена іконка — збереження увімкнено.",
+    "RU": "Клик: куда сохранять MP3. Shift+клик или Пробел: включить или выключить сохранение MP3. Зелёная иконка — сохранение включено."
   },
   "tooltip_output_folder": {
     "EN": "Open save settings for all program output files (TXT, SRT, Cursor, etc.).",
@@ -2805,9 +2830,14 @@
     "RU": "Включить/выключить слежение за каталогами на новые файлы."
   },
   "tooltip_watch_dirs": {
-    "EN": "Open the list of folders to watch (saved in settings).",
-    "UK": "Відкрити список каталогів для слідкування (зберігається в налаштуваннях).",
-    "RU": "Открыть список каталогов для слежения (сохраняется в настройках)."
+    "EN": "Click to edit watched folders. Shift+click turns watching on or off. An open eye is on; a closed eye is off.",
+    "UK": "Клік відкриває каталоги слідкування. Shift+клік вмикає або вимикає. Відкрите око — увімкнено, закрите — вимкнено.",
+    "RU": "Клик открывает каталоги слежения. Shift+щелчок включает или выключает. Открытый глаз — включено, закрытый — выключено."
+  },
+  "watch_downloads_default": {
+    "EN": "No folders are set for watching. Watching will use your Downloads folder:\n{path}",
+    "UK": "Каталогів для стеження немає. Стеження буде налаштоване за каталогом «Завантаження»:\n{path}",
+    "RU": "Каталогов для слежения нет. Слежение будет настроено на каталог «Загрузки»:\n{path}"
   },
   "watch_folder_empty_error": {
     "EN": "Specify at least one folder to watch.",

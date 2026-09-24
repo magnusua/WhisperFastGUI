@@ -16,6 +16,16 @@ except ImportError:
     Image = None
 
 
+def capture_session_running() -> bool:
+    """True while a meeting capture is in progress (including pause)."""
+    try:
+        from whisperfast.core.capture import get_capture_session
+
+        return bool(get_capture_session().running)
+    except Exception:
+        return False
+
+
 def setup_tray(app):
     """Запуск иконки в системном трее (если доступны pystray и Pillow). Не создаёт трей в режиме «Панель»."""
     if app.tray_mode.get() == "panel":
@@ -61,11 +71,23 @@ def setup_tray(app):
             return t("capture_resume")
         return t("capture_pause")
 
+    def recording_visible(item):
+        del item
+        return capture_session_running()
+
     menu = pystray.Menu(
         TrayMenuItem(t("tray_show_window"), show_window, default=True),
         TrayMenuItem(capture_label, lambda icon, item: app.root.after(0, lambda: _tray_capture(app))),
-        TrayMenuItem(pause_label, lambda icon, item: app.root.after(0, lambda: _tray_pause(app))),
-        TrayMenuItem(t("capture_clip"), lambda icon, item: app.root.after(0, lambda: _tray_clip(app))),
+        TrayMenuItem(
+            pause_label,
+            lambda icon, item: app.root.after(0, lambda: _tray_pause(app)),
+            visible=recording_visible,
+        ),
+        TrayMenuItem(
+            t("capture_clip"),
+            lambda icon, item: app.root.after(0, lambda: _tray_clip(app)),
+            visible=recording_visible,
+        ),
         TrayMenuItem(t("capture_settings"), lambda icon, item: app.root.after(0, lambda: _tray_settings(app))),
         TrayMenuItem(t("archive_button"), lambda icon, item: app.root.after(0, lambda: _tray_archive(app))),
         TrayMenuItem(t("exit"), quit_app),

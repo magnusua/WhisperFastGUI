@@ -60,8 +60,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 
 ## Recognition language, device, and model
 
-- **Recognition language: AUTO** detects the spoken language automatically.
-- Choose **EN**, **UK**, or **RU** when the language is known.
+- **Recognition language** is an icon showing the current choice: **AUTO**, **RU**, **UK**, or **EN**. Click it to open the choice window. **AUTO** detects the spoken language from the recording. Choose **EN**, **UK**, or **RU** when the language is known. This does not change the interface language.
 - **Device: AUTO** uses an NVIDIA GPU when available and otherwise uses the CPU.
 - **GPU** uses CUDA. If an NVIDIA GPU has powered down, FTW wakes it first; without a GPU the work runs on the CPU.
 - **CPU** works without CUDA and is suitable for systems with AMD or integrated graphics.
@@ -70,24 +69,24 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 ## Output options
 
 - **Play sound** notifies you when the queue finishes (including after AI post-processing, if enabled).
-- **Save MP3** extracts the processed audio to a separate file.
-- **MD → Word** exports Markdown to `.docx` via Pandoc.
+- **Save MP3** — a note icon. Click chooses where to save the file. Shift+click or Space turns saving on or off. A green icon means saving is on.
+- **MD → Word** — a document icon. Click shows the export note and Pandoc status. Shift+click turns export on or off. A green icon means export is on.
 - **Save directory** — **Save** settings: next to the source, a selected folder, a named folder next to the video, or a selected folder plus a parameterized subfolder name (`{basename}`).
 - Click a file link in the log to open it.
 - **Shift+click** a log link to show the file in its folder.
 
 ## Directory watch
 
-Enable **Watch** and use **Folder** to set one or more directories (saved in `settings.json`, comma-separated). New supported files go to pending first: age ≥ 10 s, size stable ~15 s, and the file must be openable. Then they are queued and processed. App-created outputs are ignored. On decode errors — up to 2 retries from pending.
+Turn watching on or off with Shift+click on the eye (open means on, closed means off). A normal click opens the folder list (saved in `settings.json`, comma-separated). If no folder is set, watching uses your Downloads folder. New supported files go to pending first: age ≥ 10 s, size stable ~15 s, and the file must be openable. Then they are queued and processed. App-created outputs are ignored. On decode errors — up to 2 retries from pending.
 
 If another task is running, new files wait in the queue and start automatically afterward.
 
 ## AI post-processing (Cursor / Gemini / Claude / Copilot)
 
-Enable **To AI** to process generated `.txt` (after transcription) or `.md` (documents) using prompts from the `promts/` folder (one JSON file each).
+Enable **To AI** (Shift+click the prompts icon; green means it is on) to process generated `.txt` (after transcription) or `.md` (documents) using prompts from the `promts/` folder (one JSON file each).
 
-- The **To AI** label opens the prompt list. A check mark means the prompt runs by default; **Edit** on a row opens that prompt file. Hover a name for a short description.
-- **API keys** opens one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Sign in to Gemini** opens the browser and copies the auth URL (same pattern as Cursor Chat / Google Calendar). **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). On macOS they go into the login Keychain. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
+- Click the icon to open the prompt list. A check mark on a row means the prompt runs by default; **Edit** opens that prompt file. Hover a name for a short description.
+- **API keys** opens from the **Prompts** window. It is one dialog for Cursor, Gemini, Claude, Azure OpenAI (Copilot), Ollama, and OpenAI-compatible URLs. **Sign in to Gemini** opens the browser and copies the auth URL (same pattern as Cursor Chat / Google Calendar). **Test connection** pings the selected provider. Closing with X discards changes. On Windows, keys are stored encrypted (DPAPI). On macOS they go into the login Keychain. Environment variables take priority: `CURSOR_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`, `AZURE_OPENAI_*`, `OLLAMA_HOST`, `OPENAI_BASE_URL` / `OPENAI_API_KEY`.
 
 After Whisper or document conversion, the log shows a clickable **Send to AI** link and the **Prompts** dialog opens (unless an auto-run rule matches):
 
@@ -115,7 +114,7 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 
 ## Telegram
 
-The Telegram icon in the toolbar opens settings. The checkbox to its left starts or stops the listener in this FTW window. If it was on when FTW closed, the listener starts again with the window. If the account or bot is not filled in yet, an error asks you to open settings first. Keep FTW open while the listener runs. Hover a field for where the value comes from.
+The Telegram icon opens settings. Shift+click starts or stops the listener in this FTW window; a green icon means the listener is on. If it was on when FTW closed, the listener starts again with the window. If the account or bot is not filled in yet, an error asks you to open settings first. Keep FTW open while the listener runs. Hover a field for where the value comes from.
 
 A YouTube, Instagram, or Facebook link is downloaded and sent back to the chat. It enters the Whisper queue only when “Put videos downloaded from social networks into the Whisper queue” is on. Learning mode does not process a new chat until you answer; closing the question leaves the line in the log.
 
@@ -138,7 +137,7 @@ In the queue, the trash column removes the row (the archive entry stays). The Te
 
 ## Buttons
 
-- **Start** — a play icon on the same row as the language switch. Starts the queue.
+- **Start** — a play icon next to the recognition-language icon. Starts the queue.
 - **Cancel** — stop the current task.
 - **Add files / Add directory** — add media or documents.
 - **Archive** — search past transcripts; click a line to hear it. **Sent to** column and **Send to Telegram**.
@@ -148,9 +147,8 @@ In the queue, the trash column removes the row (the archive entry stays). The Te
 - **Model** — a chip icon. The current model name is in the tooltip. The device icon to its left opens AUTO, GPU, or CPU. In GPU mode the video card stays awake while FTW is open.
 - **Clear log** — clear the log window and `app_log.json`.
 - **Autostart** — the icon turns delayed Windows startup on or off.
-- **To AI** — enable AI post-processing; the label opens a prompt list (defaults + edit file).
-- **API keys** — Cursor / Gemini / Claude / Azure OpenAI / Ollama / OpenAI-compatible keys.
-- **Telegram** — account or bot settings. The checkbox to the left starts or stops the listener.
+- **To AI** — click opens the Prompts window, Shift+click turns AI on or off. A green icon means AI is on. API keys are in the Prompts window.
+- **Telegram** — click opens account or bot settings. Shift+click starts or stops the listener. A green icon means the listener is on.
 - **Help** — open this file in the interface language. Use the document list at the top to also read architecture, setup, and other docs from `docs/`.
 
 ## Display modes

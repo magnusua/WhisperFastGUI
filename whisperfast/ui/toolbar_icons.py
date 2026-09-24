@@ -29,11 +29,24 @@ FILE_MAP = {
     "notify_off": "notifications-off.png",
     "output_folder": "folder.png",
     "mp3_settings": "audiotrack.png",
-    "watch_dirs": "visibility.png",
+    "mp3_on": "audiotrack.png",
+    "mp3_off": "audiotrack.png",
+    "watch_on": "visibility.png",
+    "watch_off": "visibility-off.png",
+    "lang_auto": "lang-auto.png",
+    "lang_ru": "lang-ru.png",
+    "lang_uk": "lang-uk.png",
+    "lang_en": "lang-en.png",
     "prompts": "forum.png",
+    "prompts_on": "forum.png",
+    "prompts_off": "forum.png",
     "api_keys": "vpn-key.png",
     "telegram": "telegram.png",
+    "telegram_on": "telegram.png",
+    "telegram_off": "telegram.png",
     "export_md_docx": "description.png",
+    "docx_on": "description.png",
+    "docx_off": "description.png",
     "clear_log": "delete.png",
     "system": "computer.png",
     "updates": "refresh.png",
@@ -52,6 +65,10 @@ FILE_MAP = {
 # Recolor a black Material glyph (RGB kept, alpha from the PNG).
 TINT_MAP = {
     "autostart_on": (22, 163, 74),
+    "mp3_on": (22, 163, 74),
+    "prompts_on": (22, 163, 74),
+    "telegram_on": (22, 163, 74),
+    "docx_on": (22, 163, 74),
 }
 
 # Segoe MDL2 Assets (Windows) if a PNG is missing.
@@ -71,11 +88,24 @@ UNICODE_FALLBACK = {
     "notify_off": "\uE7ED",
     "output_folder": "\uE8B7",
     "mp3_settings": "\uE8D6",
-    "watch_dirs": "\uE890",
+    "mp3_on": "\uE8D6",
+    "mp3_off": "\uE8D6",
+    "watch_on": "\uE890",
+    "watch_off": "\uE7B3",
+    "lang_auto": "A",
+    "lang_ru": "RU",
+    "lang_uk": "UK",
+    "lang_en": "EN",
     "prompts": "\uE8BD",
+    "prompts_on": "\uE8BD",
+    "prompts_off": "\uE8BD",
     "api_keys": "\uE192",
     "telegram": "\uE8F2",
+    "telegram_on": "\uE8F2",
+    "telegram_off": "\uE8F2",
     "export_md_docx": "\uE8A5",
+    "docx_on": "\uE8A5",
+    "docx_off": "\uE8A5",
     "clear_log": "\uE74D",
     "system": "\uE770",
     "updates": "\uE72C",
@@ -166,12 +196,7 @@ def apply_static(app) -> None:
         ("capture_clip_btn", "capture_clip"),
         ("capture_settings_btn", "capture_settings"),
         ("output_folder_btn", "output_folder"),
-        ("mp3_settings_btn", "mp3_settings"),
-        ("watch_dirs_btn", "watch_dirs"),
-        ("edit_redactor_btn", "prompts"),
         ("cursor_api_key_btn", "api_keys"),
-        ("telegram_btn", "telegram"),
-        ("export_md_docx_btn", "export_md_docx"),
         ("clear_log_btn", "clear_log"),
         ("dependencies_btn", "dependencies"),
         ("cancel_btn", "cancel"),
@@ -181,6 +206,9 @@ def apply_static(app) -> None:
     ):
         set_icon(getattr(app, attr, None), photos, key)
     apply_notify_state(app)
+    apply_watch_state(app)
+    apply_recog_state(app)
+    apply_feature_states(app)
     apply_autostart_state(app)
     apply_device_state(app)
 
@@ -195,6 +223,50 @@ def apply_notify_state(app) -> None:
         except tk.TclError:
             pass
     set_icon(getattr(app, "play_sound_btn", None), photos, "notify_on" if on else "notify_off")
+
+
+def apply_watch_state(app) -> None:
+    photos = getattr(app, "_toolbar_photos", None) or {}
+    on = False
+    var = getattr(app, "watch_enabled", None)
+    if var is not None:
+        try:
+            on = bool(var.get())
+        except tk.TclError:
+            pass
+    set_icon(getattr(app, "watch_dirs_btn", None), photos, "watch_on" if on else "watch_off")
+
+
+def apply_recog_state(app) -> None:
+    photos = getattr(app, "_toolbar_photos", None) or {}
+    label = "AUTO"
+    reader = getattr(app, "_recog_lang_label", None)
+    var = getattr(app, "lang_mode", None)
+    if callable(reader) and var is not None:
+        try:
+            label = str(reader(var.get()) or "AUTO").upper()
+        except tk.TclError:
+            label = "AUTO"
+    key = {"RU": "lang_ru", "UK": "lang_uk", "EN": "lang_en"}.get(label, "lang_auto")
+    set_icon(getattr(app, "recog_lang_btn", None), photos, key)
+
+
+def _flag(app, name: str) -> bool:
+    var = getattr(app, name, None)
+    if var is None:
+        return False
+    try:
+        return bool(var.get())
+    except tk.TclError:
+        return False
+
+
+def apply_feature_states(app) -> None:
+    photos = getattr(app, "_toolbar_photos", None) or {}
+    set_icon(getattr(app, "mp3_settings_btn", None), photos, "mp3_on" if _flag(app, "save_audio_mp3") else "mp3_off")
+    set_icon(getattr(app, "edit_redactor_btn", None), photos, "prompts_on" if _flag(app, "send_txt_to_ai") else "prompts_off")
+    set_icon(getattr(app, "telegram_btn", None), photos, "telegram_on" if _flag(app, "telegram_listener_on") else "telegram_off")
+    set_icon(getattr(app, "export_md_docx_btn", None), photos, "docx_on" if _flag(app, "export_md_to_docx") else "docx_off")
 
 
 def apply_device_state(app) -> None:

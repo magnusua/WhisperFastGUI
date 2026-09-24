@@ -424,15 +424,42 @@ class WhisperGUI:
             return "AUTO"
         return str(value).upper()
 
+    def _show_recog_lang_dialog(self):
+        """Іконка мови розпізнавання: окреме вікно AUTO, RU, UK, EN."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("language_switcher"))
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        current = self._recog_lang_label(self.lang_mode.get())
+        if current not in self.RECOG_LANG_LABELS:
+            current = "AUTO"
+        chosen = tk.StringVar(value=current)
+        box = ttk.Frame(dialog, padding=16)
+        box.pack()
+        names = {
+            "AUTO": t("recog_lang_auto"),
+            "RU": t("recog_lang_ru"),
+            "UK": t("recog_lang_uk"),
+            "EN": t("recog_lang_en"),
+        }
+        for label in self.RECOG_LANG_LABELS:
+            ttk.Radiobutton(box, text=names[label], value=label, variable=chosen).pack(anchor="w", pady=2)
+
+        def apply_choice():
+            self.lang_mode.set(self._recog_lang_value(chosen.get()))
+            toolbar_icons.apply_recog_state(self)
+            self._persist_settings()
+            dialog.destroy()
+
+        ttk.Button(box, text=t("save"), command=apply_choice).pack(anchor="e", pady=(12, 0))
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.bind("<Escape>", lambda event: dialog.destroy())
+        self._center_toplevel(dialog)
+
     def _on_ui_lang_combo(self, event=None):
         val = (self.ui_lang_combo.get() or "").strip()
         if val in SUPPORTED_LANGUAGES and val != self.ui_language.get():
             self.ui_language.set(val)
-
-    def _on_recog_lang_combo(self, event=None):
-        label = (self.lang_mode_combo.get() or "").strip()
-        if label in self.RECOG_LANG_LABELS:
-            self.lang_mode.set(self._recog_lang_value(label))
 
     def _load_queue_from_file(self):
         self.queue_ctrl.load_from_file()
@@ -715,20 +742,9 @@ class WhisperGUI:
         self.notify_sep.pack(side="left", padx=(4, 4))
         self.play_sound_btn = ttk.Button(header_f, command=self._toggle_play_sound)
         self.play_sound_btn.pack(side="left", padx=2)
-        watch_frame = ttk.Frame(header_f)
-        watch_frame.pack(side="left", padx=(2, 0))
-        self.watch_folder_check = ttk.Checkbutton(
-            watch_frame,
-            text="",
-            variable=self.watch_enabled,
-            command=self._on_watch_toggled,
-            width=0,
-        )
-        self.watch_folder_check.pack(side="left")
-        self.watch_dirs_btn = ttk.Button(
-            watch_frame, command=self._open_watch_dirs_dialog
-        )
-        self.watch_dirs_btn.pack(side="left", padx=(0, 0))
+        self.watch_dirs_btn = ttk.Button(header_f)
+        self.watch_dirs_btn.pack(side="left", padx=2)
+        self.watch_dirs_btn.bind("<Button-1>", self._on_watch_click)
         ttk.Label(header_f, text="|").pack(side="left", padx=(4, 4))
         toolbar_icons.apply_static(self)
         capture_ui.refresh_capture_buttons(self)
@@ -837,19 +853,8 @@ class WhisperGUI:
         tools_center = ttk.Frame(tools_row)
         tools_center.grid(row=0, column=1)
 
-        self.lang_mode_combo = ttk.Combobox(
-            tools_center,
-            state="readonly",
-            width=6,
-            values=self.RECOG_LANG_LABELS,
-        )
-        recog_label = self._recog_lang_label(self.lang_mode.get())
-        try:
-            self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
-        except ValueError:
-            self.lang_mode_combo.current(0)
-        self.lang_mode_combo.pack(side="left", padx=4, pady=2)
-        self.lang_mode_combo.bind("<<ComboboxSelected>>", self._on_recog_lang_combo)
+        self.recog_lang_btn = ttk.Button(tools_center, command=self._show_recog_lang_dialog)
+        self.recog_lang_btn.pack(side="left", padx=2)
         self.start_btn = ttk.Button(tools_center, command=self.handle_start_logic)
         self.start_btn.pack(side="left", padx=2)
         ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
@@ -862,73 +867,24 @@ class WhisperGUI:
         self.output_folder_btn.pack(side="left", padx=2)
 
         ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
-        mp3_frame = ttk.Frame(tools_center)
-        mp3_frame.pack(side="left", padx=(2, 2))
-        self.save_audio_check = ttk.Checkbutton(
-            mp3_frame,
-            text="",
-            variable=self.save_audio_mp3,
-            command=self._persist_settings,
-            width=0,
-        )
-        self.save_audio_check.pack(side="left")
-        self.mp3_settings_btn = ttk.Button(
-            mp3_frame, command=self._show_mp3_settings_dialog
-        )
-        self.mp3_settings_btn.pack(side="left", padx=(0, 0))
+        self.mp3_settings_btn = ttk.Button(tools_center)
+        self.mp3_settings_btn.pack(side="left", padx=2)
+        self.mp3_settings_btn.bind("<Button-1>", self._on_mp3_click)
 
         ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
-        cursor_frame = ttk.Frame(tools_center)
-        cursor_frame.pack(side="left", padx=(2, 2))
-        self.send_txt_cursor_check = ttk.Checkbutton(
-            cursor_frame,
-            text="",
-            variable=self.send_txt_to_ai,
-            command=self._on_send_txt_to_ai_toggled,
-            width=0,
-        )
-        self.send_txt_cursor_check.pack(side="left")
-        self.edit_redactor_btn = ttk.Button(
-            cursor_frame, command=self.ai_jobs.show_prompts_overview
-        )
-        self.edit_redactor_btn.pack(side="left", padx=(0, 0))
-        self.cursor_api_key_btn = ttk.Button(
-            tools_center,
-            command=self._show_ai_api_keys_dialog,
-        )
-        self.cursor_api_key_btn.pack(side="left", padx=2)
+        self.edit_redactor_btn = ttk.Button(tools_center)
+        self.edit_redactor_btn.pack(side="left", padx=2)
+        self.edit_redactor_btn.bind("<Button-1>", self._on_prompts_click)
 
         ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
-        telegram_frame = ttk.Frame(tools_center)
-        telegram_frame.pack(side="left", padx=(2, 2))
-        self.telegram_listener_check = ttk.Checkbutton(
-            telegram_frame,
-            text="",
-            variable=self.telegram_listener_on,
-            command=self._on_telegram_listener_toggled,
-            width=0,
-        )
-        self.telegram_listener_check.pack(side="left")
-        self.telegram_btn = ttk.Button(
-            telegram_frame, command=self._show_telegram_settings_dialog
-        )
-        self.telegram_btn.pack(side="left", padx=(0, 0))
+        self.telegram_btn = ttk.Button(tools_center)
+        self.telegram_btn.pack(side="left", padx=2)
+        self.telegram_btn.bind("<Button-1>", self._on_telegram_click)
 
         ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
-        docx_frame = ttk.Frame(tools_center)
-        docx_frame.pack(side="left", padx=(2, 2))
-        self.export_md_docx_check = ttk.Checkbutton(
-            docx_frame,
-            text="",
-            variable=self.export_md_to_docx,
-            command=self._on_export_md_to_docx_toggled,
-            width=0,
-        )
-        self.export_md_docx_check.pack(side="left")
-        self.export_md_docx_btn = ttk.Button(
-            docx_frame, command=self._toggle_export_md_to_docx
-        )
-        self.export_md_docx_btn.pack(side="left", padx=(0, 0))
+        self.export_md_docx_btn = ttk.Button(tools_center)
+        self.export_md_docx_btn.pack(side="left", padx=2)
+        self.export_md_docx_btn.bind("<Button-1>", self._on_docx_click)
 
         cancel_side = ttk.Frame(tools_row)
         cancel_side.grid(row=0, column=2, sticky="e")
@@ -967,15 +923,10 @@ class WhisperGUI:
         tip(self.ui_lang_combo, "tooltip_ui_language")
         tip(self.start_btn, "tooltip_start")
         tip(self.device_btn, "tooltip_device")
-        tip(self.lang_mode_combo, "tooltip_language_switcher")
-        tip(self.save_audio_check, "tooltip_save_mp3")
+        tip(self.recog_lang_btn, "tooltip_language_switcher")
         tip(self.mp3_settings_btn, "tooltip_mp3_settings")
-        tip(self.send_txt_cursor_check, "tooltip_send_txt_to_ai")
         tip(self.edit_redactor_btn, "tooltip_edit_redactor")
-        tip(self.cursor_api_key_btn, "tooltip_ai_api_keys")
-        tip(self.telegram_listener_check, "tooltip_telegram_listener")
         tip(self.telegram_btn, "tooltip_telegram")
-        tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
         tip(self.export_md_docx_btn, "tooltip_export_md_to_docx")
         tip(self.dependencies_btn, "tooltip_environment")
         self._model_tip = Tooltip(self.model_btn, self._model_tooltip_text(), is_key=False)
@@ -983,7 +934,6 @@ class WhisperGUI:
         tip(self.tray_mode_btn, "tooltip_tray_mode")
         tip(self.autostart_btn, "tooltip_autostart")
         tip(self.output_folder_btn, "tooltip_output_folder")
-        tip(self.watch_folder_check, "tooltip_watch_folder")
         tip(self.watch_dirs_btn, "tooltip_watch_dirs")
         tip(self.clear_log_btn, "tooltip_clear_log")
         tip(self.cancel_btn, "tooltip_cancel")
@@ -1682,6 +1632,7 @@ class WhisperGUI:
             var.set(is_running())
         except tk.TclError:
             pass
+        toolbar_icons.apply_feature_states(self)
 
     def _telegram_log(self, msg, tag=None):
         """Forward a listener line, including a file path tagged as a document link."""
@@ -1760,6 +1711,7 @@ class WhisperGUI:
                     self.telegram_listener_on.set(False)
                 except tk.TclError:
                     return
+                toolbar_icons.apply_feature_states(self)
 
             try:
                 self.root.after(0, ui)
@@ -1768,6 +1720,7 @@ class WhisperGUI:
 
         if start_listener(log=self._telegram_log, on_done=on_done, ask=self.ask_telegram_learn):
             self.telegram_listener_on.set(True)
+            toolbar_icons.apply_feature_states(self)
             self.log(
                 t("telegram_listener_started_account" if kind == "account" else "telegram_listener_started_bot")
             )
@@ -1796,6 +1749,7 @@ class WhisperGUI:
                     self.telegram_listener_on.set(False)
                 except tk.TclError:
                     return
+                toolbar_icons.apply_feature_states(self)
                 if code:
                     messagebox.showerror(
                         t("telegram_settings_title"), t("telegram_listener_off"), parent=self.root
@@ -1835,6 +1789,7 @@ class WhisperGUI:
                 return
         self.save_audio_mp3.set(not self.save_audio_mp3.get())
         self._persist_settings()
+        toolbar_icons.apply_feature_states(self)
         if event:
             return "break"
 
@@ -1941,20 +1896,138 @@ class WhisperGUI:
             return source_dir
         return source_dir
 
+    def _user_downloads_dir(self):
+        """Каталог «Завантаження» поточного користувача."""
+        if os.name == "nt":
+            try:
+                import winreg
+
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
+                ) as key:
+                    val, _ = winreg.QueryValueEx(
+                        key, "{374DE290-123F-4565-9164-39C4925E467B}"
+                    )
+                val = os.path.expandvars(str(val or "")).strip()
+                if val:
+                    os.makedirs(val, exist_ok=True)
+                    if os.path.isdir(val):
+                        return os.path.normpath(val)
+            except (OSError, ValueError):
+                pass
+        path = os.path.join(os.path.expanduser("~"), "Downloads")
+        try:
+            os.makedirs(path, exist_ok=True)
+        except OSError:
+            pass
+        return os.path.normpath(path)
+
+    def _use_downloads_for_watch(self):
+        """Немає каталогів — сказати і взяти «Завантаження»."""
+        path = self._user_downloads_dir()
+        messagebox.showinfo(
+            t("watch_dirs_dialog_title"),
+            t("watch_downloads_default", path=path),
+            parent=self.root,
+        )
+        self.watch_dir.set(serialize_watch_dirs([path]))
+        self._persist_settings()
+        return valid_watch_dirs(self.watch_dir.get())
+
+    def _on_watch_click(self, event):
+        """Клік — каталоги. Shift+клік — увімкнути або вимкнути."""
+        if event is not None and (getattr(event, "state", 0) & 0x0001):
+            try:
+                self.watch_enabled.set(not bool(self.watch_enabled.get()))
+            except tk.TclError:
+                return "break"
+            self._on_watch_toggled()
+        else:
+            self._open_watch_dirs_dialog()
+        return "break"
+
+    def _on_mp3_click(self, event):
+        """Клік — місце MP3. Shift+клік — збереження MP3."""
+        if event is not None and (getattr(event, "state", 0) & 0x0001):
+            try:
+                self.save_audio_mp3.set(not bool(self.save_audio_mp3.get()))
+            except tk.TclError:
+                return "break"
+            self._persist_settings()
+            toolbar_icons.apply_feature_states(self)
+        else:
+            self._show_mp3_settings_dialog()
+        return "break"
+
+    def _on_prompts_click(self, event):
+        """Клік — промпти. Shift+клік — надсилання тексту в AI."""
+        if event is not None and (getattr(event, "state", 0) & 0x0001):
+            try:
+                self.send_txt_to_ai.set(not bool(self.send_txt_to_ai.get()))
+            except tk.TclError:
+                return "break"
+            self._on_send_txt_to_ai_toggled()
+            toolbar_icons.apply_feature_states(self)
+        else:
+            self.ai_jobs.show_prompts_overview()
+        return "break"
+
+    def _on_telegram_click(self, event):
+        """Клік — налаштування Telegram. Shift+клік — слухач."""
+        if event is not None and (getattr(event, "state", 0) & 0x0001):
+            try:
+                self.telegram_listener_on.set(not bool(self.telegram_listener_on.get()))
+            except tk.TclError:
+                return "break"
+            self._on_telegram_listener_toggled()
+            toolbar_icons.apply_feature_states(self)
+        else:
+            self._show_telegram_settings_dialog()
+        return "break"
+
+    def _on_docx_click(self, event):
+        """Клік — довідка про експорт. Shift+клік — увімкнути або вимкнути."""
+        if event is not None and (getattr(event, "state", 0) & 0x0001):
+            self._toggle_export_md_to_docx()
+            toolbar_icons.apply_feature_states(self)
+        else:
+            self._show_docx_settings()
+        return "break"
+
+    def _show_docx_settings(self):
+        from whisperfast.core.pandoc_export import is_pandoc_available, pandoc_version
+
+        if is_pandoc_available():
+            status = t("pandoc_found", version=pandoc_version() or "pandoc")
+        else:
+            status = t("pandoc_not_found")
+        messagebox.showinfo(
+            t("export_md_to_docx"),
+            t("export_md_docx_about") + "\n\n" + status,
+            parent=self.root,
+        )
+
     def _open_watch_dirs_dialog(self):
         """Вікно списку каталогів слідкування (Зберегти / закриття = скасування)."""
         current = parse_watch_dirs(self.watch_dir.get())
+        if not valid_watch_dirs(current):
+            current = self._use_downloads_for_watch()
 
         def on_save(dirs):
-            self.watch_dir.set(serialize_watch_dirs(dirs))
-            self._persist_settings()
+            chosen = valid_watch_dirs(dirs)
+            if not chosen:
+                chosen = self._use_downloads_for_watch()
+            else:
+                self.watch_dir.set(serialize_watch_dirs(chosen))
+                self._persist_settings()
             if self.watch_enabled.get():
-                if valid_watch_dirs(dirs):
+                if valid_watch_dirs(self.watch_dir.get()):
                     self.queue_ctrl.start_watch()
                 else:
                     self.queue_ctrl.stop_watch()
                     self.watch_enabled.set(False)
-                    messagebox.showerror(t("error"), t("watch_folder_empty_error"))
+            toolbar_icons.apply_watch_state(self)
 
         ui_dialogs.open_watch_dirs_dialog(
             self.root,
@@ -1968,23 +2041,18 @@ class WhisperGUI:
         if self.watch_enabled.get():
             dirs = valid_watch_dirs(self.watch_dir.get())
             if not dirs:
-                ui_dialogs.open_watch_dirs_dialog(
-                    self.root,
-                    parse_watch_dirs(self.watch_dir.get()),
-                    on_save=lambda chosen: self.watch_dir.set(serialize_watch_dirs(chosen)),
-                    center_fn=self._center_toplevel,
-                )
-                dirs = valid_watch_dirs(self.watch_dir.get())
-                if not dirs:
-                    self.watch_enabled.set(False)
-                    messagebox.showerror(t("error"), t("watch_folder_empty_error"))
-                    self._persist_settings()
-                    return
+                dirs = self._use_downloads_for_watch()
+            if not dirs:
+                self.watch_enabled.set(False)
+                self._persist_settings()
+                toolbar_icons.apply_watch_state(self)
+                return
             self.queue_ctrl.start_watch()
         else:
             self.queue_ctrl.stop_watch()
             self.log(t("watch_stopped"))
         self._persist_settings()
+        toolbar_icons.apply_watch_state(self)
 
     def prepare_close(self):
         """Зупинити слідкування, трей та зберегти налаштування перед закриттям (викликається з main.py)."""
@@ -2331,6 +2399,7 @@ class WhisperGUI:
         except tk.TclError:
             return
         self._on_export_md_to_docx_toggled()
+        toolbar_icons.apply_feature_states(self)
 
     def _on_export_md_to_docx_toggled(self):
         self._persist_settings()
@@ -2838,11 +2907,6 @@ class WhisperGUI:
             ui = self.ui_language.get()
             if ui in SUPPORTED_LANGUAGES:
                 self.ui_lang_combo.current(SUPPORTED_LANGUAGES.index(ui))
-        except (tk.TclError, ValueError):
-            pass
-        try:
-            recog_label = self._recog_lang_label(self.lang_mode.get())
-            self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
         except (tk.TclError, ValueError):
             pass
         self._refresh_model_tooltip()

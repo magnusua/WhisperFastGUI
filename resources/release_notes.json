@@ -1,6 +1,33 @@
 {
   "releases": [
     {
+      "version": "2.1.5",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "Recognition language is an AUTO, RU, UK, or EN icon. Click opens the chooser. The interface language stays a separate list in the header.",
+          "Watch has no checkbox. An open eye is on, a crossed eye is off. Click opens folders, Shift+click toggles. With no folders, watching uses Downloads.",
+          "Long labels in windows wrap to the window width.",
+          "The AI keys icon is in the Prompts window.",
+          "MP3, prompts, Telegram, and Word have no checkboxes. A green icon is on, a black icon is off. Click opens settings, Shift+click toggles. Space still toggles MP3 saving."
+        ],
+        "UK": [
+          "Мова розпізнавання — іконка AUTO, RU, UK або EN. Клік відкриває вікно вибору. Мова інтерфейсу лишається окремим списком у шапці.",
+          "У слідкування немає галочки. Відкрите око — увімкнено, перекреслене — вимкнено. Клік відкриває каталоги, Shift+клік перемикає. Якщо каталогів немає, стеження бере папку «Завантаження».",
+          "Довгі підписи у вікнах переносяться по ширині вікна.",
+          "Іконка ключів AI стоїть у вікні «Промпти».",
+          "У MP3, промптів, Telegram і Word немає галочок. Зелена іконка — увімкнено, чорна — вимкнено. Клік відкриває налаштування, Shift+клік перемикає. Пробіл, як і раніше, перемикає збереження MP3."
+        ],
+        "RU": [
+          "Язык распознавания — иконка AUTO, RU, UK или EN. Клик открывает окно выбора. Язык интерфейса остаётся отдельным списком в шапке.",
+          "У слежения нет галочки. Открытый глаз — включено, перечёркнутый — выключено. Клик открывает каталоги, Shift+клик переключает. Если каталогов нет, слежение берёт папку «Загрузки».",
+          "Длинные подписи в окнах переносятся по ширине окна.",
+          "Иконка ключей AI стоит в окне «Промты».",
+          "У MP3, промтов, Telegram и Word нет галочек. Зелёная иконка — включено, чёрная — выключено. Клик открывает настройки, Shift+клик переключает. Пробел по-прежнему переключает сохранение MP3."
+        ]
+      }
+    },
+    {
       "version": "2.1.4",
       "date": "24.09.2026",
       "notes": {

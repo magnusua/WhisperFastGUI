@@ -469,5 +469,21 @@ class TestLogCancelStopsCapture(unittest.TestCase):
                 lock.release()
 
 
+class TestTrayRecordingItems(unittest.TestCase):
+    def test_pause_and_clip_hidden_until_recording(self):
+        from whisperfast.core.capture import get_capture_session
+        from whisperfast.ui.tray import capture_session_running
+
+        session = get_capture_session()
+        was = session._running
+        try:
+            session._running = False
+            self.assertFalse(capture_session_running())
+            session._running = True
+            self.assertTrue(capture_session_running())
+        finally:
+            session._running = was
+
+
 if __name__ == "__main__":
     unittest.main()

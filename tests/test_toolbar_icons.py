@@ -52,6 +52,10 @@ class TestToolbarIcons(unittest.TestCase):
             output_folder_btn=ttk.Button(root),
             mp3_settings_btn=ttk.Button(root),
             watch_dirs_btn=ttk.Button(root),
+            watch_enabled=tk.BooleanVar(value=False),
+            recog_lang_btn=ttk.Button(root),
+            lang_mode=tk.StringVar(value="None"),
+            _recog_lang_label=lambda value: "AUTO" if not value or value == "None" else str(value).upper(),
             edit_redactor_btn=ttk.Button(root),
             cursor_api_key_btn=ttk.Button(root),
             telegram_btn=ttk.Button(root),
@@ -71,13 +75,23 @@ class TestToolbarIcons(unittest.TestCase):
         self.assertEqual(app.capture_settings_btn._toolbar_icon_key, "capture_settings")
         self.assertEqual(app.play_sound_btn._toolbar_icon_key, "notify_on")
         self.assertEqual(app.output_folder_btn._toolbar_icon_key, "output_folder")
-        self.assertEqual(app.mp3_settings_btn._toolbar_icon_key, "mp3_settings")
-        self.assertEqual(app.watch_dirs_btn._toolbar_icon_key, "watch_dirs")
-        self.assertEqual(app.edit_redactor_btn._toolbar_icon_key, "prompts")
+        self.assertEqual(app.mp3_settings_btn._toolbar_icon_key, "mp3_off")
+        self.assertEqual(app.watch_dirs_btn._toolbar_icon_key, "watch_off")
+        self.assertEqual(app.recog_lang_btn._toolbar_icon_key, "lang_auto")
+        self.assertEqual(app.edit_redactor_btn._toolbar_icon_key, "prompts_off")
         self.assertEqual(app.cursor_api_key_btn._toolbar_icon_key, "api_keys")
-        self.assertEqual(app.telegram_btn._toolbar_icon_key, "telegram")
+        self.assertEqual(app.telegram_btn._toolbar_icon_key, "telegram_off")
         self.assertEqual(app.telegram_btn.cget("text"), "")
-        self.assertEqual(app.export_md_docx_btn._toolbar_icon_key, "export_md_docx")
+        self.assertEqual(app.export_md_docx_btn._toolbar_icon_key, "docx_off")
+        app.save_audio_mp3 = tk.BooleanVar(value=True)
+        app.send_txt_to_ai = tk.BooleanVar(value=True)
+        app.telegram_listener_on = tk.BooleanVar(value=True)
+        app.export_md_to_docx = tk.BooleanVar(value=True)
+        toolbar_icons.apply_feature_states(app)
+        self.assertEqual(app.mp3_settings_btn._toolbar_icon_key, "mp3_on")
+        self.assertEqual(app.edit_redactor_btn._toolbar_icon_key, "prompts_on")
+        self.assertEqual(app.telegram_btn._toolbar_icon_key, "telegram_on")
+        self.assertEqual(app.export_md_docx_btn._toolbar_icon_key, "docx_on")
         self.assertEqual(app.clear_log_btn._toolbar_icon_key, "clear_log")
         self.assertEqual(app.dependencies_btn._toolbar_icon_key, "dependencies")
         self.assertEqual(app.autostart_btn._toolbar_icon_key, "autostart_off")
