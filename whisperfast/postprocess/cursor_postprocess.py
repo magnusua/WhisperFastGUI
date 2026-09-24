@@ -375,6 +375,31 @@ def resolve_cursor_api_key(settings_key: str = "") -> str:
     return (settings_key or "").strip()
 
 
+def plan_prompt_outputs(
+    txt_path: str,
+    prompts: List[Tuple[int, str, str]],
+    resolve_output_path: Optional[Callable[[str], str]] = None,
+    log_func: Optional[LogFunc] = None,
+) -> List[Tuple[int, str, str, str]]:
+    """Pick every output path before any model call. A skipped file stops the chain."""
+    planned: List[Tuple[int, str, str, str]] = []
+    for num, name, text in prompts:
+        intended = edited_output_path(txt_path, num, name)
+        out_path = intended
+        if resolve_output_path:
+            out_path = resolve_output_path(intended) or ""
+        if not out_path:
+            if log_func:
+                try:
+                    from whisperfast.i18n import t
+                    log_func(t("file_exists_skipped", name=os.path.basename(intended)))
+                except ImportError:
+                    pass
+            break
+        planned.append((num, name, text, out_path))
+    return planned
+
+
 def edited_output_path(txt_path: str, prompt_num: int, prompt_name: str = "") -> str:
     """name.txt + промпт «TW_core» → name_TW_core.md.
 
@@ -662,6 +687,10 @@ def run_sdk_chain(
                 pass
         return created
 
+    planned = plan_prompt_outputs(txt_path, prompts, resolve_output_path, log_func)
+    if not planned:
+        return created
+
     try:
         _prepare_cursor_sdk()
         import cursor_sdk  # noqa: F401
@@ -676,23 +705,7 @@ def run_sdk_chain(
         return created
 
     current_input = txt_path
-    for num, name, text in prompts:
-        out_path = edited_output_path(txt_path, num, name)
-        if resolve_output_path:
-            out_path = resolve_output_path(out_path)
-            if not out_path:
-                if log_func:
-                    try:
-                        from whisperfast.i18n import t
-                        log_func(
-                            t(
-                                "file_exists_skipped",
-                                name=os.path.basename(edited_output_path(txt_path, num, name)),
-                            )
-                        )
-                    except ImportError:
-                        pass
-                break
+    for num, name, text, out_path in planned:
         label = name or f"#{num}"
         if log_func:
             try:

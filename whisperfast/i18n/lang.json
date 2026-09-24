@@ -2624,6 +2624,11 @@
     "UK": "Автозапуск вимкнено (ярлик зі Startup прибрано).",
     "RU": "Автозапуск выключен (ярлык из Startup убран)."
   },
+  "autostart_registry_cleared": {
+    "EN": "Removed duplicate startup entries from the registry: {names}",
+    "UK": "З реєстру прибрано дублікати автозапуску: {names}",
+    "RU": "Из реестра убраны дубликаты автозапуска: {names}"
+  },
   "autostart_bat_not_found": {
     "EN": "File not found: {path}",
     "UK": "Файл не знайдено: {path}",

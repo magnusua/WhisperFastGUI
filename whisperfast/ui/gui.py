@@ -1828,9 +1828,9 @@ class WhisperGUI:
             return
         try:
             if want:
-                win_autostart.enable()
+                removed = win_autostart.enable()
             else:
-                win_autostart.disable()
+                removed = win_autostart.disable()
         except FileNotFoundError as e:
             self.autostart_enabled.set(win_autostart.is_enabled())
             toolbar_icons.apply_autostart_state(self)
@@ -1847,6 +1847,8 @@ class WhisperGUI:
         self.autostart_enabled.set(win_autostart.is_enabled())
         toolbar_icons.apply_autostart_state(self)
         self.log(t("autostart_enabled_log" if want else "autostart_disabled_log"))
+        if removed:
+            self.log(t("autostart_registry_cleared", names=", ".join(removed)))
 
     def on_window_close(self):
         """Вызывается при нажатии X на окне: в режиме «Трей» — свернуть в трей, иначе — диалог закрытия."""
@@ -2008,19 +2010,19 @@ class WhisperGUI:
             log_pandoc_install_howto(self.log)
             messagebox.showwarning(t("export_md_to_docx"), pandoc_missing_dialog_text())
 
-    def resolve_output_paths(self, paths):
+    def resolve_output_paths(self, paths, force_ask=False):
         """Якщо файл(и) вже існують — Yes/No/Skip: overwrite, _HHMM, або порожні шляхи."""
         from whisperfast.core.output_conflict import resolve_output_paths
         from whisperfast.ui.dialogs import ask_overwrite_via_tk
 
         return resolve_output_paths(
             paths,
-            ask_overwrite=lambda p, alt: ask_overwrite_via_tk(self, p, alt),
+            ask_overwrite=lambda p, alt: ask_overwrite_via_tk(self, p, alt, force=force_ask),
         )
 
-    def resolve_output_path(self, path):
+    def resolve_output_path(self, path, force_ask=False):
         """Повертає шлях або "" якщо користувач натиснув Skip."""
-        return self.resolve_output_paths([path])[0]
+        return self.resolve_output_paths([path], force_ask=force_ask)[0]
 
     def _maybe_log_all_complete(self, send_txt_to_cursor, will_continue):
         self.ai_jobs.maybe_log_all_complete(send_txt_to_cursor, will_continue)

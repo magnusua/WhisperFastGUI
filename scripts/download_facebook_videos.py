@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Download Facebook videos / reels / share links with yt-dlp.
+"""Download Facebook videos / reels / share links.
+
+For each URL the script tries, in order:
+
+  1. yt-dlp without cookies (public videos)
+  2. yt-dlp with cookies (downloads/facebook/cookies.txt, --cookies, or --browser)
+  3. https://fdownloader.net/ru in installed Chrome (Cloudflare check blocks a bare API call)
 
 Usage:
   python scripts/download_facebook_videos.py
@@ -7,17 +13,14 @@ Usage:
   python scripts/download_facebook_videos.py --urls scripts/facebook_urls.txt --out downloads/facebook
   python scripts/download_facebook_videos.py URL [URL ...]
 
-Share-links (facebook.com/share/r/..., /share/v/...) almost always need a logged-in
-Facebook session. Pass --browser chrome|edge|firefox (the browser where you are
-logged into facebook.com). Without cookies, most of these URLs fail with
-"Cannot parse data" or a login wall.
-
-Requires: Python 3.9+, yt-dlp, ffmpeg.
+Requires: Python 3.9+, yt-dlp, ffmpeg. Step 3 also needs the playwright package
+and Google Chrome; the script installs playwright on first use.
 """
 from __future__ import annotations
 
 import argparse
-import os
+import base64
+import json
 import re
 import shutil
 import subprocess
@@ -30,7 +33,10 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_URLS_FILE = Path(__file__).resolve().parent / "facebook_urls.txt"
 DEFAULT_OUT_DIR = ROOT / "downloads" / "facebook"
+DEFAULT_COOKIES = DEFAULT_OUT_DIR / "cookies.txt"
 ARCHIVE_NAME = "downloaded.txt"
+FDOWNLOADER_PAGE = "https://fdownloader.net/ru"
+_PLAYWRIGHT_READY: Optional[bool] = None
 
 URL_RE = re.compile(
     r"https?://(?:www\.|m\.|web\.)?(?:facebook\.com|fb\.watch|fb\.com|youtube\.com|youtu\.be)/[^\s<>\"']+",
@@ -201,9 +207,167 @@ def download_one(base_args: Sequence[str], url: str) -> Tuple[bool, str]:
     return False, f"exit {result.returncode}"
 
 
+def _facebook_url(url: str) -> bool:
+    host = urlsplit(url).netloc.lower()
+    return host.endswith("facebook.com") or host.endswith("fb.watch") or host.endswith("fb.com")
+
+
+def _share_stem(url: str) -> str:
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    tail = query.get("story_fbid") or parts.path.rstrip("/").split("/")[-1] or "video"
+    tail = re.sub(r"[^A-Za-z0-9._-]+", "_", tail)[:80]
+    return tail or "video"
+
+
+def _existing_fdown(out_dir: Path, stem: str) -> Optional[Path]:
+    for path in sorted(out_dir.glob(f"{stem}_fdown_*.mp4")):
+        if path.stat().st_size > 10_000:
+            return path
+    return None
+
+
+def _quality_from_snap_url(url: str) -> str:
+    try:
+        token = url.split("token=", 1)[1].split(".", 2)[1]
+        payload = json.loads(base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)))
+        name = str(payload.get("filename") or "")
+        match = re.search(r"(\d{3,4}p)", name, re.IGNORECASE)
+        if match:
+            return match.group(1).lower()
+    except (IndexError, ValueError, json.JSONDecodeError):
+        pass
+    return "mp4"
+
+
+def _save_snap_file(href: str, dest: Path) -> None:
+    import requests
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+        ),
+        "Referer": "https://fdownloader.net/",
+    }
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    with requests.get(href, headers=headers, stream=True, timeout=180) as response:
+        response.raise_for_status()
+        with tmp.open("wb") as handle:
+            for chunk in response.iter_content(1024 * 256):
+                if chunk:
+                    handle.write(chunk)
+    head = tmp.read_bytes()[:12]
+    if b"ftyp" not in head:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError("ответ fdownloader не похож на mp4")
+    tmp.replace(dest)
+
+
+def _ensure_playwright() -> bool:
+    global _PLAYWRIGHT_READY
+    if _PLAYWRIGHT_READY is not None:
+        return _PLAYWRIGHT_READY
+    try:
+        import playwright  # noqa: F401
+        _PLAYWRIGHT_READY = True
+        return True
+    except ImportError:
+        print("Ставлю playwright для fdownloader.net...", flush=True)
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "playwright"],
+            check=False,
+        )
+        _PLAYWRIGHT_READY = result.returncode == 0
+        return _PLAYWRIGHT_READY
+
+
+def _fdown_href(url: str) -> str:
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        try:
+            browser = playwright.chromium.launch(channel="chrome", headless=False)
+        except Exception:
+            browser = playwright.chromium.launch(headless=False)
+        try:
+            page = browser.new_page()
+            page.goto(FDOWNLOADER_PAGE, wait_until="domcontentloaded", timeout=45000)
+            box = page.locator("input[placeholder*='Facebook'], input[type='text'], input[type='search']").first
+            box.fill(url)
+            page.get_by_role("button", name=re.compile(r"Скачать|Download")).first.click()
+            link = page.locator("a.download-link-fb").first
+            link.wait_for(timeout=45000)
+            href = link.get_attribute("href") or ""
+        finally:
+            browser.close()
+    if not href.startswith("http"):
+        raise RuntimeError("fdownloader не вернул ссылку на файл")
+    return href
+
+
+def download_via_fdownloader(url: str, out_dir: Path) -> Tuple[bool, str]:
+    stem = _share_stem(url)
+    existing = _existing_fdown(out_dir, stem)
+    if existing:
+        print(existing, flush=True)
+        return True, "fdownloader (уже есть)"
+    if not _ensure_playwright():
+        return False, "playwright не установлен"
+    try:
+        href = _fdown_href(url)
+        quality = _quality_from_snap_url(href)
+        dest = out_dir / f"{stem}_fdown_{quality}.mp4"
+        _save_snap_file(href, dest)
+        print(dest, flush=True)
+        return True, "fdownloader"
+    except Exception as exc:
+        return False, f"fdownloader: {exc}"
+
+
+def download_with_fallback(
+    yt_dlp: Sequence[str],
+    url: str,
+    out_dir: Path,
+    *,
+    browser: Optional[str],
+    cookies: Optional[Path],
+    impersonate: Optional[str],
+    use_fdown: bool,
+) -> Tuple[bool, str]:
+    print("  1/3 yt-dlp", flush=True)
+    plain = build_ydl_args(
+        yt_dlp, out_dir, browser=None, cookies=None, impersonate=impersonate, extra=[],
+    )
+    ok, reason = download_one(plain, url)
+    if ok:
+        return True, "yt-dlp"
+    print(f"  не вышло ({reason})", flush=True)
+
+    if cookies or browser:
+        source = str(cookies) if cookies else f"браузер {browser}"
+        print(f"  2/3 cookies ({source})", flush=True)
+        with_cookies = build_ydl_args(
+            yt_dlp, out_dir, browser=browser, cookies=cookies, impersonate=impersonate, extra=[],
+        )
+        ok, reason = download_one(with_cookies, url)
+        if ok:
+            return True, "cookies"
+        print(f"  не вышло ({reason})", flush=True)
+    else:
+        print("  2/3 cookies пропущены: нет cookies.txt и браузер отключён", flush=True)
+
+    if not use_fdown or not _facebook_url(url):
+        return False, reason
+    print(f"  3/3 {FDOWNLOADER_PAGE}", flush=True)
+    return download_via_fdownloader(url, out_dir)
+
+
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Скачать видео Facebook (share / reel / watch) через yt-dlp.",
+        description=(
+            "Скачать видео Facebook: yt-dlp, затем cookies, затем fdownloader.net."
+        ),
     )
     parser.add_argument(
         "urls",
@@ -265,6 +429,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=0,
         help="Скачать только первые N ссылок (0 = все).",
     )
+    parser.add_argument(
+        "--no-fdown",
+        action="store_true",
+        help="Не открывать fdownloader.net, если yt-dlp и cookies не сработали.",
+    )
     return parser.parse_args(argv)
 
 
@@ -312,35 +481,41 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
         impersonate = None
 
-    browser = None if args.no_cookies or args.cookies else args.browser
-    cookies = Path(args.cookies) if args.cookies else None
-    if cookies and not cookies.is_file():
-        raise SystemExit(f"Файл cookies не найден: {cookies}")
+    if args.cookies:
+        cookies: Optional[Path] = Path(args.cookies)
+        if not cookies.is_file():
+            raise SystemExit(f"Файл cookies не найден: {cookies}")
+    elif not args.no_cookies and DEFAULT_COOKIES.is_file():
+        cookies = DEFAULT_COOKIES
+    else:
+        cookies = None
+    browser = None if args.no_cookies or cookies else args.browser
 
-    if browser:
-        print(
-            f"Cookies: из браузера {browser} "
-            "(закройте браузер, если yt-dlp не сможет прочитать профиль).",
-            flush=True,
-        )
+    print("Порядок: 1) yt-dlp  2) cookies  3) fdownloader.net", flush=True)
+    if cookies:
+        print(f"Cookies-файл: {cookies}", flush=True)
+    elif browser:
+        print(f"Cookies: браузер {browser}, если обычная загрузка не сработает.", flush=True)
+    if args.no_fdown:
+        print("fdownloader.net выключен (--no-fdown).", flush=True)
 
-    extra: List[str] = []
     ok: List[str] = []
     failed: List[Tuple[str, str]] = []
 
     for i, url in enumerate(urls, 1):
         print(f"\n======== [{i}/{len(urls)}] {url} ========", flush=True)
-        base = build_ydl_args(
+        success, reason = download_with_fallback(
             yt_dlp,
+            url,
             out_dir,
             browser=browser,
             cookies=cookies,
             impersonate=impersonate,
-            extra=extra,
+            use_fdown=not args.no_fdown,
         )
-        success, reason = download_one(base, url)
         if success:
             ok.append(url)
+            print(f"  готово: {reason}", flush=True)
         else:
             failed.append((url, reason))
         if i < len(urls) and args.sleep > 0:
@@ -354,10 +529,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         for url, reason in failed:
             print(f"  - {url}  ({reason})", flush=True)
         print(
-            "\nЕсли Facebook требует вход: откройте facebook.com в Chrome, "
-            "залогиньтесь и запустите снова с --browser chrome.\n"
-            "Альтернатива — экспорт cookies.txt расширением «Get cookies.txt LOCALLY» "
-            "и флаг --cookies путь\\к\\cookies.txt",
+            "\nПоложите cookies.txt в downloads/facebook "
+            "(экспорт «Get cookies.txt LOCALLY») и запустите снова. "
+            "Если и cookies не помогут, скрипт откроет fdownloader.net.",
             flush=True,
         )
         return 1

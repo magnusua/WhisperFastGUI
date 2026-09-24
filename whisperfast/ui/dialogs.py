@@ -272,18 +272,16 @@ def center_toplevel(app, win, parent=None):
     win.geometry(f"+{x}+{y}")
 
 
-def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
+def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> Optional[bool]:
     """
     Blocking ask from a worker thread using Tk main loop.
     Returns True (overwrite), False (use timed name), or None (skip write / closed).
 
-    Якщо відкрите вікно «Промты» — не питаємо (щоб діалог не ховався
-    під ним і не стопорив Whisper); одразу збереження з суфіксом часу.
-
-    Перенесено з core/output_conflict.py (core має лишатись без Tkinter) —
-    див. docs/INTERNAL-ARCHITECTURE.uk.md.
+    Якщо відкрите вікно «Промты» і це не AI (force=False) — не питаємо,
+    щоб діалог не ховався під ним і не стопорив Whisper; одразу суфікс часу.
+    AI передає force=True і чекає відповіді до виклику моделі.
     """
-    if ai_prompts_dialog_is_open(app):
+    if not force and ai_prompts_dialog_is_open(app):
         return False
 
     pending = object()
@@ -292,8 +290,7 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
 
     def ask():
         try:
-            # Якщо за час очікування відкрили «Промты» — без запитання
-            if ai_prompts_dialog_is_open(app):
+            if not force and ai_prompts_dialog_is_open(app):
                 choice[0] = False
                 done.set()
                 return
@@ -366,8 +363,6 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str) -> Optional[bool]:
 
     while not done.is_set():
         if getattr(app, "cancel_requested", False):
-            return False
-        if ai_prompts_dialog_is_open(app):
             return False
         done.wait(timeout=0.05)
 

@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "2.0.6",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "Self-update works again for installs from 1.2.17 through 2.0.5: the release ZIP contains a WhisperFastGUI-* folder, which those updaters look for after the SHA-256 check.",
+          "Turning autostart on or off removes this app’s duplicate entries from the current user’s registry Run key. The Startup shortcut stays the only autostart.",
+          "If an AI result file already exists, the overwrite question appears before the model is called, including while the prompts window is open."
+        ],
+        "UK": [
+          "Самооновлення знову працює для встановлень 1.2.17–2.0.5: у ZIP релізу є каталог WhisperFastGUI-*, який ці апдейтери шукають після перевірки SHA-256.",
+          "Увімкнення й вимкнення автозапуску прибирає дублікати цієї програми з реєстру поточного користувача (Run). Ярлик у Startup лишається єдиним автозапуском.",
+          "Якщо файл результату AI вже існує, запитання про перезапис з’являється до виклику моделі, зокрема коли відкрите вікно промптів."
+        ],
+        "RU": [
+          "Самообновление снова работает для установок 1.2.17–2.0.5: в ZIP релиза есть каталог WhisperFastGUI-*, который эти установщики ищут после проверки SHA-256.",
+          "Включение и выключение автозапуска убирает дубликаты этой программы из реестра текущего пользователя (Run). Ярлык в Startup остаётся единственным автозапуском.",
+          "Если файл результата AI уже существует, вопрос о перезаписи появляется до вызова модели, в том числе когда открыто окно промптов."
+        ]
+      }
+    },
+    {
       "version": "2.0.5",
       "date": "23.09.2026",
       "notes": {

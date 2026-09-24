@@ -794,6 +794,15 @@ class AiJobQueue:
                 self._clear_ai_retry(job)
             self._job_end()
 
+        def resolve_ai_output(path):
+            resolver = getattr(app, "resolve_output_path", None)
+            if not callable(resolver):
+                return path
+            try:
+                return resolver(path, force_ask=True)
+            except TypeError:
+                return resolver(path)
+
         def start():
             kwargs = {}
             if delay_s is not None:
@@ -805,7 +814,7 @@ class AiJobQueue:
                 log_func=log_func,
                 on_file_created=on_created,
                 on_complete=on_complete,
-                resolve_output_path=app.resolve_output_path,
+                resolve_output_path=resolve_ai_output,
                 prompts=prompts,
                 on_usage=on_usage,
                 **kwargs,

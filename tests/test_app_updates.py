@@ -9,6 +9,7 @@ from unittest.mock import patch
 from whisperfast.i18n import t
 from whisperfast.updates.app_updates import (
     _download_verified_release_zip,
+    _find_extracted_root,
     _format_release_date,
     _normalize_tag_version,
     _pick_release_assets,
@@ -235,6 +236,62 @@ class TestDownloadVerifiedReleaseZip(unittest.TestCase):
             self.assertIsNotNone(result)
             self.assertTrue(os.path.isfile(os.path.join(result, "main.py")))
             self.assertIn(t("app_update_checksum_ok"), logs)
+
+    def test_finds_ftw_and_legacy_extract_roots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ftw = os.path.join(tmp, "FTW-2.0.5")
+            os.makedirs(ftw)
+            with open(os.path.join(ftw, "main.py"), "w", encoding="utf-8") as f:
+                f.write("print(1)\n")
+            self.assertEqual(_find_extracted_root(tmp), ftw)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            legacy = os.path.join(tmp, "WhisperFastGUI-1.2.17")
+            os.makedirs(legacy)
+            with open(os.path.join(legacy, "main.py"), "w", encoding="utf-8") as f:
+                f.write("print(1)\n")
+            self.assertEqual(_find_extracted_root(tmp), legacy)
+
+    def test_missing_extract_root_is_logged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            zip_name = "FTW-9.9.9-src.zip"
+            src_zip = os.path.join(tmp, zip_name)
+            with zipfile.ZipFile(src_zip, "w") as zf:
+                zf.writestr("notes.txt", "no app\n")
+            digest = sha256_file(src_zip)
+            release = {
+                "tag_name": "v9.9.9",
+                "assets": [
+                    _asset(zip_name, "https://example.invalid/a.zip", digest=f"sha256:{digest}"),
+                    _asset("SHA256SUMS", "https://example.invalid/SHA256SUMS"),
+                ],
+            }
+
+            def fake_download(url, dest, timeout=180):
+                if "SHA256SUMS" in url:
+                    with open(dest, "w", encoding="utf-8") as f:
+                        f.write(f"{digest}  {zip_name}\n")
+                else:
+                    shutil.copy2(src_zip, dest)
+
+            logs = []
+            with patch("whisperfast.updates.app_updates.BASE_DIR", tmp):
+                with patch(
+                    "whisperfast.updates.app_updates.fetch_latest_github_release",
+                    return_value=release,
+                ):
+                    with patch(
+                        "whisperfast.updates.app_updates._signing_key_configured",
+                        return_value=False,
+                    ):
+                        with patch(
+                            "whisperfast.updates.app_updates._http_download",
+                            side_effect=fake_download,
+                        ):
+                            result = _download_verified_release_zip(logs.append)
+            self.assertIsNone(result)
+            self.assertIn(t("app_update_checksum_ok"), logs)
+            self.assertTrue(any("no application folder" in line for line in logs))
 
     def test_signing_key_requires_detached_signature(self):
         release = {

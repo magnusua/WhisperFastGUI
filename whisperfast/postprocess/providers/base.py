@@ -23,7 +23,7 @@ from whisperfast.postprocess.common import (
     read_text_file,
     write_text_file,
 )
-from whisperfast.postprocess.cursor_postprocess import edited_output_path
+from whisperfast.postprocess.cursor_postprocess import plan_prompt_outputs
 
 LogFunc = Callable[..., None]
 PromptTuple = Tuple[int, str, str]  # (num, name, text)
@@ -99,17 +99,9 @@ def run_provider_chain(
     """
     created: List[str] = []
     current_input = txt_path
-    for num, name, text in prompts:
-        out_path = edited_output_path(txt_path, num, name)
-        if resolve_output_path:
-            out_path = resolve_output_path(out_path)
-            if not out_path:
-                _log(
-                    log_func,
-                    "file_exists_skipped",
-                    name=os.path.basename(edited_output_path(txt_path, num, name)),
-                )
-                break
+    for num, name, text, out_path in plan_prompt_outputs(
+        txt_path, prompts, resolve_output_path, log_func
+    ):
         label = name or f"#{num}"
         _log(log_func, f"{provider_id}_processing_prompt", num=num, name=label)
         try:

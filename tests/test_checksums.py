@@ -2,6 +2,7 @@
 import os
 import tempfile
 import unittest
+import zipfile
 
 from whisperfast.updates.checksums import (
     expected_digest_for_filename,
@@ -71,6 +72,28 @@ class TestMakeReleaseChecksumsScript(unittest.TestCase):
             self.assertEqual(body, f"{digest}  FTW-9.9.9-src.zip\n")
             mapping = parse_sha256sums(body)
             self.assertEqual(mapping["FTW-9.9.9-src.zip"], digest)
+
+    def test_source_zip_root_uses_legacy_folder_name(self):
+        import importlib.util
+
+        script = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "scripts",
+            "make_release_checksums.py",
+        )
+        spec = importlib.util.spec_from_file_location("make_release_checksums", script)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            os.makedirs(repo)
+            with open(os.path.join(repo, "main.py"), "w", encoding="utf-8") as f:
+                f.write("print(1)\n")
+            zip_path = os.path.join(tmp, "out.zip")
+            mod.make_source_zip(repo, zip_path, "9.9.9")
+            with zipfile.ZipFile(zip_path) as zf:
+                names = zf.namelist()
+            self.assertIn("WhisperFastGUI-9.9.9/main.py", names)
 
 
 if __name__ == "__main__":

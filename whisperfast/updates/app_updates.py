@@ -19,6 +19,7 @@ from whisperfast.config import (
     GITHUB_REPO,
     GITHUB_URL,
     LEGACY_RELEASE_ZIP_PREFIXES,
+    RELEASE_ZIP_ROOT_PREFIX,
     RESOURCES_DIR,
 )
 from whisperfast.archive_extract import UnsafeArchiveMember, safe_extract_zip
@@ -277,15 +278,35 @@ def verify_detached_gpg_signature(data_path: str, sig_path: str, pubkey_path: st
         shutil.rmtree(homedir, ignore_errors=True)
 
 
+def _extract_root_prefix_ok(name: str) -> bool:
+    lower = name.lower()
+    if lower.startswith(RELEASE_ZIP_ROOT_PREFIX.lower()):
+        return True
+    return any(lower.startswith(prefix) for prefix in LEGACY_RELEASE_ZIP_PREFIXES)
+
+
 def _find_extracted_root(extract_dir: str) -> Optional[str]:
     try:
         entries = os.listdir(extract_dir)
     except OSError:
         return None
+    named = []
+    with_main = []
     for name in entries:
         candidate = os.path.join(extract_dir, name)
-        if os.path.isdir(candidate) and name.lower().startswith("whisperfastgui"):
+        if not os.path.isdir(candidate):
+            continue
+        if _extract_root_prefix_ok(name):
+            named.append(candidate)
+        elif os.path.isfile(os.path.join(candidate, "main.py")):
+            with_main.append(candidate)
+    for candidate in named:
+        if os.path.isfile(os.path.join(candidate, "main.py")):
             return candidate
+    if len(named) == 1:
+        return named[0]
+    if len(with_main) == 1:
+        return with_main[0]
     return None
 
 
@@ -374,6 +395,7 @@ def _download_verified_release_zip(log_func: Callable[[str], None]) -> Optional[
     # Zip of repo root (no wrapping folder)
     if os.path.isfile(os.path.join(extract_dir, "main.py")):
         return extract_dir
+    log_func(t("app_update_error", error="release ZIP has no application folder"))
     return None
 
 

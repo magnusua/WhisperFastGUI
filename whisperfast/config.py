@@ -40,6 +40,10 @@ APP_VERSION, APP_DATE = load_app_metadata()
 APP_NAME = "FTW"
 GITHUB_REPO = "magnusua/WhisperFastGUI"  # historical GitHub id; product name is FTW
 RELEASE_ZIP_PREFIX = "FTW"
+# Каталог внутри ZIP. Установщики по 2.0.5 включительно принимают только
+# папку, имя которой начинается с "whisperfastgui". Папка "FTW-*" проходит
+# проверку SHA-256 и дальше обновление останавливается без сообщения.
+RELEASE_ZIP_ROOT_PREFIX = "WhisperFastGUI"
 LEGACY_RELEASE_ZIP_PREFIXES = ("ftw", "whisperfastgui")
 GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"

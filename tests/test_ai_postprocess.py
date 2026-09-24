@@ -1,4 +1,6 @@
 """whisperfast.postprocess.ai_postprocess: provider dispatch (direct, not via the UI layer)."""
+import os
+import tempfile
 import threading
 import unittest
 from types import SimpleNamespace
@@ -136,6 +138,66 @@ class TestStartAiPostprocessAsync(unittest.TestCase):
                 on_complete=on_complete,
             )
         self.assertTrue(done.wait(2), "on_complete() fallback was not invoked")
+
+
+class TestOutputCheckBeforeModel(unittest.TestCase):
+    def test_skip_on_the_first_file_does_not_call_the_model(self):
+        from whisperfast.postprocess.providers.base import run_provider_chain
+
+        order = []
+        with tempfile.TemporaryDirectory() as tmp:
+            txt = os.path.join(tmp, "clip.txt")
+            with open(txt, "w", encoding="utf-8") as handle:
+                handle.write("hello")
+
+            def resolve(path):
+                order.append(os.path.basename(path))
+                return ""
+
+            def call_llm(_msg):
+                order.append("llm")
+                return "out"
+
+            created = run_provider_chain(
+                "ollama",
+                call_llm,
+                txt,
+                [(1, "redactor", "edit"), (9, "one_liner", "brief")],
+                resolve_output_path=resolve,
+            )
+        self.assertEqual(created, [])
+        self.assertEqual(order, ["clip_redactor.md"])
+
+    def test_later_skip_is_asked_before_the_first_model_call(self):
+        from whisperfast.postprocess.providers.base import run_provider_chain
+
+        order = []
+        with tempfile.TemporaryDirectory() as tmp:
+            txt = os.path.join(tmp, "clip.txt")
+            with open(txt, "w", encoding="utf-8") as handle:
+                handle.write("hello")
+
+            def resolve(path):
+                order.append("resolve:" + os.path.basename(path))
+                if path.endswith("_one_liner.md"):
+                    return ""
+                return path
+
+            def call_llm(_msg):
+                order.append("llm")
+                return "out"
+
+            run_provider_chain(
+                "ollama",
+                call_llm,
+                txt,
+                [(1, "redactor", "edit"), (9, "one_liner", "brief")],
+                resolve_output_path=resolve,
+            )
+        self.assertEqual(
+            order,
+            ["resolve:clip_redactor.md", "resolve:clip_one_liner.md", "llm"],
+        )
 
 
 if __name__ == "__main__":

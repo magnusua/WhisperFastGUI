@@ -19,7 +19,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from whisperfast.config import README_PATH, RELEASE_ZIP_PREFIX, parse_app_metadata  # noqa: E402
+from whisperfast.config import (  # noqa: E402
+    README_PATH,
+    RELEASE_ZIP_PREFIX,
+    RELEASE_ZIP_ROOT_PREFIX,
+    parse_app_metadata,
+)
 from whisperfast.updates.checksums import sha256_file  # noqa: E402
 
 EXCLUDE_DIR_NAMES = frozenset(
@@ -92,7 +97,9 @@ def iter_repo_files(repo_root: str):
 
 
 def make_source_zip(repo_root: str, zip_path: str, version: str) -> None:
-    wrap = f"{RELEASE_ZIP_PREFIX}-{version}"
+    # Имя файла — FTW-*.zip, каталог внутри — WhisperFastGUI-*: так архив
+    # находит установщик 1.2.17–2.0.5 после проверки SHA-256.
+    wrap = f"{RELEASE_ZIP_ROOT_PREFIX}-{version}"
     os.makedirs(os.path.dirname(os.path.abspath(zip_path)) or ".", exist_ok=True)
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for full, rel in iter_repo_files(repo_root):
