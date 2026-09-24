@@ -93,6 +93,39 @@ class TestPipRetryAndTorchFallback(unittest.TestCase):
         self.assertTrue(any("--index-url" in c for c in cmds))
         self.assertTrue(any("--index-url" not in c and "torch" in c for c in cmds))
 
+    def test_old_cuda_wheel_is_uninstalled_before_cu128(self):
+        from whisperfast.setup import installer as inst
+
+        cmds = []
+
+        def fake_run(cmd, log_func, timeout=600, summarize=True):
+            cmds.append(list(cmd))
+            return 0
+
+        with patch.object(inst.importlib.metadata, "version", return_value="2.5.1+cu121"):
+            with patch.object(inst, "_run_install_cmd", side_effect=fake_run):
+                with patch.object(inst, "_pip_python", return_value="python"):
+                    code = inst._run_torch_install(lambda _line: None, use_cuda=True, summarize=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(cmds[0][3], "uninstall")
+        self.assertIn("--index-url", cmds[1])
+        self.assertIn("cu128", " ".join(cmds[1]))
+
+    def test_cu128_wheel_is_not_removed(self):
+        from whisperfast.setup import installer as inst
+
+        cmds = []
+
+        def fake_run(cmd, log_func, timeout=600, summarize=True):
+            cmds.append(list(cmd))
+            return 0
+
+        with patch.object(inst.importlib.metadata, "version", return_value="2.8.0+cu128"):
+            with patch.object(inst, "_run_install_cmd", side_effect=fake_run):
+                with patch.object(inst, "_pip_python", return_value="python"):
+                    inst._run_torch_install(lambda _line: None, use_cuda=True, summarize=True)
+        self.assertNotIn("uninstall", cmds[0])
+
 
 class TestCudaCliOverride(unittest.TestCase):
     def test_parse_cuda_cpu_auto(self):
@@ -247,6 +280,10 @@ class TestPypiPythonFilter(unittest.TestCase):
         self.assertTrue(_version_is_newer("2.5.3", "2.4.6"))
         self.assertFalse(_torch_needs_update("2.14.0", "2.5.1+cu121"))
         self.assertTrue(_torch_needs_update("2.4.0", "2.5.1+cu121"))
+        rtx50 = "NVIDIA GeForce RTX 5070 Laptop GPU"
+        self.assertTrue(_torch_needs_update("2.14.0+cu121", "2.7.0+cu128", gpu_name=rtx50))
+        self.assertFalse(_torch_needs_update("2.8.0+cu128", "2.7.0+cu128", gpu_name=rtx50))
+        self.assertFalse(_torch_needs_update("2.14.0+cu121", "2.5.1+cu121", gpu_name=rtx50))
 
 
 class TestCudaWake(unittest.TestCase):

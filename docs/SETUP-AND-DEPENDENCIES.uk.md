@@ -8,7 +8,7 @@
 
 - **Python:** 3.9–3.13; рекомендовано **3.11 або 3.12**. Python 3.14+ часто не підходить — для нього ще немає коліс `ctranslate2`/`torch` на PyPI.
 - **ОС:** Windows 10/11, Linux (X11/Wayland), macOS.
-- **GPU:** рекомендована відеокарта NVIDIA з CUDA 12.1 (`cu121`) для прискорення на Windows/Linux; AMD Radeon та інші GPU без CUDA працюють лише в режимі CPU.
+- **GPU:** відеокарта NVIDIA. `install.bat` ставить PyTorch з індексу CUDA 12.8 (`cu128`, `config.CUDA_INDEX`). Ця збірка працює і на RTX 50, і на старіших картах NVIDIA. AMD Radeon та інші GPU без CUDA працюють лише в режимі CPU.
 - **FFmpeg** у PATH — обов'язковий для аудіо/відео.
 - **Pandoc** — опційний, лише для «MD → Word».
 - Python 3.13+: автоматично додається `audioop-lts` (заміна прибраного модуля `audioop`, потрібного для `pydub`).
@@ -29,7 +29,7 @@
 1. **Python 3.9–3.13** (рекомендовано 3.12), позначити «Add Python to PATH» при встановленні.
 2. **FFmpeg** у PATH: Windows — `winget install --id Gyan.FFmpeg -e` або `choco install ffmpeg`; macOS — `brew install ffmpeg`; Linux — `sudo apt install ffmpeg`.
 3. **(Опційно) Pandoc** — лише для «MD → Word»: `winget install --id JohnMacFarlane.Pandoc -e` / `choco install pandoc` / `brew install pandoc` / `sudo apt install pandoc`. Після ручного встановлення потрібен перезапуск термінала/програми, щоб підхопився оновлений PATH.
-4. **`install.bat`** (Windows) або кнопка **[Залежності]** у GUI — запускає `python -m whisperfast.setup.installer`, який: перевіряє Python і вже встановлені пакети → оновлює `pip`/`setuptools`/`wheel`/`packaging` → встановлює PyTorch (CUDA 12.1 за наявності NVIDIA), `faster-whisper`, `ctranslate2` → **пропускає** `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` при першому встановленні (ставляться окремо через [Оновлення]/[Залежності] у GUI) → встановлює `pygame`, `pydub`, `sounddevice`, `numpy`, `tkinterdnd2-universal`, `pystray`, `Pillow`, `cursor-sdk`, `markitdown[pdf,docx,pptx,xlsx,xls]` → за потреби ставить FFmpeg і Pandoc.
+4. **`install.bat`** (Windows) або кнопка **[Залежності]** у GUI — запускає `python -m whisperfast.setup.installer`. Якщо `nvidia-smi` або `settings.json` бачить NVIDIA, батник передає `--cuda` і питання не ставить. Установщик: перевіряє Python і вже встановлені пакети → оновлює `pip`/`setuptools`/`wheel`/`packaging` → якщо встановлений `torch` без CUDA 12.8, знімає `torch`/`torchvision`/`torchaudio` і ставить їх з індексу `cu128` → `faster-whisper`, `ctranslate2` → `nvidia-cublas-cu12`/`nvidia-cudnn-cu12` → `pygame`, `pydub`, `sounddevice`, `numpy`, `tkinterdnd2-universal`, `pystray`, `Pillow`, `cursor-sdk`, `markitdown[pdf,docx,pptx,xlsx,xls]` → за потреби FFmpeg і Pandoc. Без NVIDIA (або з `--cpu`) ставиться CPU-збірка PyTorch.
 5. Запуск: `run_whisper.vbs` (Windows, без вікна консолі) або `python main.py` / `python3 main.py` (Linux/macOS). Прапорець `--transcribe` запускає обробку всієї поточної черги одразу після старту.
 
 `install.bat` — тонка обгортка: PowerShell-командою читає `python_path` із `settings.json`, якщо він там уже збережений з попереднього запуску, інакше використовує `python` з PATH; на macOS/Linux скриптового еквівалента немає (тільки прямий виклик `python -m whisperfast.setup.installer`).
@@ -70,7 +70,7 @@
 
 ## GPU / CUDA
 
-`setup/gpu_info.py` виявляє наявність відеокарти NVIDIA і зберігає результат (`has_nvidia`, `gpu_model`) у `settings.json` — це визначає, чи пропонується CUDA-індекс `cu121` для встановлення `torch`, і впливає на логіку вибору пристрою в [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md). Перед транскрипцією та сама перевірка будить заснулу дискретну карту (`nvidia-smi -L`) і лише потім падає на CPU.
+`setup/gpu_info.py` виявляє наявність відеокарти NVIDIA і зберігає результат (`has_nvidia`, `gpu_model`) у `settings.json`. Ім’я карти показується користувачу; сам індекс PyTorch один для будь-якої NVIDIA — `cu128` (`config.CUDA_INDEX`). Вибір пристрою під час транскрипції — [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md). Перед транскрипцією FTW утримує дискретну карту увімкненою (клієнт D3D11 на адаптері NVIDIA і `cuInit`), навіть якщо кришка ноутбука закрита і монітор не підключений, і лише потім падає на CPU.
 
 ## Автозапуск з затримкою (Windows)
 

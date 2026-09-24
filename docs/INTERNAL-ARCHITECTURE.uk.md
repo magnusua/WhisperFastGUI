@@ -100,7 +100,7 @@
 | `python_selector.py` | Пошук установлених інтерпретаторів Python при першому запуску, вибір і збереження `python_path`/`python_version`, re-exec під обраним інтерпретатором. |
 | `installer.py` | Встановлення/оновлення pip-пакетів (torch з потрібним CUDA-індексом, faster-whisper, ctranslate2, pydub, pystray, cursor-sdk, markitdown тощо); прибирання «зламаних» залишків перерваного pip. Перевірка оновлень бере лише реліз, новіший за встановлений і сумісний з цим Python. |
 | `external_tools.py` | FFmpeg/Pandoc: перевірка наявності, встановлення через winget/Chocolatey/Homebrew, або запасний варіант — завантаження релізу з GitHub у каталог `tools/`. |
-| `gpu_info.py` | Виявлення відеокарти NVIDIA і моделі GPU для `settings.json`. `poke_nvidia_gpu()` будить дискретну карту через `nvidia-smi -L`. |
+| `gpu_info.py` | Виявлення відеокарти NVIDIA і моделі GPU для `settings.json`. `poke_nvidia_gpu()` утримує дискретну карту увімкненою без монітора (D3D11 + `cuInit`) і питає ім’я через `nvidia-smi`. |
 
 Детальніше — [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md).
 

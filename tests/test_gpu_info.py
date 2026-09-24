@@ -4,11 +4,19 @@ from unittest.mock import patch
 
 from whisperfast.setup.gpu_info import (
     gpu_model_looks_nvidia,
+    gpu_needs_cuda128,
     install_gpu_status_line,
     nvidia_for_install,
     nvidia_from_settings,
     refresh_gpu_settings,
 )
+
+
+class TestBlackwellCuda(unittest.TestCase):
+    def test_rtx50_needs_cu128(self):
+        self.assertTrue(gpu_needs_cuda128("NVIDIA GeForce RTX 5070 Laptop GPU"))
+        self.assertFalse(gpu_needs_cuda128("NVIDIA GeForce RTX 4090"))
+        self.assertFalse(gpu_needs_cuda128("NVIDIA RTX 5000 Ada Generation"))
 
 
 class TestGpuModelLooksNvidia(unittest.TestCase):

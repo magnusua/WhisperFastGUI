@@ -3,7 +3,7 @@
 # Це довідковий/страховий манифест (див. CODE-REVIEW.md, розділ 7 і
 # SETUP-AND-DEPENDENCIES.uk.md): фактичну установку в звичайному режимі
 # виконує whisperfast/setup/installer.py (там же обирається CUDA-індекс
-# cu121 для torch за наявності NVIDIA — цього requirements.txt не робить).
+# cu128 для torch за наявності NVIDIA — цього requirements.txt не робить).
 # Використовуйте цей файл для відтворюваної установки без installer.py,
 # наприклад: pip install -r requirements.txt
 #

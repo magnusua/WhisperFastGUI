@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.3",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "install.bat installs PyTorch from the CUDA 12.8 index for any NVIDIA GPU. A build older than CUDA 12.8, including cu121, is removed and replaced. RTX 50 cannot run on cu121.",
+          "Before transcription FTW keeps the discrete NVIDIA GPU powered on when the laptop lid is closed and no display is connected."
+        ],
+        "UK": [
+          "install.bat для будь-якої NVIDIA ставить PyTorch з індексу CUDA 12.8. Збірку старішу за CUDA 12.8, зокрема cu121, установщик знімає і замінює. RTX 50 на cu121 не працює.",
+          "Перед транскрипцією FTW утримує дискретну відеокарту NVIDIA увімкненою, коли кришка закрита і дисплей не підключений."
+        ],
+        "RU": [
+          "install.bat для любой NVIDIA ставит PyTorch с индекса CUDA 12.8. Сборку старше CUDA 12.8, в том числе cu121, установщик снимает и заменяет. RTX 50 на cu121 не работает.",
+          "Перед транскрипцией FTW удерживает дискретную видеокарту NVIDIA включённой, когда крышка закрыта и дисплей не подключён."
+        ]
+      }
+    },
+    {
       "version": "2.1.2",
       "date": "24.09.2026",
       "notes": {

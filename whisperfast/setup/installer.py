@@ -238,10 +238,21 @@ def _version_is_newer(latest, current) -> bool:
     return str(latest) != str(current)
 
 
-def _torch_needs_update(current, latest):
-    """Новіша збірка torch, або той самий номер з іншим локальним тегом (+cu121)."""
+def _torch_needs_update(current, latest, gpu_name=""):
+    """Новіша збірка torch, або той самий номер з іншим локальним тегом (+cu128).
+
+    RTX 50 stays on CPU until the wheel is CUDA 12.8+, even when that wheel's
+    version number is lower than a CPU or cu121 build already installed.
+    """
     if not latest or not current or current == latest:
         return False
+    from whisperfast.setup.gpu_info import _cuda_tag_version, gpu_needs_cuda128
+
+    if gpu_needs_cuda128(gpu_name):
+        have = _cuda_tag_version(current)
+        offer = _cuda_tag_version(latest)
+        if (have is None or have < (12, 8)) and offer is not None and offer >= (12, 8):
+            return True
     if _version_is_newer(latest, current):
         return True
     if Version is None:
@@ -286,7 +297,7 @@ def check_updates(log_func):
                     latest = get_latest_pip_index_version(pkg, CUDA_INDEX)
                 else:
                     latest = get_latest_pypi_version(pkg)
-                needs = _torch_needs_update(current, latest)
+                needs = _torch_needs_update(current, latest, gpu_name=gpu_name or "")
             else:
                 latest = get_latest_pypi_version(pkg)
                 needs = _version_is_newer(latest, current)
@@ -512,8 +523,28 @@ def _run_pip_specs(
     return 1 if failed else 0
 
 
+def _installed_torch_cuda_tag():
+    """(version, (major, minor) or None). None version means torch is not installed."""
+    try:
+        ver = importlib.metadata.version("torch")
+    except importlib.metadata.PackageNotFoundError:
+        return None, None
+    from whisperfast.setup.gpu_info import _cuda_tag_version
+    return ver, _cuda_tag_version(ver)
+
+
 def _run_torch_install(log_func, use_cuda, force=False, summarize=True):
     specs = ["torch", "torchvision", "torchaudio"]
+    if use_cuda:
+        ver, tag = _installed_torch_cuda_tag()
+        if ver and (tag is None or tag < (12, 8)):
+            log_func(t("torch_replace_old_cuda", version=ver))
+            _run_install_cmd(
+                [_pip_python(), "-m", "pip", "uninstall", "-y", *specs],
+                log_func,
+                summarize=summarize,
+            )
+            force = True
     extra = ["--index-url", CUDA_INDEX] if use_cuda else None
     code = _run_pip_specs(
         specs,

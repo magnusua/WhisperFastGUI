@@ -1919,10 +1919,15 @@
     "UK": "NVIDIA GPU (модель невідома)",
     "RU": "NVIDIA GPU (модель неизвестна)"
   },
+  "torch_replace_old_cuda": {
+    "EN": "▶ Replacing PyTorch {version}: RTX 50 and current NVIDIA installs need CUDA 12.8 (cu128).",
+    "UK": "▶ Заміна PyTorch {version}: RTX 50 і поточне встановлення NVIDIA потребують CUDA 12.8 (cu128).",
+    "RU": "▶ Замена PyTorch {version}: RTX 50 и текущая установка NVIDIA требуют CUDA 12.8 (cu128)."
+  },
   "torch_update_index_cu121": {
-    "EN": "▶ Torch updates: PyTorch CUDA 12.1 index (cu121)",
-    "UK": "▶ Оновлення Torch: індекс PyTorch CUDA 12.1 (cu121)",
-    "RU": "▶ Обновление Torch: индекс PyTorch CUDA 12.1 (cu121)"
+    "EN": "▶ Torch updates: PyTorch CUDA 12.8 index (cu128)",
+    "UK": "▶ Оновлення Torch: індекс PyTorch CUDA 12.8 (cu128)",
+    "RU": "▶ Обновление Torch: индекс PyTorch CUDA 12.8 (cu128)"
   },
   "cuda_waking": {
     "EN": "NVIDIA GPU is asleep — waking it for CUDA…",
@@ -1933,6 +1938,16 @@
     "EN": "⚠ CUDA is not available — running on CPU (NVIDIA GPU not detected; AMD Radeon and other GPUs work in CPU mode).",
     "UK": "⚠ CUDA недоступна — робота на CPU (NVIDIA GPU не виявлено; AMD Radeon та інші GPU працюють у режимі CPU).",
     "RU": "⚠ CUDA недоступна — работаем на CPU (NVIDIA GPU не обнаружена; AMD Radeon и другие GPU работают в режиме CPU)."
+  },
+  "cuda_torch_too_old": {
+    "EN": "⚠ {name} needs PyTorch CUDA 12.8 (cu128). Installed build is CUDA {cuda}, so this run stays on CPU. Use Update, then restart.",
+    "UK": "⚠ {name} потребує PyTorch CUDA 12.8 (cu128). Зараз стоїть CUDA {cuda}, тож цей запуск іде на CPU. Запустіть Оновлення і перезапустіть.",
+    "RU": "⚠ {name} требует PyTorch CUDA 12.8 (cu128). Сейчас установлена CUDA {cuda}, поэтому этот запуск идёт на CPU. Запустите Обновление и перезапустите программу."
+  },
+  "cuda_headless": {
+    "EN": "⚠ {name} is installed, but CUDA sees no device. With the lid closed and no monitor Windows powers the GPU off. Restart FTW once so it can keep the GPU awake.",
+    "UK": "⚠ {name} встановлена, але CUDA не бачить пристрій. З закритою кришкою і без монітора Windows вимикає відеокарту. Перезапустіть FTW один раз — далі вона утримуватиме GPU увімкненим.",
+    "RU": "⚠ {name} установлена, но CUDA не видит устройство. При закрытой крышке и без монитора Windows выключает видеокарту. Перезапустите FTW один раз — дальше программа будет удерживать GPU включённой."
   },
   "torch_not_installed": {
     "EN": "❌ Torch not installed",
@@ -2230,9 +2245,9 @@
     "RU": "✓ PyTorch установлен"
   },
   "install_cuda_chosen_yes": {
-    "EN": "CUDA: yes — installing PyTorch cu121 and NVIDIA libs.",
-    "UK": "CUDA: так — ставимо PyTorch cu121 і бібліотеки NVIDIA.",
-    "RU": "CUDA: да — ставим PyTorch cu121 и библиотеки NVIDIA."
+    "EN": "CUDA: yes — installing PyTorch cu128 and NVIDIA libs.",
+    "UK": "CUDA: так — ставимо PyTorch cu128 і бібліотеки NVIDIA.",
+    "RU": "CUDA: да — ставим PyTorch cu128 и библиотеки NVIDIA."
   },
   "install_cuda_chosen_no": {
     "EN": "CUDA: skip — installing CPU PyTorch, then the rest.",

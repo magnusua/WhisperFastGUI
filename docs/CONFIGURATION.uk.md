@@ -46,7 +46,7 @@
 | `tray_mode` | `"panel"` | `panel` / `tray` / `panel+tray`. |
 | `whisper_model` | `DEFAULT_MODEL` (`"large-v3-turbo"`) | Обрана модель Whisper зі списку `config.WHISPER_MODELS`. |
 | `has_nvidia` | `false` | Кеш результату виявлення GPU NVIDIA (`setup/gpu_info.py`). |
-| `gpu_model` | `""` | Назва відеокарти (для показу і для логіки cu121-індексу). |
+| `gpu_model` | `""` | Назва відеокарти. Показ у лозі; наявність NVIDIA вмикає індекс PyTorch `cu128`. |
 | `send_txt_to_ai` | `false` | Прапорець «В AI». |
 | `send_txt_to_cursor` | `false` | **Legacy-псевдонім** `send_txt_to_ai` — синхронізується автоматично при завантаженні й збереженні (див. нижче). |
 | `ai_default_prompt_nums` | `[1]` | Номери промптів, позначені за замовчуванням у вікні «В AI» і в діалозі запуску. Порожній список = жоден. |

@@ -48,10 +48,7 @@ class WhisperModelSingleton:
             compute = "int8"
 
         if device == "cpu" and mode in ["GPU", "AUTO"] and not torch.cuda.is_available():
-            try:
-                log_func(t("cuda_unavailable"))
-            except Exception:
-                log_func("⚠ CUDA is not available — running on CPU (including AMD Radeon GPUs).")
+            _log_cuda_fallback(log_func)
 
         with cls._lock:
             need_load = (
@@ -113,16 +110,35 @@ class WhisperModelSingleton:
             cls._device = None
 
 
+def _log_cuda_fallback(log_func):
+    from whisperfast.setup.gpu_info import nvidia_smi_name, poke_nvidia_gpu, torch_build_too_old_for
+
+    name = nvidia_smi_name() or poke_nvidia_gpu.last_name
+    try:
+        if name and torch_build_too_old_for(name):
+            cuda = getattr(torch.version, "cuda", None) or "cpu"
+            log_func(t("cuda_torch_too_old", name=name, cuda=cuda))
+            return
+        if name:
+            log_func(t("cuda_headless", name=name))
+            return
+        log_func(t("cuda_unavailable"))
+    except Exception:
+        log_func("⚠ CUDA is not available — running on CPU (including AMD Radeon GPUs).")
+
+
 def cuda_available(log_func=None, attempts=6, pause=0.75) -> bool:
     """True when CUDA answers. If the GPU powered down, poke the driver and retry."""
     if torch.cuda.is_available():
         return True
-    from whisperfast.setup.gpu_info import poke_nvidia_gpu
+    from whisperfast.setup.gpu_info import poke_nvidia_gpu, torch_build_too_old_for
 
     misses = 0
     announced = False
     for _ in range(attempts):
         if poke_nvidia_gpu():
+            if torch_build_too_old_for(poke_nvidia_gpu.last_name):
+                return False
             misses = 0
             if not announced and log_func is not None:
                 announced = True
