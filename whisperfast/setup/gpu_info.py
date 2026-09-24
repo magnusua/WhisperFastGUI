@@ -8,6 +8,21 @@ from whisperfast.platform_util import win_no_window_kwargs
 
 
 
+def poke_nvidia_gpu() -> bool:
+    """Ask the NVIDIA driver to list GPUs. This wakes a discrete GPU that powered down."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "-L"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            **win_no_window_kwargs(),
+        )
+        return result.returncode == 0 and "GPU" in (result.stdout or "")
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
 def detect_nvidia_gpu():
     """
     Повертає (has_nvidia, gpu_name).

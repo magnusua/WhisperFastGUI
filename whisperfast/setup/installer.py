@@ -18,8 +18,10 @@ from whisperfast.platform_util import run_logged_command, win_no_window_kwargs
 from whisperfast.setup.python_selector import _to_python_exe
 
 try:
+    from packaging.specifiers import SpecifierSet
     from packaging.version import Version
 except ImportError:
+    SpecifierSet = None
     Version = None
 
 
@@ -134,13 +136,64 @@ def ensure_audioop_shim(log_func=print, summarize=True):
     return False
 
 
-def get_latest_pypi_version(package):
-    """Получает последнюю версию пакета с PyPI."""
+def _python_satisfies(requires_python, version_info=None) -> bool:
+    """True when this interpreter matches a release's Requires-Python."""
+    spec = str(requires_python or "").strip()
+    if not spec or SpecifierSet is None:
+        return True
+    info = version_info or sys.version_info
+    py = f"{info[0]}.{info[1]}.{info[2]}"
+    try:
+        return SpecifierSet(spec).contains(py, prereleases=True)
+    except Exception:
+        return True
+
+
+def latest_compatible_pypi_version(payload, version_info=None):
+    """Newest non-yanked release whose Requires-Python matches version_info."""
+    releases = payload.get("releases") if isinstance(payload, dict) else None
+    best = None
+    best_text = None
+    for version, files in (releases or {}).items():
+        if not isinstance(files, list) or not files:
+            continue
+        live = [item for item in files if isinstance(item, dict) and not item.get("yanked")]
+        if not live:
+            continue
+        requires = next((item.get("requires_python") for item in live if item.get("requires_python")), None)
+        if not _python_satisfies(requires, version_info):
+            continue
+        if Version is None:
+            best_text = str(version)
+            continue
+        try:
+            parsed = Version(str(version))
+        except Exception:
+            continue
+        if parsed.is_prerelease:
+            continue
+        if best is None or parsed > best:
+            best = parsed
+            best_text = str(version)
+    if best_text:
+        return best_text
+    info = payload.get("info") if isinstance(payload, dict) else None
+    if not isinstance(info, dict):
+        return None
+    latest = info.get("version")
+    if latest and _python_satisfies(info.get("requires_python"), version_info):
+        return str(latest)
+    return None
+
+
+def get_latest_pypi_version(package, version_info=None):
+    """Остання версія пакета з PyPI, яку можна поставити на цей Python."""
     try:
         url = f"https://pypi.org/pypi/{package}/json"
         with urllib.request.urlopen(url, timeout=5) as response:
-            return json.loads(response.read().decode())["info"]["version"]
-    except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError):
+            payload = json.loads(response.read().decode())
+        return latest_compatible_pypi_version(payload, version_info)
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError, TypeError):
         return None
 
 
@@ -173,28 +226,34 @@ def get_latest_pip_index_version(package, index_url):
     return None
 
 
-def _torch_needs_update(current, latest):
-    """Порівняння версій torch (з урахуванням +cu121)."""
-    if not latest:
-        return False
-    if current == latest:
+def _version_is_newer(latest, current) -> bool:
+    """True only when latest is a higher version than the one already installed."""
+    if not latest or not current:
         return False
     if Version is not None:
         try:
-            cur_v = Version(current)
-            lat_v = Version(latest)
-            if cur_v == lat_v:
-                return False
-            if cur_v.base_version != lat_v.base_version:
-                return True
-            return str(cur_v) != str(lat_v)
+            return Version(str(latest)) > Version(str(current))
         except Exception:
             pass
-    cur_base = (current or "").split("+")[0]
-    lat_base = latest.split("+")[0]
-    if cur_base != lat_base:
+    return str(latest) != str(current)
+
+
+def _torch_needs_update(current, latest):
+    """Новіша збірка torch, або той самий номер з іншим локальним тегом (+cu121)."""
+    if not latest or not current or current == latest:
+        return False
+    if _version_is_newer(latest, current):
         return True
-    return current != latest
+    if Version is None:
+        return False
+    try:
+        cur_v = Version(current)
+        lat_v = Version(latest)
+    except Exception:
+        return False
+    if cur_v > lat_v or cur_v.base_version != lat_v.base_version:
+        return False
+    return str(cur_v) != str(lat_v)
 
 
 def _torch_install_cmd(use_cuda_index):
@@ -230,7 +289,7 @@ def check_updates(log_func):
                 needs = _torch_needs_update(current, latest)
             else:
                 latest = get_latest_pypi_version(pkg)
-                needs = bool(latest and current != latest)
+                needs = _version_is_newer(latest, current)
             if needs:
                 updates_found.append((pkg, current, latest))
                 log_func(t("package_update", package=pkg, current=current, latest=latest))

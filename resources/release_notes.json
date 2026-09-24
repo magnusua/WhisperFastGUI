@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "2.1.1",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "When the listener accepts audio or video, the FTW log shows it immediately, before the file finishes downloading. The same start notice is sent to Saved Messages.",
+          "Package updates are offered only when the release is newer than the one installed and its Python requirement matches this interpreter. An older CUDA build is not shown as an update.",
+          "If the NVIDIA GPU has powered down, FTW wakes it before transcription and asks Windows not to sleep the machine while the queue is running."
+        ],
+        "UK": [
+          "Коли слухач приймає аудіо або відео, рядок з’являється в лозі FTW одразу, ще до завантаження файлу. Під час старту те саме повідомлення йде в Обране.",
+          "Оновлення пакета пропонується лише якщо версія новіша за встановлену і підходить до цього Python. Старіша збірка CUDA не показується як оновлення.",
+          "Якщо відеокарта NVIDIA заснула, FTW будить її перед транскрипцією і просить Windows не засинати систему, поки йде черга."
+        ],
+        "RU": [
+          "Когда слушатель принимает аудио или видео, строка появляется в логе FTW сразу, ещё до загрузки файла. При старте то же сообщение уходит в Избранное.",
+          "Обновление пакета предлагается только если версия новее установленной и подходит к этому Python. Более старая сборка CUDA не показывается как обновление.",
+          "Если видеокарта NVIDIA уснула, FTW будит её перед транскрипцией и просит Windows не усыплять систему, пока идёт очередь."
+        ]
+      }
+    },
+    {
       "version": "2.1.0",
       "date": "24.09.2026",
       "notes": {

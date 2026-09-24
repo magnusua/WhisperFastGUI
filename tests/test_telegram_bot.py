@@ -133,6 +133,9 @@ class TestAllowlist(unittest.TestCase):
         self.assertEqual(sent[0][0], 42)
         self.assertEqual(sent[0][2], 3)
         self.assertTrue(any("7" in line for line in logs))
+        from whisperfast.i18n import t
+
+        self.assertIn(t("telegram_found", name=pending[0].filename, chat="42"), logs)
 
     def test_normalize_chat_ids_and_settings_round_trip(self):
         self.assertEqual(normalize_chat_ids(["-100", 5, 5, True, "x"]), [-100, 5])

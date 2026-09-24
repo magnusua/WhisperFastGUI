@@ -9,7 +9,7 @@ from whisperfast.config import BASE_DIR
 from whisperfast.i18n import t
 from whisperfast.settings import normalize_chat_ids, normalize_chat_names
 from whisperfast.telegram.outbox import take_outgoing
-from whisperfast.telegram.worker import _extension_ok, resolve_work_dir, safe_filename
+from whisperfast.telegram.worker import _extension_ok, chat_display_name, resolve_work_dir, safe_filename
 
 LogFunc = Callable[[str], None]
 
@@ -141,6 +141,7 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
     filename = media_filename(name, mime)
     if not filename:
         return
+    log(t("telegram_found", name=filename, chat=chat_display_name(chat, chat_id)))
     if not gui_running():
         await event.reply(t("telegram_gui_required"))
         return

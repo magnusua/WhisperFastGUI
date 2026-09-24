@@ -1924,6 +1924,11 @@
     "UK": "▶ Оновлення Torch: індекс PyTorch CUDA 12.1 (cu121)",
     "RU": "▶ Обновление Torch: индекс PyTorch CUDA 12.1 (cu121)"
   },
+  "cuda_waking": {
+    "EN": "NVIDIA GPU is asleep — waking it for CUDA…",
+    "UK": "Відеокарта NVIDIA спить — буджу її для CUDA…",
+    "RU": "Видеокарта NVIDIA спит — бужу её для CUDA…"
+  },
   "cuda_unavailable": {
     "EN": "⚠ CUDA is not available — running on CPU (NVIDIA GPU not detected; AMD Radeon and other GPUs work in CPU mode).",
     "UK": "⚠ CUDA недоступна — робота на CPU (NVIDIA GPU не виявлено; AMD Radeon та інші GPU працюють у режимі CPU).",
@@ -3730,6 +3735,11 @@
     "EN": "Queued ({position}).",
     "UK": "У черзі ({position}).",
     "RU": "В очереди ({position})."
+  },
+  "telegram_found": {
+    "EN": "Found for processing: {name} ({chat}).",
+    "UK": "Знайдено для обробки: {name} ({chat}).",
+    "RU": "Найдено для обработки: {name} ({chat})."
   },
   "telegram_processing": {
     "EN": "Processing {name}.",

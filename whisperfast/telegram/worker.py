@@ -60,6 +60,26 @@ class Decision:
     log: Optional[str] = None
 
 
+def chat_display_name(chat, chat_id) -> str:
+    """Title, person name, or @username for a log line. Falls back to the chat id."""
+
+    def pick(key: str) -> str:
+        if isinstance(chat, Mapping):
+            return str(chat.get(key) or "").strip()
+        return str(getattr(chat, key, "") or "").strip()
+
+    title = pick("title")
+    if title:
+        return title
+    full = f"{pick('first_name')} {pick('last_name')}".strip()
+    if full:
+        return full
+    username = pick("username").lstrip("@")
+    if username:
+        return "@" + username
+    return str(chat_id)
+
+
 def safe_filename(name: str, fallback: str) -> str:
     base = os.path.basename((name or "").replace("\\", "/")).strip()
     if not base or base in (".", ".."):
@@ -321,6 +341,13 @@ def accept_updates(
             client.send_message(decision.reply_chat_id, decision.reply_text)
         if decision.job:
             pending.append(decision.job)
+            message = update.get("message") if isinstance(update, Mapping) else None
+            chat = message.get("chat") if isinstance(message, Mapping) else None
+            log(t(
+                "telegram_found",
+                name=decision.job.filename,
+                chat=chat_display_name(chat, decision.job.chat_id),
+            ))
             client.send_message(
                 decision.job.chat_id,
                 t("telegram_queued", position=len(pending)),

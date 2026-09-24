@@ -220,5 +220,64 @@ class TestAudioopShim(unittest.TestCase):
         self.assertEqual(pip.call_args[0][0], ["audioop-lts"])
 
 
+class TestPypiPythonFilter(unittest.TestCase):
+    def test_skips_release_that_needs_a_newer_python(self):
+        from whisperfast.setup.installer import latest_compatible_pypi_version
+
+        payload = {
+            "info": {"version": "2.5.3", "requires_python": ">=3.12"},
+            "releases": {
+                "2.4.6": [{"requires_python": ">=3.11", "yanked": False}],
+                "2.5.3": [{"requires_python": ">=3.12", "yanked": False}],
+            },
+        }
+        self.assertEqual(
+            latest_compatible_pypi_version(payload, version_info=(3, 11, 9)),
+            "2.4.6",
+        )
+        self.assertEqual(
+            latest_compatible_pypi_version(payload, version_info=(3, 12, 10)),
+            "2.5.3",
+        )
+
+    def test_installed_newer_than_index_is_not_an_update(self):
+        from whisperfast.setup.installer import _torch_needs_update, _version_is_newer
+
+        self.assertFalse(_version_is_newer("2.4.6", "2.4.6"))
+        self.assertTrue(_version_is_newer("2.5.3", "2.4.6"))
+        self.assertFalse(_torch_needs_update("2.14.0", "2.5.1+cu121"))
+        self.assertTrue(_torch_needs_update("2.4.0", "2.5.1+cu121"))
+
+
+class TestCudaWake(unittest.TestCase):
+    def test_wakes_a_sleeping_gpu_before_giving_up(self):
+        from whisperfast.core import model_manager as mm
+
+        seen = []
+        answers = iter([False, False, True])
+
+        def available():
+            return next(answers)
+
+        with patch.object(mm.torch.cuda, "is_available", side_effect=available):
+            with patch("whisperfast.setup.gpu_info.poke_nvidia_gpu", return_value=True) as poke:
+                with patch.object(mm.time, "sleep"):
+                    ok = mm.cuda_available(log_func=seen.append, attempts=4, pause=0)
+        self.assertTrue(ok)
+        self.assertGreaterEqual(poke.call_count, 1)
+        self.assertTrue(seen)
+
+    def test_no_nvidia_does_not_wait(self):
+        from whisperfast.core import model_manager as mm
+
+        with patch.object(mm.torch.cuda, "is_available", return_value=False):
+            with patch("whisperfast.setup.gpu_info.poke_nvidia_gpu", return_value=False) as poke:
+                with patch.object(mm.time, "sleep") as sleep:
+                    ok = mm.cuda_available(log_func=None, attempts=6, pause=1)
+        self.assertFalse(ok)
+        self.assertEqual(poke.call_count, 2)
+        self.assertEqual(sleep.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

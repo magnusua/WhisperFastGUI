@@ -181,6 +181,10 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
 
 def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
     opts = options or {}
+    from whisperfast.platform_util import keep_machine_awake
+
+    awake = keep_machine_awake()
+    awake.__enter__()
     try:
         model = None
 
@@ -404,6 +408,7 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
         if os.environ.get("DEBUG"):
             app.log(traceback.format_exc())
     finally:
+        awake.__exit__(None, None, None)
         app.root.after(0, app.reset_ui)
 
 

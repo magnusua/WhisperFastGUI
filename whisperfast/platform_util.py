@@ -5,6 +5,23 @@ import sys
 import time
 
 
+class keep_machine_awake:
+    """While a transcription runs, ask Windows not to sleep (screen may still turn off)."""
+
+    def __enter__(self):
+        if sys.platform == "win32":
+            import ctypes
+            # ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED
+            ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001 | 0x00000040)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+        return False
+
+
 def win_no_window_kwargs():
     """Kwargs so subprocess does not flash a console window on Windows.
 

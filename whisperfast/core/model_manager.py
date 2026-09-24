@@ -1,5 +1,6 @@
 import gc
 import threading
+import time
 import torch
 from faster_whisper import WhisperModel
 from whisperfast.config import DEFAULT_MODEL, WHISPER_MODELS
@@ -14,6 +15,7 @@ class WhisperModelSingleton:
     _model = None
     _mode = None
     _model_name = None
+    _device = None
     # Защищает _model/_mode/_model_name от гонки между потоком обработки очереди
     # и потоком диалога «Обновить модель» (ui/dialogs.py), который может вызвать
     # reset()/get() параллельно активной транскрибации. Не защищает сам вызов
@@ -31,8 +33,9 @@ class WhisperModelSingleton:
         if name not in WHISPER_MODELS:
             name = DEFAULT_MODEL
 
-        # Определяем устройство (cuda или cpu)
-        device = "cuda" if (mode in ["GPU", "AUTO"] and torch.cuda.is_available()) else "cpu"
+        # Определяем устройство (cuda или cpu). Сплячу відеокарту спочатку будимо.
+        want_gpu = mode in ["GPU", "AUTO"]
+        device = "cuda" if (want_gpu and cuda_available(log_func)) else "cpu"
 
         # Определяем точность вычислений
         if device == "cuda":
@@ -55,12 +58,14 @@ class WhisperModelSingleton:
                 cls._model is None
                 or cls._mode != mode
                 or cls._model_name != name
+                or cls._device != device
             )
             if need_load:
                 if cls._model is not None:
                     cls._model = None
                     cls._mode = None
                     cls._model_name = None
+                    cls._device = None
                     gc.collect()
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
@@ -70,6 +75,7 @@ class WhisperModelSingleton:
                     cls._model = WhisperModel(name, device=device, compute_type=compute)
                     cls._mode = mode
                     cls._model_name = name
+                    cls._device = device
                     log_func(t("model_ready"))
                 except Exception as e:
                     log_func(t("model_load_error", error=str(e)))
@@ -86,6 +92,7 @@ class WhisperModelSingleton:
                 cls._model = None
                 cls._mode = None
                 cls._model_name = None
+                cls._device = None
 
                 # Принудительный запуск сборщика мусора Python
                 gc.collect()
@@ -103,3 +110,31 @@ class WhisperModelSingleton:
             cls._model = None
             cls._mode = None
             cls._model_name = None
+            cls._device = None
+
+
+def cuda_available(log_func=None, attempts=6, pause=0.75) -> bool:
+    """True when CUDA answers. If the GPU powered down, poke the driver and retry."""
+    if torch.cuda.is_available():
+        return True
+    from whisperfast.setup.gpu_info import poke_nvidia_gpu
+
+    misses = 0
+    announced = False
+    for _ in range(attempts):
+        if poke_nvidia_gpu():
+            misses = 0
+            if not announced and log_func is not None:
+                announced = True
+                try:
+                    log_func(t("cuda_waking"))
+                except Exception:
+                    pass
+        else:
+            misses += 1
+            if misses >= 2:
+                return False
+        time.sleep(pause)
+        if torch.cuda.is_available():
+            return True
+    return False
