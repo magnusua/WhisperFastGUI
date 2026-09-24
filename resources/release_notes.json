@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.0.7",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "Telegram: Start listener in the Telegram window receives files in the open FTW window. A separate process is no longer required.",
+          "Empty input fields show a grey example of the expected value (a phone number +380501111111, a key, a path). The example is not saved."
+        ],
+        "UK": [
+          "Telegram: кнопка «Запустити слухача» у вікні Telegram запускає прийом файлів у відкритому FTW. Окремий процес більше не потрібен.",
+          "У порожньому полі вводу видно сірий приклад очікуваного значення (телефон +380501111111, ключ, шлях). Приклад не зберігається."
+        ],
+        "RU": [
+          "Telegram: кнопка «Запустить слушателя» в окне Telegram запускает приём файлов в открытом FTW. Отдельный процесс больше не нужен.",
+          "В пустом поле ввода виден серый пример ожидаемого значения (телефон +380501111111, ключ, путь). Пример не сохраняется."
+        ]
+      }
+    },
+    {
       "version": "2.0.6",
       "date": "24.09.2026",
       "notes": {

@@ -23,7 +23,7 @@ from whisperfast.core.input_files import (
 from whisperfast.core.model_manager import WhisperModelSingleton
 from whisperfast.core.output_conflict import ai_prompts_dialog_is_open
 from whisperfast.i18n import get_language, t
-from whisperfast.ui.widgets import Tooltip
+from whisperfast.ui.widgets import Tooltip, placeholder_entry
 from whisperfast.updates.model_updates import (
     is_model_downloaded,
     model_needs_update,
@@ -82,7 +82,7 @@ def open_watch_dirs_dialog(parent, initial_dirs, on_save, center_fn=None):
             row = i % rows_per_col if cols > 1 else i
             cell = ttk.Frame(entries_host)
             cell.grid(row=row, column=col, sticky="ew", padx=4, pady=2)
-            ent = ttk.Entry(cell, textvariable=var, width=42)
+            ent = placeholder_entry(cell, var, "ph_watch_dir", width=42)
             ent.pack(side="left", fill="x", expand=True)
 
             def browse(v=var):
@@ -632,7 +632,7 @@ def show_mp3_settings_dialog(app):
     ttk.Radiobutton(
         custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom"
     ).pack(side="left")
-    dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
+    dir_entry = placeholder_entry(custom_row, dir_var, "ph_dir", width=36)
     dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
 
     def browse():
@@ -700,7 +700,7 @@ def show_output_settings_dialog(app):
         custom_row, text=t("save_mode_custom"), variable=mode_var, value="custom"
     )
     custom_radio.pack(side="left")
-    dir_entry = ttk.Entry(custom_row, textvariable=dir_var, width=36)
+    dir_entry = placeholder_entry(custom_row, dir_var, "ph_dir", width=36)
     dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
 
     def browse():
@@ -717,7 +717,7 @@ def show_output_settings_dialog(app):
         named_row, text=t("save_mode_named_folder"), variable=mode_var, value="named_folder"
     )
     named_radio.pack(side="left")
-    named_entry = ttk.Entry(named_row, textvariable=named_var, width=28)
+    named_entry = placeholder_entry(named_row, named_var, "ph_named_folder", width=28)
     named_entry.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
     custom_named_row = ttk.Frame(frame)
@@ -729,7 +729,7 @@ def show_output_settings_dialog(app):
         value="custom_named",
     )
     custom_named_radio.pack(side="left")
-    cn_dir_entry = ttk.Entry(custom_named_row, textvariable=dir_var, width=22)
+    cn_dir_entry = placeholder_entry(custom_named_row, dir_var, "ph_dir", width=22)
     cn_dir_entry.pack(side="left", fill="x", expand=True, padx=(8, 4))
 
     def browse_custom_named():
@@ -745,7 +745,7 @@ def show_output_settings_dialog(app):
         custom_named_row, text=t("save_mode_custom_named_with")
     )
     custom_named_with_lbl.pack(side="left", padx=(8, 4))
-    cn_named_entry = ttk.Entry(custom_named_row, textvariable=named_var, width=16)
+    cn_named_entry = placeholder_entry(custom_named_row, named_var, "ph_named_folder", width=16)
     cn_named_entry.pack(side="left", fill="x", expand=True)
     dir_entry.bind("<FocusIn>", lambda e: mode_var.set("custom"))
     named_entry.bind("<FocusIn>", lambda e: mode_var.set("named_folder"))
@@ -1021,15 +1021,15 @@ def show_ai_api_keys_dialog(app):
 
     section("ai_api_keys_cursor")
     ttk.Label(frame, text=t("cursor_api_key_prompt")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=cursor_key, width=56, show="*").pack(fill="x", pady=(2, 0))
+    placeholder_entry(frame, cursor_key, "ph_api_key", secret=True, width=56).pack(fill="x", pady=(2, 0))
 
     section("ai_api_keys_gemini")
     ttk.Label(frame, text=t("gemini_api_key_prompt"), wraplength=520, justify="left").pack(anchor="w")
-    ttk.Entry(frame, textvariable=gemini_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, gemini_key, "ph_gemini_key", secret=True, width=56).pack(fill="x", pady=(2, 4))
     model_row = ttk.Frame(frame)
     model_row.pack(fill="x")
     ttk.Label(model_row, text=t("gemini_model_label")).pack(side="left")
-    ttk.Entry(model_row, textvariable=gemini_model, width=28).pack(
+    placeholder_entry(model_row, gemini_model, "ph_gemini_model", width=28).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
     ttk.Label(frame, text=t("gemini_oauth_hint"), wraplength=520, justify="left").pack(
@@ -1049,11 +1049,11 @@ def show_ai_api_keys_dialog(app):
         value=(getattr(app, "google_cloud_project_id", None) and app.google_cloud_project_id.get() or "").strip()
     )
     ttk.Label(frame, text=t("calendar_google_client_id")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=google_client).pack(fill="x")
+    placeholder_entry(frame, google_client, "ph_google_client").pack(fill="x")
     ttk.Label(frame, text=t("calendar_google_secret_optional")).pack(anchor="w", pady=(4, 0))
-    ttk.Entry(frame, textvariable=google_secret, show="*").pack(fill="x")
+    placeholder_entry(frame, google_secret, "ph_google_secret", secret=True).pack(fill="x")
     ttk.Label(frame, text=t("gemini_oauth_project")).pack(anchor="w", pady=(4, 0))
-    ttk.Entry(frame, textvariable=google_project).pack(fill="x")
+    placeholder_entry(frame, google_project, "ph_google_project").pack(fill="x")
     gemini_status = ttk.Label(frame, text="", wraplength=520, justify="left")
     gemini_status.pack(anchor="w", pady=(6, 2))
     gemini_busy = {"on": False, "session": None}
@@ -1232,30 +1232,30 @@ def show_ai_api_keys_dialog(app):
 
     section("ai_api_keys_claude")
     ttk.Label(frame, text=t("claude_api_key_prompt")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=anthropic_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, anthropic_key, "ph_claude_key", secret=True, width=56).pack(fill="x", pady=(2, 4))
     claude_model_row = ttk.Frame(frame)
     claude_model_row.pack(fill="x")
     ttk.Label(claude_model_row, text=t("claude_model_label")).pack(side="left")
-    ttk.Entry(claude_model_row, textvariable=claude_model, width=28).pack(
+    placeholder_entry(claude_model_row, claude_model, "ph_claude_model", width=28).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
 
     section("ai_api_keys_copilot")
     ttk.Label(frame, text=t("azure_openai_hint"), wraplength=420).pack(anchor="w", pady=(0, 4))
     ttk.Label(frame, text=t("azure_openai_endpoint_label")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=azure_endpoint, width=56).pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, azure_endpoint, "ph_azure_endpoint", width=56).pack(fill="x", pady=(2, 4))
     ttk.Label(frame, text=t("azure_openai_api_key_label")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=azure_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, azure_key, "ph_api_key", secret=True, width=56).pack(fill="x", pady=(2, 4))
     dep_row = ttk.Frame(frame)
     dep_row.pack(fill="x", pady=(0, 4))
     ttk.Label(dep_row, text=t("azure_openai_deployment_label")).pack(side="left")
-    ttk.Entry(dep_row, textvariable=azure_deployment, width=24).pack(
+    placeholder_entry(dep_row, azure_deployment, "ph_azure_deployment", width=24).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
     ver_row = ttk.Frame(frame)
     ver_row.pack(fill="x")
     ttk.Label(ver_row, text=t("azure_openai_api_version_label")).pack(side="left")
-    ttk.Entry(ver_row, textvariable=azure_version, width=24).pack(
+    placeholder_entry(ver_row, azure_version, "ph_azure_version", width=24).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
 
@@ -1276,29 +1276,29 @@ def show_ai_api_keys_dialog(app):
 
     section("ai_api_keys_ollama")
     ttk.Label(frame, text=t("ollama_url_label")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=ollama_url, width=56).pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, ollama_url, "ph_ollama_url", width=56).pack(fill="x", pady=(2, 4))
     om_row = ttk.Frame(frame)
     om_row.pack(fill="x")
     ttk.Label(om_row, text=t("ollama_model_label")).pack(side="left")
-    ttk.Entry(om_row, textvariable=ollama_model, width=28).pack(
+    placeholder_entry(om_row, ollama_model, "ph_ollama_model", width=28).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
 
     section("ai_api_keys_openai_compat")
     ttk.Label(frame, text=t("openai_compat_hint"), wraplength=420).pack(anchor="w", pady=(0, 4))
-    ttk.Entry(frame, textvariable=compat_url, width=56).pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, compat_url, "ph_compat_url", width=56).pack(fill="x", pady=(2, 4))
     ttk.Label(frame, text=t("openai_compat_key_label")).pack(anchor="w")
-    ttk.Entry(frame, textvariable=compat_key, width=56, show="*").pack(fill="x", pady=(2, 4))
+    placeholder_entry(frame, compat_key, "ph_api_key", secret=True, width=56).pack(fill="x", pady=(2, 4))
     oc_row = ttk.Frame(frame)
     oc_row.pack(fill="x")
     ttk.Label(oc_row, text=t("openai_compat_model_label")).pack(side="left")
-    ttk.Entry(oc_row, textvariable=compat_model, width=28).pack(
+    placeholder_entry(oc_row, compat_model, "ph_compat_model", width=28).pack(
         side="left", fill="x", expand=True, padx=(8, 0)
     )
 
     section("ai_budget_section")
     ttk.Label(frame, text=t("ai_month_budget_label"), wraplength=420).pack(anchor="w")
-    ttk.Entry(frame, textvariable=budget_var, width=16).pack(anchor="w", pady=(2, 4))
+    placeholder_entry(frame, budget_var, "ph_budget", width=16).pack(anchor="w", pady=(2, 4))
 
     status_lbl = ttk.Label(frame, text="")
     status_lbl.pack(anchor="w", pady=(8, 0))
@@ -1436,26 +1436,26 @@ def show_telegram_settings_dialog(app):
     mode_row = ttk.Frame(frame)
     mode_row.pack(fill="x", pady=(0, 4))
 
-    def labeled_entry(parent, label_key, variable, secret=False):
+    def labeled_entry(parent, label_key, variable, placeholder_key, secret=False):
         ttk.Label(parent, text=t(label_key)).pack(anchor="w", pady=(8, 0))
-        ttk.Entry(parent, textvariable=variable, show="*" if secret else "").pack(fill="x")
+        placeholder_entry(parent, variable, placeholder_key, secret=secret).pack(fill="x")
 
-    def browse_row(parent, label_key, variable, choose):
+    def browse_row(parent, label_key, variable, placeholder_key, choose):
         ttk.Label(parent, text=t(label_key)).pack(anchor="w", pady=(8, 0))
         row = ttk.Frame(parent)
         row.pack(fill="x")
-        ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
+        placeholder_entry(row, variable, placeholder_key).pack(side="left", fill="x", expand=True)
         ttk.Button(row, text=t("browse"), command=choose).pack(side="left", padx=(6, 0))
 
-    labeled_entry(frame, "telegram_api_id_label", api_id)
-    labeled_entry(frame, "telegram_api_hash_label", api_hash, secret=True)
+    labeled_entry(frame, "telegram_api_id_label", api_id, "telegram_ph_api_id")
+    labeled_entry(frame, "telegram_api_hash_label", api_hash, "telegram_ph_api_hash", secret=True)
 
     slot = ttk.Frame(frame)
     slot.pack(fill="x")
     account_box = ttk.Frame(slot)
     bot_box = ttk.Frame(slot)
 
-    labeled_entry(account_box, "telegram_phone_label", phone)
+    labeled_entry(account_box, "telegram_phone_label", phone, "telegram_ph_phone")
     account_actions = ttk.Frame(account_box)
     account_actions.pack(fill="x", pady=(8, 0))
     sign_btn = ttk.Button(account_actions, text=t("telegram_sign_in"))
@@ -1476,14 +1476,14 @@ def show_telegram_settings_dialog(app):
         if path:
             work_dir.set(path)
 
-    labeled_entry(bot_box, "telegram_token_label", token, secret=True)
-    browse_row(bot_box, "telegram_exe_label", exe, choose_exe)
-    labeled_entry(bot_box, "telegram_base_label", base)
+    labeled_entry(bot_box, "telegram_token_label", token, "telegram_ph_token", secret=True)
+    browse_row(bot_box, "telegram_exe_label", exe, "telegram_ph_exe", choose_exe)
+    labeled_entry(bot_box, "telegram_base_label", base, "telegram_ph_base")
 
     chats_label = ttk.Label(frame, text="")
     chats_label.pack(anchor="w", pady=(8, 0))
-    ttk.Entry(frame, textvariable=chats).pack(fill="x")
-    browse_row(frame, "telegram_work_dir_label", work_dir, choose_dir)
+    placeholder_entry(frame, chats, "telegram_ph_chats").pack(fill="x")
+    browse_row(frame, "telegram_work_dir_label", work_dir, "telegram_ph_work_dir", choose_dir)
 
     def apply_mode():
         account_box.pack_forget()
@@ -1498,6 +1498,11 @@ def show_telegram_settings_dialog(app):
 
     def refresh_status():
         if mode.get() != "account":
+            return
+        from whisperfast.telegram.service import is_running as listener_running
+
+        if listener_running():
+            status.set(t("telegram_listener_on"))
             return
         api = (api_id.get() or "").strip()
         api_hash_value = (api_hash.get() or "").strip()
@@ -1538,6 +1543,11 @@ def show_telegram_settings_dialog(app):
         return box.get("value") or ""
 
     def on_sign_in():
+        from whisperfast.telegram.service import is_running as listener_running
+
+        if listener_running():
+            messagebox.showinfo(t("telegram_settings_title"), t("telegram_listener_on"), parent=dialog)
+            return
         api = (api_id.get() or "").strip()
         api_hash_value = (api_hash.get() or "").strip()
         phone_value = (phone.get() or "").strip()
@@ -1596,10 +1606,28 @@ def show_telegram_settings_dialog(app):
     buttons = ttk.Frame(frame)
     buttons.pack(fill="x", pady=(16, 0))
 
-    def close_without_saving():
-        dialog.destroy()
+    from whisperfast.telegram.service import is_running, is_stopping, start as start_listener, stop as stop_listener
 
-    def save_telegram():
+    listener_status = tk.StringVar(value="")
+    listen_btn = ttk.Button(buttons, text=t("telegram_listener_start"))
+    listen_btn.pack(side="left")
+    ttk.Label(buttons, textvariable=listener_status).pack(side="left", padx=(8, 0))
+
+    def refresh_listener():
+        if not dialog.winfo_exists():
+            return
+        if is_stopping():
+            listen_btn.state(["disabled"])
+            listen_btn.config(text=t("telegram_listener_stopping"))
+            listener_status.set(t("telegram_listener_stopping"))
+            dialog.after(400, refresh_listener)
+            return
+        listen_btn.state(["!disabled"])
+        running = is_running()
+        listen_btn.config(text=t("telegram_listener_stop" if running else "telegram_listener_start"))
+        listener_status.set(t("telegram_listener_on" if running else "telegram_listener_off"))
+
+    def remember_fields():
         chosen = mode.get() if mode.get() in ("bot", "account") else "bot"
         app.telegram_mode.set(chosen)
         app.telegram_phone.set((phone.get() or "").strip())
@@ -1612,6 +1640,36 @@ def show_telegram_settings_dialog(app):
         app.telegram_allowed_chat_ids_text.set(format_chat_ids(ids))
         app.telegram_work_dir.set((work_dir.get() or "").strip())
         app._persist_settings()
+
+    def toggle_listener():
+        if is_running():
+            stop_listener()
+            refresh_listener()
+            return
+        remember_fields()
+
+        def on_done(code):
+            def ui():
+                if dialog.winfo_exists():
+                    refresh_listener()
+                if code:
+                    app.log(t("telegram_listener_off"))
+            try:
+                app.root.after(0, ui)
+            except tk.TclError:
+                pass
+
+        start_listener(log=lambda msg: app.root.after(0, lambda m=msg: app.log(m)), on_done=on_done)
+        refresh_listener()
+
+    listen_btn.config(command=toggle_listener)
+    refresh_listener()
+
+    def close_without_saving():
+        dialog.destroy()
+
+    def save_telegram():
+        remember_fields()
         dialog.destroy()
 
     ttk.Button(buttons, text=t("cancel_btn"), command=close_without_saving).pack(side="right", padx=(5, 0))

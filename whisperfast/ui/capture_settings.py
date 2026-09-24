@@ -22,6 +22,7 @@ from whisperfast.core.capture_prefs import AUTO_RECORD_PRESETS, capture_defaults
 from whisperfast.core.capture_names import format_clip_seconds, parse_clip_seconds
 from whisperfast.i18n import t
 from whisperfast.ui.dialogs import center_toplevel, track_i18n_window
+from whisperfast.ui.widgets import placeholder_entry
 
 
 def show_capture_settings_dialog(app):
@@ -95,9 +96,9 @@ def show_capture_settings_dialog(app):
     allow = _str("capture_source_allowlist", "")
     deny = _str("capture_source_denylist", "")
     ttk.Label(src, text=t("capture_source_allowlist")).pack(anchor="w", pady=(8, 0))
-    ttk.Entry(src, textvariable=allow).pack(fill="x")
+    placeholder_entry(src, allow, "ph_exe_list").pack(fill="x")
     ttk.Label(src, text=t("capture_source_denylist")).pack(anchor="w", pady=(4, 0))
-    deny_e = ttk.Entry(src, textvariable=deny)
+    deny_e = placeholder_entry(src, deny, "ph_exe_list")
     deny_e.pack(fill="x")
 
     def _sync_deny(*_a):
@@ -146,7 +147,7 @@ def show_capture_settings_dialog(app):
         ).pack(anchor="w")
     custom = _str("auto_record_custom_exes", "")
     ttk.Label(auto_f, text=t("auto_record_custom_exes")).pack(anchor="w", pady=(6, 0))
-    ttk.Entry(auto_f, textvariable=custom).pack(fill="x")
+    placeholder_entry(auto_f, custom, "ph_exe_list").pack(fill="x")
     delays = ttk.Frame(auto_f)
     delays.pack(fill="x", pady=8)
     for key, label in (
@@ -159,7 +160,7 @@ def show_capture_settings_dialog(app):
         row = ttk.Frame(delays)
         row.pack(fill="x", pady=2)
         ttk.Label(row, text=t(label), width=36).pack(side="left")
-        ttk.Entry(row, textvariable=vars_map[key], width=8).pack(side="left")
+        placeholder_entry(row, vars_map[key], "ph_seconds", width=8).pack(side="left")
 
     # --- Schedule ---
     cal_f = ttk.Frame(nb, padding=8)
@@ -176,11 +177,11 @@ def show_capture_settings_dialog(app):
     gmail = _str("google_calendar_email", "")
     gids = _str("google_calendar_ids", "primary")
     ttk.Label(cal_f, text=t("calendar_google_client_id")).pack(anchor="w")
-    ttk.Entry(cal_f, textvariable=gid).pack(fill="x")
+    placeholder_entry(cal_f, gid, "ph_google_client").pack(fill="x")
     ttk.Label(cal_f, text=t("calendar_google_secret_optional")).pack(anchor="w", pady=(6, 0))
-    ttk.Entry(cal_f, textvariable=gsec, show="*").pack(fill="x")
+    placeholder_entry(cal_f, gsec, "ph_google_secret", secret=True).pack(fill="x")
     ttk.Label(cal_f, text=t("calendar_google_ids")).pack(anchor="w", pady=(6, 0))
-    ttk.Entry(cal_f, textvariable=gids).pack(fill="x")
+    placeholder_entry(cal_f, gids, "ph_calendar_ids").pack(fill="x")
     google_status = ttk.Label(cal_f, text="", wraplength=580, justify="left")
     google_status.pack(anchor="w", pady=(6, 2))
     google_busy = {"on": False, "session": None}
@@ -340,7 +341,7 @@ def show_capture_settings_dialog(app):
     ics = _str("calendar_ics_path", "")
     ics_row = ttk.Frame(cal_f)
     ics_row.pack(fill="x")
-    ttk.Entry(ics_row, textvariable=ics).pack(side="left", fill="x", expand=True)
+    placeholder_entry(ics_row, ics, "ph_ics").pack(side="left", fill="x", expand=True)
 
     def pick_ics():
         path = filedialog.askopenfilename(
@@ -352,7 +353,7 @@ def show_capture_settings_dialog(app):
     ttk.Button(ics_row, text="…", width=3, command=pick_ics).pack(side="left", padx=4)
     lead = _int("calendar_start_lead_min", 2)
     ttk.Label(cal_f, text=t("calendar_start_lead")).pack(anchor="w", pady=(8, 0))
-    ttk.Entry(cal_f, textvariable=lead, width=8).pack(anchor="w")
+    placeholder_entry(cal_f, lead, "ph_minutes", width=8).pack(anchor="w")
     filt = _str("calendar_event_filter", "all")
     ttk.Label(cal_f, text=t("calendar_event_filter")).pack(anchor="w", pady=(6, 0))
     ttk.Combobox(
@@ -364,7 +365,7 @@ def show_capture_settings_dialog(app):
     ).pack(anchor="w")
     kws = _str("calendar_keywords", "")
     ttk.Label(cal_f, text=t("calendar_keywords")).pack(anchor="w")
-    ttk.Entry(cal_f, textvariable=kws).pack(fill="x")
+    placeholder_entry(cal_f, kws, "ph_keywords").pack(fill="x")
 
     # --- Other ---
     other = ttk.Frame(nb, padding=8)
@@ -373,7 +374,7 @@ def show_capture_settings_dialog(app):
     ttk.Label(other, text=t("capture_dir")).pack(anchor="w")
     dir_row = ttk.Frame(other)
     dir_row.pack(fill="x")
-    ttk.Entry(dir_row, textvariable=cap_dir).pack(side="left", fill="x", expand=True)
+    placeholder_entry(dir_row, cap_dir, "ph_dir").pack(side="left", fill="x", expand=True)
 
     def pick_dir():
         path = filedialog.askdirectory(parent=dialog, initialdir=default_capture_dir())
@@ -383,7 +384,7 @@ def show_capture_settings_dialog(app):
     ttk.Button(dir_row, text="…", width=3, command=pick_dir).pack(side="left", padx=4)
     tmpl = _str("capture_filename_template", "%W %Y-%m-%d %H.%M.%S")
     ttk.Label(other, text=t("capture_filename_template")).pack(anchor="w", pady=(8, 0))
-    ttk.Entry(other, textvariable=tmpl).pack(fill="x")
+    placeholder_entry(other, tmpl, "ph_filename").pack(fill="x")
     ttk.Label(other, text=t("capture_filename_hint"), wraplength=580, justify="left").pack(
         anchor="w", pady=(4, 6)
     )
@@ -398,16 +399,16 @@ def show_capture_settings_dialog(app):
     names = ttk.Frame(other)
     names.pack(fill="x", pady=6)
     ttk.Label(names, text=t("user_name")).pack(side="left")
-    ttk.Entry(names, textvariable=user_n, width=16).pack(side="left", padx=4)
+    placeholder_entry(names, user_n, "ph_speaker", width=16).pack(side="left", padx=4)
     ttk.Label(names, text=t("them_name")).pack(side="left")
-    ttk.Entry(names, textvariable=them_n, width=16).pack(side="left", padx=4)
+    placeholder_entry(names, them_n, "ph_speaker", width=16).pack(side="left", padx=4)
     clip = _str("capture_clip_seconds", format_clip_seconds(int(cfg.get("capture_clip_seconds") or 122)))
     clip.set(format_clip_seconds(parse_clip_seconds(clip.get(), 122)))
     ttk.Label(other, text=t("capture_clip_duration")).pack(anchor="w", pady=(6, 0))
-    ttk.Entry(other, textvariable=clip, width=10).pack(anchor="w")
+    placeholder_entry(other, clip, "ph_clip", width=10).pack(anchor="w")
     maxd = _int("capture_max_duration_s", 0)
     ttk.Label(other, text=t("capture_max_duration")).pack(anchor="w", pady=(6, 0))
-    ttk.Entry(other, textvariable=maxd, width=10).pack(anchor="w")
+    placeholder_entry(other, maxd, "ph_seconds", width=10).pack(anchor="w")
     live = _bool("live_preview_enabled", False)
     ttk.Checkbutton(other, text=t("live_preview_enabled"), variable=live).pack(anchor="w", pady=(8, 0))
     live_m = _str("live_preview_model", "tiny")
@@ -416,7 +417,7 @@ def show_capture_settings_dialog(app):
     )
     hook = _str("on_stop_hook", "")
     ttk.Label(other, text=t("on_stop_hook")).pack(anchor="w", pady=(8, 0))
-    ttk.Entry(other, textvariable=hook).pack(fill="x")
+    placeholder_entry(other, hook, "ph_hook").pack(fill="x")
     ttk.Button(
         other,
         text=t("capture_consent_reset"),

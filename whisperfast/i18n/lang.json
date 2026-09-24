@@ -3827,9 +3827,9 @@
     "RU": "Telegram"
   },
   "telegram_settings_hint": {
-    "EN": "Choose this account to read private chats of the signed-in user, or a bot. Either way, run python main.py --telegram while this window is open: audio and video are added to the queue and the results go back to the same chat. api_id and api_hash come from my.telegram.org. The bot also needs a token from @BotFather and the local telegram-bot-api (files up to about 2 GB). Before the first local bot start, call logOut on the cloud Bot API for that token.",
-    "UK": "Оберіть цей акаунт, щоб читати особисті чати увійшовшого користувача, або бота. У будь-якому разі запустіть python main.py --telegram, поки це вікно відкрите: аудіо та відео додаються в чергу, а результати повертаються в той самий чат. api_id і api_hash — на my.telegram.org. Боту також потрібен токен від @BotFather і локальний telegram-bot-api (файли приблизно до 2 ГБ). Перед першим локальним запуском бота викличте logOut хмарного Bot API для цього токена.",
-    "RU": "Выберите этот аккаунт, чтобы забирать файлы из личных чатов, или бота. В обоих случаях запустите python main.py --telegram, пока это окно открыто: аудио и видео попадают в очередь, а результаты возвращаются в тот же чат. api_id и api_hash — на my.telegram.org. Боту также нужен токен от @BotFather и локальный telegram-bot-api (файлы примерно до 2 ГБ). Перед первым локальным запуском бота вызовите logOut облачного Bot API для этого токена."
+    "EN": "Choose this account to read private chats of the signed-in user, or a bot. Press Start listener in this window: audio and video are added to the queue and the results go back to the same chat. api_id and api_hash come from my.telegram.org. The bot also needs a token from @BotFather and the local telegram-bot-api (files up to about 2 GB). Before the first local bot start, call logOut on the cloud Bot API for that token.",
+    "UK": "Оберіть цей акаунт, щоб читати особисті чати увійшовшого користувача, або бота. Натисніть «Запустити слухача» в цьому вікні: аудіо та відео додаються в чергу, а результати повертаються в той самий чат. api_id і api_hash — на my.telegram.org. Боту також потрібен токен від @BotFather і локальний telegram-bot-api (файли приблизно до 2 ГБ). Перед першим локальним запуском бота викличте logOut хмарного Bot API для цього токена.",
+    "RU": "Выберите этот аккаунт, чтобы забирать файлы из личных чатов, или бота. Нажмите «Запустить слушателя» в этом окне: аудио и видео попадают в очередь, а результаты возвращаются в тот же чат. api_id и api_hash — на my.telegram.org. Боту также нужен токен от @BotFather и локальный telegram-bot-api (файлы примерно до 2 ГБ). Перед первым локальным запуском бота вызовите logOut облачного Bot API для этого токена."
   },
   "telegram_token_label": {
     "EN": "Bot token",
@@ -3890,6 +3890,46 @@
     "EN": "Phone number",
     "UK": "Номер телефону",
     "RU": "Номер телефона"
+  },
+  "telegram_ph_api_id": {
+    "EN": "12345678",
+    "UK": "12345678",
+    "RU": "12345678"
+  },
+  "telegram_ph_api_hash": {
+    "EN": "0123456789abcdef0123456789abcdef",
+    "UK": "0123456789abcdef0123456789abcdef",
+    "RU": "0123456789abcdef0123456789abcdef"
+  },
+  "telegram_ph_phone": {
+    "EN": "+380501111111",
+    "UK": "+380501111111",
+    "RU": "+380501111111"
+  },
+  "telegram_ph_token": {
+    "EN": "123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "UK": "123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "RU": "123456789:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "telegram_ph_exe": {
+    "EN": "C:\\Tools\\telegram-bot-api.exe",
+    "UK": "C:\\Tools\\telegram-bot-api.exe",
+    "RU": "C:\\Tools\\telegram-bot-api.exe"
+  },
+  "telegram_ph_base": {
+    "EN": "http://127.0.0.1:8081",
+    "UK": "http://127.0.0.1:8081",
+    "RU": "http://127.0.0.1:8081"
+  },
+  "telegram_ph_chats": {
+    "EN": "123456789, -1001234567890",
+    "UK": "123456789, -1001234567890",
+    "RU": "123456789, -1001234567890"
+  },
+  "telegram_ph_work_dir": {
+    "EN": "D:\\FTW\\telegram",
+    "UK": "D:\\FTW\\telegram",
+    "RU": "D:\\FTW\\telegram"
   },
   "telegram_sign_in": {
     "EN": "Sign in",
@@ -3965,5 +4005,195 @@
     "EN": "Enter api_id, api_hash and the phone number first.",
     "UK": "Спочатку вкажіть api_id, api_hash і номер телефону.",
     "RU": "Сначала укажите api_id, api_hash и номер телефона."
+  },
+  "telegram_listener_start": {
+    "EN": "Start listener",
+    "UK": "Запустити слухача",
+    "RU": "Запустить слушателя"
+  },
+  "telegram_listener_stop": {
+    "EN": "Stop listener",
+    "UK": "Зупинити слухача",
+    "RU": "Остановить слушателя"
+  },
+  "telegram_listener_on": {
+    "EN": "Listener is running in this window.",
+    "UK": "Слухач працює в цьому вікні.",
+    "RU": "Слушатель работает в этом окне."
+  },
+  "telegram_listener_off": {
+    "EN": "Listener is stopped.",
+    "UK": "Слухач зупинений.",
+    "RU": "Слушатель остановлен."
+  },
+  "telegram_listener_stopping": {
+    "EN": "Stopping listener…",
+    "UK": "Зупиняю слухача…",
+    "RU": "Останавливаю слушателя…"
+  },
+  "ph_dir": {
+    "EN": "D:\\FTW\\output",
+    "UK": "D:\\FTW\\output",
+    "RU": "D:\\FTW\\output"
+  },
+  "ph_named_folder": {
+    "EN": "{basename}",
+    "UK": "{basename}",
+    "RU": "{basename}"
+  },
+  "ph_watch_dir": {
+    "EN": "D:\\Recordings",
+    "UK": "D:\\Recordings",
+    "RU": "D:\\Recordings"
+  },
+  "ph_api_key": {
+    "EN": "sk-... or key_...",
+    "UK": "sk-... або key_...",
+    "RU": "sk-... или key_..."
+  },
+  "ph_gemini_key": {
+    "EN": "AIza...",
+    "UK": "AIza...",
+    "RU": "AIza..."
+  },
+  "ph_gemini_model": {
+    "EN": "gemini-2.0-flash",
+    "UK": "gemini-2.0-flash",
+    "RU": "gemini-2.0-flash"
+  },
+  "ph_google_client": {
+    "EN": "123456789-abc.apps.googleusercontent.com",
+    "UK": "123456789-abc.apps.googleusercontent.com",
+    "RU": "123456789-abc.apps.googleusercontent.com"
+  },
+  "ph_google_secret": {
+    "EN": "GOCSPX-...",
+    "UK": "GOCSPX-...",
+    "RU": "GOCSPX-..."
+  },
+  "ph_google_project": {
+    "EN": "my-project-id",
+    "UK": "my-project-id",
+    "RU": "my-project-id"
+  },
+  "ph_claude_key": {
+    "EN": "sk-ant-...",
+    "UK": "sk-ant-...",
+    "RU": "sk-ant-..."
+  },
+  "ph_claude_model": {
+    "EN": "claude-sonnet-4-5",
+    "UK": "claude-sonnet-4-5",
+    "RU": "claude-sonnet-4-5"
+  },
+  "ph_azure_endpoint": {
+    "EN": "https://my-resource.openai.azure.com",
+    "UK": "https://my-resource.openai.azure.com",
+    "RU": "https://my-resource.openai.azure.com"
+  },
+  "ph_azure_deployment": {
+    "EN": "gpt-4o",
+    "UK": "gpt-4o",
+    "RU": "gpt-4o"
+  },
+  "ph_azure_version": {
+    "EN": "2024-08-01-preview",
+    "UK": "2024-08-01-preview",
+    "RU": "2024-08-01-preview"
+  },
+  "ph_ollama_url": {
+    "EN": "http://127.0.0.1:11434",
+    "UK": "http://127.0.0.1:11434",
+    "RU": "http://127.0.0.1:11434"
+  },
+  "ph_ollama_model": {
+    "EN": "llama3.2",
+    "UK": "llama3.2",
+    "RU": "llama3.2"
+  },
+  "ph_compat_url": {
+    "EN": "https://api.example.com/v1",
+    "UK": "https://api.example.com/v1",
+    "RU": "https://api.example.com/v1"
+  },
+  "ph_compat_model": {
+    "EN": "llama-3.3-70b",
+    "UK": "llama-3.3-70b",
+    "RU": "llama-3.3-70b"
+  },
+  "ph_budget": {
+    "EN": "20.00",
+    "UK": "20.00",
+    "RU": "20.00"
+  },
+  "ph_exe_list": {
+    "EN": "zoom.exe, teams.exe",
+    "UK": "zoom.exe, teams.exe",
+    "RU": "zoom.exe, teams.exe"
+  },
+  "ph_seconds": {
+    "EN": "15",
+    "UK": "15",
+    "RU": "15"
+  },
+  "ph_minutes": {
+    "EN": "2",
+    "UK": "2",
+    "RU": "2"
+  },
+  "ph_calendar_ids": {
+    "EN": "primary",
+    "UK": "primary",
+    "RU": "primary"
+  },
+  "ph_ics": {
+    "EN": "D:\\Calendar\\meetings.ics",
+    "UK": "D:\\Calendar\\meetings.ics",
+    "RU": "D:\\Calendar\\meetings.ics"
+  },
+  "ph_keywords": {
+    "EN": "standup, 1:1",
+    "UK": "standup, 1:1",
+    "RU": "standup, 1:1"
+  },
+  "ph_filename": {
+    "EN": "%W %Y-%m-%d %H.%M.%S",
+    "UK": "%W %Y-%m-%d %H.%M.%S",
+    "RU": "%W %Y-%m-%d %H.%M.%S"
+  },
+  "ph_speaker": {
+    "EN": "Alex",
+    "UK": "Олексій",
+    "RU": "Алексей"
+  },
+  "ph_clip": {
+    "EN": "2:02",
+    "UK": "2:02",
+    "RU": "2:02"
+  },
+  "ph_time": {
+    "EN": "00:01:30",
+    "UK": "00:01:30",
+    "RU": "00:01:30"
+  },
+  "ph_note": {
+    "EN": "client call",
+    "UK": "дзвінок з клієнтом",
+    "RU": "звонок с клиентом"
+  },
+  "ph_search": {
+    "EN": "search text",
+    "UK": "текст пошуку",
+    "RU": "текст поиска"
+  },
+  "ph_question": {
+    "EN": "What was decided?",
+    "UK": "Про що домовились?",
+    "RU": "О чём договорились?"
+  },
+  "ph_hook": {
+    "EN": "D:\\Scripts\\on_stop.bat",
+    "UK": "D:\\Scripts\\on_stop.bat",
+    "RU": "D:\\Scripts\\on_stop.bat"
   }
 }

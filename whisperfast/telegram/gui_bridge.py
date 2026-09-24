@@ -17,16 +17,21 @@ def gui_is_running() -> bool:
     return find_other_instance_pid() is not None
 
 
-def submit_to_running_gui(path: str, chat_id: int, message_id: int) -> None:
-    """Ask the open FTW window to queue this file. Raises if the window is not running."""
-    if not gui_is_running():
-        raise RuntimeError(t("telegram_gui_required"))
+def enqueue_telegram_file(path: str, chat_id: int, message_id: int) -> None:
+    """Queue a file for this process. Used when the listener runs inside the open window."""
     append_command(
         "telegram_file",
         path=os.path.abspath(path),
         chat_id=int(chat_id),
         message_id=int(message_id),
     )
+
+
+def submit_to_running_gui(path: str, chat_id: int, message_id: int) -> None:
+    """Ask the open FTW window to queue this file. Raises if the window is not running."""
+    if not gui_is_running():
+        raise RuntimeError(t("telegram_gui_required"))
+    enqueue_telegram_file(path, chat_id, message_id)
 
 
 def _same_path(a: str, b: str) -> bool:

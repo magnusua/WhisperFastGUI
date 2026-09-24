@@ -11,6 +11,7 @@ from whisperfast.library import ConversationLibrary, get_library
 from whisperfast.open_path import open_file, open_file_location
 from whisperfast.srt_parse import parse_srt_file
 from whisperfast.ui.dialogs import center_toplevel, track_i18n_window
+from whisperfast.ui.widgets import placeholder_entry
 
 
 def show_archive_window(app):
@@ -40,7 +41,7 @@ def show_archive_window(app):
     top = ttk.Frame(outer)
     top.pack(fill="x", pady=(0, 6))
     search_var = tk.StringVar()
-    search_entry = ttk.Entry(top, textvariable=search_var)
+    search_entry = placeholder_entry(top, search_var, "ph_search")
     search_entry.pack(side="left", fill="x", expand=True)
     search_btn = ttk.Button(top, text=t("archive_search"))
     search_btn.pack(side="left", padx=(6, 0))
@@ -284,7 +285,7 @@ def show_archive_qa_dialog(app, job: dict):
     q_var = tk.StringVar()
     row = ttk.Frame(frame)
     row.pack(fill="x", pady=(8, 4))
-    entry = ttk.Entry(row, textvariable=q_var)
+    entry = placeholder_entry(row, q_var, "ph_question")
     entry.pack(side="left", fill="x", expand=True)
     send_btn = ttk.Button(row, text=t("archive_qa_send"))
     send_btn.pack(side="left", padx=(6, 0))

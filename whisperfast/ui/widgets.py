@@ -13,6 +13,70 @@ UI_BASE_FONT_SIZE = 9
 LOG_MAX_LINES = 10000  # ограничение размера лога для длинных сессий
 
 
+def placeholder_entry(parent, variable, placeholder_key, secret=False, width=None):
+    """Empty field shows a grey example. The example is not written into the variable."""
+    kwargs = {}
+    if width is not None:
+        kwargs["width"] = width
+    entry = tk.Entry(
+        parent,
+        relief="flat",
+        bd=1,
+        highlightthickness=1,
+        highlightbackground="#c8c8c8",
+        highlightcolor="#5b8def",
+        **kwargs,
+    )
+    entry._is_hint = False
+
+    def paint_hint():
+        entry._is_hint = True
+        entry.configure(show="", fg="#8a8a8a")
+        entry.delete(0, tk.END)
+        entry.insert(0, t(placeholder_key))
+
+    def paint_value(value):
+        entry._is_hint = False
+        entry.configure(show="*" if secret else "", fg="#1a1a1a")
+        entry.delete(0, tk.END)
+        entry.insert(0, value)
+
+    def refresh(*_args):
+        if entry.focus_get() is entry and not entry._is_hint:
+            return
+        value = variable.get() or ""
+        if str(value).strip():
+            paint_value(str(value))
+        elif not entry._is_hint:
+            paint_hint()
+
+    def commit(_event=None):
+        if entry._is_hint:
+            return
+        variable.set(entry.get())
+
+    def on_focus_in(_event):
+        if not entry._is_hint:
+            return
+        entry._is_hint = False
+        entry.configure(show="*" if secret else "", fg="#1a1a1a")
+        entry.delete(0, tk.END)
+
+    def on_focus_out(_event):
+        commit()
+        if not str(variable.get() or "").strip():
+            variable.set("")
+            paint_hint()
+
+    entry.bind("<FocusIn>", on_focus_in)
+    entry.bind("<FocusOut>", on_focus_out)
+    entry.bind("<KeyRelease>", commit)
+    entry.bind("<<Paste>>", lambda _event: entry.after(10, commit))
+    variable.trace_add("write", refresh)
+    refresh()
+    return entry
+
+
 class Tooltip:
     """Подсказка при наведении на виджет. text — готовый текст или ключ перевода (если is_key=True)."""
     def __init__(self, widget, text, delay_ms=TOOLTIP_DELAY_MS, is_key=False):

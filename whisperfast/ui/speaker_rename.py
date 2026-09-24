@@ -18,6 +18,7 @@ from whisperfast.core.speakers import (
     utterances_for_id,
 )
 from whisperfast.i18n import t
+from whisperfast.ui.widgets import placeholder_entry
 from whisperfast.ui.dialogs import center_toplevel
 
 
@@ -124,7 +125,7 @@ def show_speaker_rename_dialog(app, job: dict):
         ttk.Label(box, text=longest or "—", wraplength=500).pack(anchor="w")
         name_var = tk.StringVar(value=display)
         vars_name[sid] = name_var
-        ttk.Entry(box, textvariable=name_var).pack(fill="x", pady=(6, 0))
+        placeholder_entry(box, name_var, "ph_speaker").pack(fill="x", pady=(6, 0))
 
     def save():
         mapping = {}

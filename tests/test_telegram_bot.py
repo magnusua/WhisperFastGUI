@@ -2,6 +2,8 @@
 import json
 import os
 import tempfile
+import threading
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -620,6 +622,33 @@ class TestAccountMode(unittest.TestCase):
         self.assertEqual(items[0]["chat_id"], 42)
         self.assertEqual(items[0]["reply_to"], 3)
         self.assertEqual(os.path.basename(items[0]["files"][0]["path"]), "clip.txt")
+
+
+class TestInWindowListener(unittest.TestCase):
+    def test_start_uses_this_window_and_stop_ends_it(self):
+        import whisperfast.telegram.service as service
+
+        seen = {}
+        started = threading.Event()
+
+        def fake_run(**kwargs):
+            seen.update(kwargs)
+            started.set()
+            while not kwargs["stop"]():
+                time.sleep(0.02)
+            return 0
+
+        with patch("whisperfast.telegram.worker.run_from_settings", fake_run):
+            service.stop()
+            self.assertTrue(service.start())
+            self.assertFalse(service.start())
+            self.assertTrue(started.wait(2))
+            self.assertTrue(seen["gui_running"]())
+            service.stop()
+            deadline = time.time() + 2
+            while service.is_running() and time.time() < deadline:
+                time.sleep(0.02)
+        self.assertFalse(service.is_running())
 
 
 if __name__ == "__main__":

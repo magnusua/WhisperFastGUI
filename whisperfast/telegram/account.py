@@ -131,6 +131,7 @@ def run_account(
     submit: Optional[Callable] = None,
     gui_running: Optional[Callable[[], bool]] = None,
     log: Optional[LogFunc] = None,
+    stop: Optional[Callable[[], bool]] = None,
 ) -> int:
     log = log or print
     try:
@@ -171,9 +172,10 @@ def run_account(
                 await _handle_message(client, event, settings, submit, gui_running, self_id, log)
 
             async def _pump():
-                while True:
+                while not (stop and stop()):
                     await _flush_outbox(client)
                     await asyncio.sleep(1)
+                await client.disconnect()
 
             pump = asyncio.create_task(_pump())
             log(t("telegram_account_listening", name=(me.first_name or me.username or str(me.id))))

@@ -93,6 +93,7 @@ from whisperfast.platform_util import win_no_window_kwargs
 from whisperfast import autostart as win_autostart
 from whisperfast.ui.widgets import (
     Tooltip,
+    placeholder_entry,
     UI_DESIGN_WIDTH,
     UI_MIN_SCALE,
     UI_BASE_FONT_SIZE,
@@ -442,37 +443,33 @@ class WhisperGUI:
         d.title(t("edit_row_title"))
         d.transient(self.root)
         d.grab_set()
+        note_var = tk.StringVar(value=row.get("note") or "")
+        start_var = tk.StringVar(value=row["start"])
+        seg1_var = tk.StringVar(value=row.get("end_segment_1", ""))
+        seg2_var = tk.StringVar(value=row.get("end_segment_2", ""))
+        end_var = tk.StringVar(value=row["end"])
         ttk.Label(d, text=t("col_note")).grid(row=0, column=0, padx=5, pady=3, sticky="w")
-        e_note = ttk.Entry(d, width=42)
-        e_note.insert(0, row.get("note") or "")
+        e_note = placeholder_entry(d, note_var, "ph_note", width=42)
         e_note.grid(row=0, column=1, padx=5, pady=3, sticky="we")
         ttk.Label(d, text=t("col_start")).grid(row=1, column=0, padx=5, pady=3, sticky="w")
-        e_start = ttk.Entry(d, width=14)
-        e_start.insert(0, row["start"])
-        e_start.grid(row=1, column=1, padx=5, pady=3, sticky="w")
+        placeholder_entry(d, start_var, "ph_time", width=14).grid(row=1, column=1, padx=5, pady=3, sticky="w")
         ttk.Label(d, text=t("col_end_seg1")).grid(row=2, column=0, padx=5, pady=3, sticky="w")
-        e_seg1 = ttk.Entry(d, width=14)
-        e_seg1.insert(0, row.get("end_segment_1", ""))
-        e_seg1.grid(row=2, column=1, padx=5, pady=3, sticky="w")
+        placeholder_entry(d, seg1_var, "ph_time", width=14).grid(row=2, column=1, padx=5, pady=3, sticky="w")
         ttk.Label(d, text=t("col_end_seg2")).grid(row=3, column=0, padx=5, pady=3, sticky="w")
-        e_seg2 = ttk.Entry(d, width=14)
-        e_seg2.insert(0, row.get("end_segment_2", ""))
-        e_seg2.grid(row=3, column=1, padx=5, pady=3, sticky="w")
+        placeholder_entry(d, seg2_var, "ph_time", width=14).grid(row=3, column=1, padx=5, pady=3, sticky="w")
         ttk.Label(d, text=t("col_end")).grid(row=4, column=0, padx=5, pady=3, sticky="w")
-        e_end = ttk.Entry(d, width=14)
-        e_end.insert(0, row["end"])
-        e_end.grid(row=4, column=1, padx=5, pady=3, sticky="w")
+        placeholder_entry(d, end_var, "ph_time", width=14).grid(row=4, column=1, padx=5, pady=3, sticky="w")
         d.grid_columnconfigure(1, weight=1)
 
         def apply_and_close():
-            note = normalize_queue_note(e_note.get())
+            note = normalize_queue_note(note_var.get())
             self.queue_ctrl.update_row(
                 idx,
                 note=note,
-                start=e_start.get().strip() or DEFAULT_START_TIMESTAMP,
-                end_segment_1=e_seg1.get().strip(),
-                end_segment_2=e_seg2.get().strip(),
-                end=e_end.get().strip() or row["end"],
+                start=(start_var.get() or "").strip() or DEFAULT_START_TIMESTAMP,
+                end_segment_1=(seg1_var.get() or "").strip(),
+                end_segment_2=(seg2_var.get() or "").strip(),
+                end=(end_var.get() or "").strip() or row["end"],
             )
             self._sync_queue_note(idx, note)
             d.destroy()
@@ -661,7 +658,7 @@ class WhisperGUI:
             state="disabled",
         )
         self.capture_clip_btn.pack(side="left", padx=(2, 2))
-        self.capture_clip_entry = ttk.Entry(header_f, textvariable=self.capture_clip_var, width=6)
+        self.capture_clip_entry = placeholder_entry(header_f, self.capture_clip_var, "ph_clip", width=6)
         self.capture_clip_entry.pack(side="left", padx=(0, 2))
         self.capture_clip_entry.bind("<Return>", lambda e: capture_ui.normalize_clip_entry(self))
         self.capture_clip_entry.bind("<FocusOut>", lambda e: capture_ui.normalize_clip_entry(self))

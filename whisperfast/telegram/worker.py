@@ -338,6 +338,8 @@ def run_bot(
     ensure_api: Callable = ensure_local_api,
     log: Optional[LogFunc] = None,
     max_cycles: Optional[int] = None,
+    poll_timeout: int = 50,
+    stop: Optional[Callable[[], bool]] = None,
 ) -> int:
     log = log or print
     token = str(settings.get("telegram_bot_token") or "").strip()
@@ -353,8 +355,10 @@ def run_bot(
     offset = None
     cycles = 0
     while max_cycles is None or cycles < max_cycles:
+        if stop and stop():
+            break
         cycles += 1
-        updates = client.get_updates(offset=offset, timeout=50)
+        updates = client.get_updates(offset=offset, timeout=poll_timeout)
         pending: List[IncomingMedia] = []
         new_offset = accept_updates(updates, allowlist, client, pending, log=log)
         if new_offset is not None:
@@ -370,14 +374,28 @@ def run_bot(
     return 0
 
 
-def run_from_settings() -> int:
+def run_from_settings(
+    *,
+    submit: Optional[Callable] = None,
+    gui_running: Optional[Callable[[], bool]] = None,
+    stop: Optional[Callable[[], bool]] = None,
+    log: Optional[LogFunc] = None,
+    poll_timeout: int = 50,
+) -> int:
     from whisperfast.telegram.account import normalize_mode, run_account
 
     settings = load_app_settings()
     try:
         if normalize_mode(settings.get("telegram_mode")) == "account":
-            return run_account(settings)
-        return run_bot(settings)
+            return run_account(settings, submit=submit, gui_running=gui_running, stop=stop, log=log)
+        return run_bot(
+            settings,
+            submit=submit,
+            gui_running=gui_running,
+            stop=stop,
+            log=log,
+            poll_timeout=poll_timeout,
+        )
     except KeyboardInterrupt:
         print("stopped")
         return 0
