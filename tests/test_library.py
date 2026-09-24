@@ -67,6 +67,29 @@ class TestConversationLibrary(unittest.TestCase):
         self.assertTrue(self.lib.set_summary_if_empty("job2", "from one_liner"))
         self.assertEqual(self.lib.get_job("job2")["summary"], "from one_liner")
 
+    def test_telegram_recipient_keeps_every_chat(self):
+        src = os.path.join(self._tmp.name, "talk.mp4")
+        self.lib.upsert_job(
+            {
+                "id": "tg1",
+                "created_at": "2026-09-24T12:00:00",
+                "source": src,
+                "name": "talk.mp4",
+            }
+        )
+        from whisperfast.library import note_telegram_recipient
+
+        note_telegram_recipient(src, "12345", library=self.lib)
+        self.assertEqual(self.lib.get_job("tg1")["telegram_to"], "12345")
+        note_telegram_recipient(src, "Родина", library=self.lib)
+        self.assertEqual(self.lib.get_job("tg1")["telegram_to"], "12345, Родина")
+        note_telegram_recipient(src, "999", library=self.lib)
+        self.assertEqual(self.lib.get_job("tg1")["telegram_to"], "12345, Родина, 999")
+        note_telegram_recipient(src, "родина", library=self.lib)
+        self.assertEqual(self.lib.get_job("tg1")["telegram_to"], "12345, Родина, 999")
+        self.lib.upsert_job({"id": "tg1", "summary": "still here"})
+        self.assertEqual(self.lib.get_job("tg1")["telegram_to"], "12345, Родина, 999")
+
     def test_find_by_source(self):
         src = os.path.join(self._tmp.name, "talk.mp4")
         self.lib.upsert_job(

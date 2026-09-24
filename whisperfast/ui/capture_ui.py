@@ -297,8 +297,8 @@ def _start_session(app, trigger: str) -> None:
     out_dir = capture_dir_from_settings(settings, auto=auto)
     loop_dev = None
     raw_dev = str(settings.get("capture_loopback_device") or "").strip()
-    if settings.get("capture_mix_mode") == "device" and raw_dev.isdigit():
-        loop_dev = int(raw_dev)
+    if settings.get("capture_mix_mode") == "device" and raw_dev:
+        loop_dev = raw_dev
     title = ""
     attendees = []
     try:
@@ -419,10 +419,45 @@ def _clip_var_text(app) -> str:
         return ""
 
 
+def sync_log_cancel_button(app) -> None:
+    """Enable the log-header Stop button while a recording or a queue run is active."""
+    btn = getattr(app, "cancel_btn", None)
+    if btn is None:
+        return
+    try:
+        recording = get_capture_session().running
+    except Exception:
+        recording = False
+    lock = getattr(app, "_process_queue_lock", None)
+    busy = bool(lock is not None and lock.locked())
+    try:
+        btn.config(state=("normal" if recording or busy else "disabled"))
+    except tk.TclError:
+        pass
+
+
+def handle_log_cancel(app) -> None:
+    """Stop button above the log: cancel transcription and stop an active recording."""
+    recording = False
+    try:
+        recording = get_capture_session().running
+    except Exception:
+        recording = False
+    if recording:
+        stop_capture(app)
+    lock = getattr(app, "_process_queue_lock", None)
+    if lock is not None and lock.locked():
+        app.cancel_requested = True
+        log = getattr(app, "log", None)
+        if callable(log):
+            log(t("waiting_segment"))
+
+
 def refresh_capture_buttons(app) -> None:
     session = get_capture_session()
     running = session.running
     paused = session.paused
+    sync_log_cancel_button(app)
     pause_btn = getattr(app, "capture_pause_btn", None)
     clip_btn = getattr(app, "capture_clip_btn", None)
     toolbar_icons.apply_capture_state(app, running, paused)

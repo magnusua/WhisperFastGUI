@@ -1,6 +1,36 @@
 {
   "releases": [
     {
+      "version": "2.1.4",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "YouTube, Instagram, and Facebook links are downloaded and returned to the chat by default. A checkbox in the Telegram window also puts the video in the Whisper queue.",
+          "Learn mode does not process a new chat until you agree. The question stays in the log if the window is closed, and agreement can cover the whole chat.",
+          "If the listener was on when FTW closed, it starts again with the window.",
+          "The queue trash column deletes a row. The Telegram column sends results. Shift+click always asks who should receive them, even when a chat is already known.",
+          "Archive has a Sent to column that keeps every recipient, and a Send to Telegram button with the same files as the queue. Shift+click on the button always asks for a recipient.",
+          "Check system, check updates, and install or reinstall are one Environment icon with a three-item menu. Watch sits next to notifications. Autostart is the icon alone. Log, Start, and the other tools share one row so the queue and the log use the freed height."
+        ],
+        "UK": [
+          "Посилання YouTube, Instagram і Facebook за замовчуванням скачуються і повертаються в чат. Галочка у вікні Telegram також ставить ролик у чергу Whisper.",
+          "Режим навчання не обробляє новий чат, доки ви не погодитесь. Питання лишається в логу, якщо вікно закрити, а згоду можна поширити на весь чат.",
+          "Якщо слухач був увімкнений перед закриттям FTW, він стартує знову разом із вікном.",
+          "Стовпець кошика в черзі видаляє рядок. Стовпець Telegram надсилає результати. Shift+клік завжди питає, кому відправити, навіть якщо чат уже відомий.",
+          "В архіві стовпець «Кому» збирає всіх адресатів, а кнопка «Надіслати в Telegram» відправляє той самий набір файлів, що й черга. Shift+клік по кнопці завжди питає адресата.",
+          "Перевірка системи, оновлення і встановлення залежностей — одна іконка середовища з меню з трьох пунктів. Слідкування стоїть біля сповіщень. Автозапуск лишився однією іконкою. Лог, старт і решта кнопок стоять в одному ряду, тож черга і лог забирають звільнену висоту."
+        ],
+        "RU": [
+          "Ссылки YouTube, Instagram и Facebook по умолчанию скачиваются и возвращаются в чат. Галочка в окне Telegram также ставит ролик в очередь Whisper.",
+          "Режим обучения не обрабатывает новый чат, пока вы не согласитесь. Вопрос остаётся в логе, если окно закрыть, а согласие можно распространить на весь чат.",
+          "Если слушатель был включён перед закрытием FTW, он стартует снова вместе с окном.",
+          "Столбец корзины в очереди удаляет строку. Столбец Telegram отправляет результаты. Shift+щелчок всегда спрашивает, кому отправить, даже если чат уже известен.",
+          "В архиве столбец «Кому» собирает всех адресатов, а кнопка «Отправить в Telegram» отправляет тот же набор файлов, что и очередь. Shift+щелчок по кнопке всегда спрашивает адресата.",
+          "Проверка системы, обновления и установка зависимостей — одна иконка среды с меню из трёх пунктов. Слежение стоит рядом с уведомлениями. Автозапуск остался одной иконкой. Лог, старт и остальные кнопки стоят в одном ряду, так что очередь и лог забирают освобождённую высоту."
+        ]
+      }
+    },
+    {
       "version": "2.1.3",
       "date": "24.09.2026",
       "notes": {

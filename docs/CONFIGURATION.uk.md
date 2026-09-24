@@ -16,6 +16,7 @@
 | `library.sqlite` | Архів розмов (FTS-пошук, шляхи txt/srt/mp3/AI) | `whisperfast/library.py` |
 | `.ftw_tg_origin.json` | Який чат Telegram надіслав файл (лишається після зникнення рядка з черги і після перенесення джерела) | `whisperfast/telegram/origin.py` |
 | `.ftw_tg_seen.json` | Які файли Telegram уже скачані й чи є для них розшифровка та файли AI | `whisperfast/telegram/seen.py` |
+| `.ftw_tg_recent.json` | До 10 останніх груп і контактів, куди надсилали відео або результати | `whisperfast/telegram/recent.py` |
 | `telegram_user.session` | Сесія входу в акаунт Telegram (Telethon) | `whisperfast/telegram/account.py` |
 | `telegram_inbox/` | Типова папка, куди лягають файли з Telegram до черги, якщо `telegram_work_dir` порожній | `whisperfast/telegram/worker.py` |
 | `captures/` | Каталог стерео WAV запису зустрічі (`capture_YYYYMMDD_HHMMSS.wav`); поруч може бути `.inprogress` | `whisperfast/core/capture.py` |
@@ -86,6 +87,9 @@
 | `telegram_allowed_chat_ids` | `[]` | Дозволені chat id. Порожній список: для акаунта — усі особисті чати; для бота — медіа ігнорується, `/start` відповідає id чату. |
 | `telegram_self_chat_names` | `[]` | Імена чатів (ім’я, повне ім’я, `@username` або назва групи, без урахування регістру). В особистому чаті зі списку обробляються й власні аудіо/відео; Обране входить завжди. Група з тією назвою віддає в чергу всі аудіо та відео, не лише власні. |
 | `telegram_work_dir` | `""` | Куди зберігати файли з Telegram перед чергою. Порожньо — `telegram_inbox/` поруч із програмою. |
+| `telegram_social_to_queue` | `false` | Посилання YouTube, Instagram або Facebook після скачування ставити в чергу Whisper. Вимкнено — ролик лише повертається в чат. |
+| `telegram_learn_mode` | `false` | Нові чати не обробляються, доки користувач не відповість на питання в лозі. Згода може додати чат до автоматичного списку. |
+| `telegram_listener_enabled` | `false` | Слухач був увімкнений перед закриттям. Наступний запуск вікна стартує його знову. |
 
 **Ключі API.** На Windows значення шифруються DPAPI (`dpapi:` + base64) при записі в `settings.json` (`whisperfast/secrets_store.py`) і розшифровуються лише в пам'яті. На macOS секрет лежить у login Keychain, а в файлі лишається позначка `keychain:<ім'я ключа>`. На Linux лишається відкритий текст і `chmod 0600`. Якщо ключ заданий і через змінну середовища, і в `settings.json` — виграє змінна середовища.
 
@@ -105,12 +109,15 @@
     "end_segment_1": "",
     "end_segment_2": "",
     "end": "00:42:10,500",
-    "processed": false
+    "processed": false,
+    "ai_done": false,
+    "tg_sent": false,
+    "error": ""
   }
 ]
 ```
 
-Ключі відповідають `config.QUEUE_ITEM_KEYS = ("path", "start", "end_segment_1", "end_segment_2", "end", "processed")`. При завантаженні файли, яких уже немає на диску, мовчки пропускаються (`os.path.isfile` перевірка); `end`, якщо не вказано, обчислюється заново з тривалості файлу. Файл перезаписується повністю при кожній зміні черги (додавання, видалення, перетягування, редагування діапазону).
+Базові ключі — `config.QUEUE_ITEM_KEYS`. Додатково рядок може пам’ятати `note`, `telegram_chat_id`, `telegram_message_id`, `ai_done`, `tg_sent` і `error`. Ці прапорці малює стовпець «Статус»: пісковий годинник, галочка, `AI`, `TG`, `AI + TG` або текст помилки. При завантаженні файли, яких уже немає на диску, мовчки пропускаються (`os.path.isfile` перевірка); `end`, якщо не вказано, обчислюється заново з тривалості файлу. Файл перезаписується повністю при кожній зміні черги (додавання, видалення, перетягування, редагування діапазону). Видалення рядка черги запис в архіві не прибирає.
 
 ## app_log.json
 

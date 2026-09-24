@@ -133,6 +133,58 @@ class TestAiJobRetry(unittest.TestCase):
         self.assertEqual(calls[0]["prompts"], [(1, "redactor", "clean up")])
         self.assertTrue(any("a.txt" in str(m) for m in app.file_events))
 
+    def test_retry_runs_only_prompts_without_a_file(self):
+        app = FakeApp(api_key="test-key")
+        jobs = AiJobQueue(app)
+        with tempfile.TemporaryDirectory() as tmp:
+            txt = os.path.join(tmp, "meet.txt")
+            with open(txt, "w", encoding="utf-8") as handle:
+                handle.write("hello")
+            with open(os.path.join(tmp, "meet_redactor.md"), "w", encoding="utf-8") as handle:
+                handle.write("done")
+            job_id = jobs.register_job(txt, log_file_id="file1")
+            job = jobs._jobs[job_id]
+            job["prompts"] = [(1, "redactor", "clean"), (9, "one_liner", "line")]
+            job["status"] = "done"
+            job["provider_id"] = "cursor"
+            calls = []
+
+            def fake_start(*_a, **kwargs):
+                calls.append(kwargs)
+                kwargs["on_complete"]([])
+
+            with patch("whisperfast.ui.ai_jobs.start_ai_postprocess_async", side_effect=fake_start):
+                with patch.dict("sys.modules", {"cursor_sdk": SimpleNamespace()}):
+                    jobs.retry_job(job_id)
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual([item[0] for item in calls[0]["prompts"]], [9])
+        self.assertTrue(any("redactor" in str(m) for m in app.file_events))
+
+    def test_retry_does_nothing_when_every_output_exists(self):
+        app = FakeApp(api_key="test-key")
+        jobs = AiJobQueue(app)
+        with tempfile.TemporaryDirectory() as tmp:
+            txt = os.path.join(tmp, "meet.txt")
+            with open(txt, "w", encoding="utf-8") as handle:
+                handle.write("hello")
+            with open(os.path.join(tmp, "meet_redactor.md"), "w", encoding="utf-8") as handle:
+                handle.write("done")
+            job_id = jobs.register_job(txt, log_file_id="file1")
+            job = jobs._jobs[job_id]
+            job["prompts"] = [(1, "redactor", "clean")]
+            job["status"] = "done"
+            calls = []
+
+            def fake_start(*_a, **kwargs):
+                calls.append(kwargs)
+
+            with patch("whisperfast.ui.ai_jobs.start_ai_postprocess_async", side_effect=fake_start):
+                jobs.retry_job(job_id)
+
+        self.assertEqual(calls, [])
+        self.assertTrue(app.file_events)
+
 
 class TestAutoProcess(unittest.TestCase):
     def _job(self, auto, rules=None, nums=None):

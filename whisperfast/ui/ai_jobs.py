@@ -105,8 +105,24 @@ from whisperfast.postprocess.cursor_postprocess import (
     is_one_liner_output,
     open_redactor_file,
     parse_redactor_prompts,
+    edited_output_path,
     prompt_label_from_output_path,
 )
+
+
+def _prompts_without_output(txt_path: str, prompts):
+    """Prompts whose result file is not on disk yet, plus names already written."""
+    pending = []
+    existing_names = []
+    for item in prompts or []:
+        num = item[0]
+        name = item[1] if len(item) > 1 else ""
+        out = edited_output_path(txt_path, num, name)
+        if out and os.path.isfile(out):
+            existing_names.append(str(name or num))
+        else:
+            pending.append(item)
+    return pending, existing_names
 from whisperfast.postprocess.providers import (
     PROVIDER_CURSOR,
     get_provider,
@@ -257,6 +273,15 @@ class AiJobQueue:
                     return
         play_finish_sound()
 
+    def _mark_queue_ai(self, job):
+        fid = job.get("log_file_id")
+        store = getattr(getattr(self.app, "log_panel", None), "_store", None)
+        entry = store.get_file(fid) if store is not None and fid else None
+        source = str((entry or {}).get("source") or "")
+        ctrl = getattr(self.app, "queue_ctrl", None)
+        if source and ctrl is not None:
+            ctrl.set_result(source, ai_done=True, error="")
+
     def _job_begin(self):
         with self._lock:
             self._pending += 1
@@ -287,6 +312,8 @@ class AiJobQueue:
 
             for job in list(self._jobs.values()):
                 txt = job.get("txt_path")
+                if str(job.get("status") or "") == "done":
+                    self._mark_queue_ai(job)
                 if txt:
                     maybe_deliver_telegram(self.app, source_path=None, file_id=job.get("log_file_id"))
         except Exception:
@@ -665,7 +692,7 @@ class AiJobQueue:
             self.app.log_action(t("log_file_retry_ai_btn"), cb)
 
     def retry_job(self, job_id):
-        """Повторити AI-завдання з уже обраними промптами (без діалогу і без паузи)."""
+        """Повторити лише ті промпти, для яких файлу результату ще немає."""
         job = self._jobs.get(job_id)
         if not job:
             return
@@ -675,20 +702,30 @@ class AiJobQueue:
         if not prompts:
             self.open_prompt_dialog(job_id)
             return
+        pending, existing_names = _prompts_without_output(job.get("txt_path") or "", prompts)
+        file_name = os.path.basename(job["txt_path"])
+        fid = job.get("log_file_id")
+
+        def _note(msg):
+            if fid:
+                self.app.log_file_event(msg, file_id=fid)
+            else:
+                self.app.log(msg)
+
+        if not pending:
+            self._clear_ai_retry(job)
+            _note(t("ai_retry_nothing_pending", name=file_name))
+            return
         if job.get("status") in ("skipped", "done"):
             self._job_begin()
         job["status"] = "running"
         self._clear_ai_retry(job)
-        file_name = os.path.basename(job["txt_path"])
-        fid = job.get("log_file_id")
-        msg = t("ai_retrying", name=file_name)
-        if fid:
-            self.app.log_file_event(msg, file_id=fid)
-        else:
-            self.app.log(msg)
+        _note(t("ai_retrying", name=file_name))
+        if existing_names:
+            _note(t("ai_retry_skip_done", names=", ".join(existing_names)))
         self.start_after_prompt_choice(
             job,
-            prompts,
+            pending,
             job.get("provider_id") or PROVIDER_CURSOR,
             delay_s=0,
         )

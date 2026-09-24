@@ -32,34 +32,6 @@ def capture_available() -> bool:
         return False
 
 
-def _wasapi_loopback_device(sd) -> Optional[int]:
-    try:
-        hostapis = sd.query_hostapis()
-    except Exception:
-        return None
-    wasapi_index = None
-    for i, api in enumerate(hostapis):
-        name = str(api.get("name") or "").lower()
-        if "wasapi" in name:
-            wasapi_index = i
-            break
-    if wasapi_index is None:
-        return None
-    api = hostapis[wasapi_index]
-    default_out = api.get("default_output_device")
-    if default_out is None or int(default_out) < 0:
-        return None
-    return int(default_out)
-
-
-def _wasapi_loopback_settings(sd):
-    """Loopback extra_settings; auto_convert avoids 48 kHz vs device-rate failures."""
-    try:
-        return sd.WasapiSettings(loopback=True, auto_convert=True)
-    except TypeError:
-        return sd.WasapiSettings(loopback=True)
-
-
 def repair_wav_header(path: str) -> bool:
     """Fix RIFF/data sizes when the process died before wave.close().
 
@@ -145,30 +117,10 @@ def _recover_in_dir(directory: str) -> List[str]:
 
 
 def list_loopback_devices() -> List[Tuple[str, str]]:
-    """[(id, label)] WASAPI output devices for loopback. Empty if sounddevice missing."""
-    if not capture_available():
-        return []
-    import sounddevice as sd
+    """[(endpoint id, friendly name)] playback devices for WASAPI loopback."""
+    from whisperfast.core.wasapi_loopback import list_render_devices
 
-    out: List[Tuple[str, str]] = []
-    try:
-        devices = sd.query_devices()
-        hostapis = sd.query_hostapis()
-    except Exception:
-        return out
-    wasapi = None
-    for i, api in enumerate(hostapis):
-        if "wasapi" in str(api.get("name") or "").lower():
-            wasapi = i
-            break
-    for idx, dev in enumerate(devices):
-        if int(dev.get("max_output_channels") or 0) <= 0:
-            continue
-        if wasapi is not None and int(dev.get("hostapi") or -1) != wasapi:
-            continue
-        name = str(dev.get("name") or f"#{idx}")
-        out.append((str(idx), f"{idx}: {name}"))
-    return out
+    return list_render_devices()
 
 
 class CaptureSession:
@@ -190,7 +142,7 @@ class CaptureSession:
         self.trigger = "manual"
         self._include_mic = True
         self._include_system = True
-        self._loopback_device: Optional[int] = None
+        self._loopback_device = None
         self.calendar_title = ""
         self.calendar_attendees: List[str] = []
         self.log_file_id = ""
@@ -265,7 +217,7 @@ class CaptureSession:
         trigger: str = "manual",
         include_mic: bool = True,
         include_system: bool = True,
-        loopback_device: Optional[int] = None,
+        loopback_device=None,
         calendar_title: str = "",
         calendar_attendees: Optional[List[str]] = None,
     ) -> str:
@@ -447,25 +399,20 @@ class CaptureSession:
 
         samplerate = int(self._samplerate)
         blocksize = 2048
-        extra = None
-        loopback_dev = None
+        loopback = None
         loopback_err = ""
-        if self._include_system and hasattr(sd, "WasapiSettings"):
+        if self._include_system:
             try:
-                extra = _wasapi_loopback_settings(sd)
-                if self._loopback_device is not None:
-                    loopback_dev = int(self._loopback_device)
-                else:
-                    loopback_dev = _wasapi_loopback_device(sd)
-                if loopback_dev is None:
-                    loopback_err = "no WASAPI output device"
-                    extra = None
+                from whisperfast.core.wasapi_loopback import WasapiLoopback, resolve_endpoint_id
+
+                loopback = WasapiLoopback(
+                    endpoint_id=resolve_endpoint_id(self._loopback_device),
+                    samplerate=samplerate,
+                )
+                loopback.open()
             except Exception as e:
-                extra = None
-                loopback_dev = None
+                loopback = None
                 loopback_err = str(e) or e.__class__.__name__
-        elif self._include_system:
-            loopback_err = "WASAPI unavailable"
         mic_dev = None
         if self._include_mic:
             try:
@@ -473,16 +420,9 @@ class CaptureSession:
             except Exception:
                 mic_dev = None
 
-        if (
-            extra is not None
-            and loopback_dev is not None
-            and mic_dev is not None
-            and self._include_system
-        ):
+        if loopback is not None and self._include_mic:
             try:
-                self._record_two_streams(
-                    sd, np, mic_dev, loopback_dev, extra, samplerate, blocksize
-                )
+                self._record_two_streams(sd, np, mic_dev, loopback, samplerate, blocksize)
                 return
             except RuntimeError as e:
                 if str(e) == "no audio captured":
@@ -490,11 +430,12 @@ class CaptureSession:
                 loopback_err = str(e)
             except Exception as e:
                 loopback_err = str(e) or e.__class__.__name__
-        if extra is not None and loopback_dev is not None and not self._include_mic:
+            finally:
+                loopback.close()
+                loopback = None
+        if loopback is not None and not self._include_mic:
             try:
-                self._record_system_only(
-                    sd, np, loopback_dev, extra, samplerate, blocksize
-                )
+                self._record_system_only(np, loopback, samplerate)
                 return
             except RuntimeError as e:
                 if str(e) == "no audio captured":
@@ -502,6 +443,11 @@ class CaptureSession:
                 loopback_err = str(e)
             except Exception as e:
                 loopback_err = str(e) or e.__class__.__name__
+            finally:
+                loopback.close()
+                loopback = None
+        if loopback is not None:
+            loopback.close()
         if self._include_system:
             self._note(t("capture_loopback_failed", error=loopback_err or "unknown"))
         self._record_mic_only(sd, np, mic_dev, samplerate, blocksize)
@@ -536,36 +482,18 @@ class CaptureSession:
                 pass
             raise RuntimeError("no audio captured")
 
-    def _record_system_only(self, sd, np, loop_dev, extra, samplerate, blocksize) -> None:
+    def _record_system_only(self, np, loopback, samplerate) -> None:
         write_lock = self._write_lock
         wf = self._open_wav(self._path, samplerate)
         wrote = False
-
-        def cb_loop(indata, frames, time_info, status):
-            nonlocal wrote
-            del frames, time_info, status
-            if self._paused.is_set():
-                return
-            if indata.ndim > 1:
-                chunk = indata.mean(axis=1)
-            else:
-                chunk = indata.reshape(-1)
-            stereo = np.column_stack((chunk, chunk))
-            self._write_float_stereo(wf, stereo, write_lock)
-            wrote = True
-
         try:
-            with sd.InputStream(
-                device=loop_dev,
-                channels=2,
-                samplerate=samplerate,
-                blocksize=blocksize,
-                dtype="float32",
-                extra_settings=extra,
-                callback=cb_loop,
-            ):
-                while not self._stop.wait(0.1):
-                    pass
+            while not self._stop.wait(0.05):
+                chunk = loopback.read()
+                if self._paused.is_set() or chunk.size == 0:
+                    continue
+                stereo = np.column_stack((chunk, chunk))
+                self._write_float_stereo(wf, stereo, write_lock)
+                wrote = True
         finally:
             with write_lock:
                 wf.close()
@@ -576,7 +504,7 @@ class CaptureSession:
                 pass
             raise RuntimeError("no audio captured")
 
-    def _record_two_streams(self, sd, np, mic_dev, loop_dev, extra, samplerate, blocksize):
+    def _record_two_streams(self, sd, np, mic_dev, loopback, samplerate, blocksize):
         write_lock = self._write_lock
         state_lock = threading.Lock()
         mic_buf = np.zeros(0, dtype=np.float32)
@@ -606,19 +534,6 @@ class CaptureSession:
                 mic_buf = np.concatenate((mic_buf, chunk.astype(np.float32, copy=False)))
             flush_aligned()
 
-        def cb_loop(indata, frames, time_info, status):
-            del frames, time_info, status
-            if self._paused.is_set():
-                return
-            if indata.ndim > 1:
-                chunk = indata.mean(axis=1)
-            else:
-                chunk = indata.reshape(-1)
-            with state_lock:
-                nonlocal loop_buf
-                loop_buf = np.concatenate((loop_buf, chunk.astype(np.float32, copy=False)))
-            flush_aligned()
-
         try:
             with sd.InputStream(
                 device=mic_dev,
@@ -627,17 +542,14 @@ class CaptureSession:
                 blocksize=blocksize,
                 dtype="float32",
                 callback=cb_mic,
-            ), sd.InputStream(
-                device=loop_dev,
-                channels=2,
-                samplerate=samplerate,
-                blocksize=blocksize,
-                dtype="float32",
-                extra_settings=extra,
-                callback=cb_loop,
             ):
-                while not self._stop.wait(0.1):
-                    pass
+                while not self._stop.wait(0.05):
+                    chunk = loopback.read()
+                    if self._paused.is_set() or chunk.size == 0:
+                        continue
+                    with state_lock:
+                        loop_buf = np.concatenate((loop_buf, chunk.astype(np.float32, copy=False)))
+                    flush_aligned()
             flush_aligned()
         finally:
             with write_lock:

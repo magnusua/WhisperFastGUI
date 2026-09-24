@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 import uuid
 import tkinter as tk
 
@@ -22,6 +23,7 @@ from whisperfast.log_store import (
     today_key,
 )
 from whisperfast.open_path import open_file, open_file_location
+from whisperfast.postprocess.common import open_url_in_browser
 from whisperfast.ui.widgets import LOG_MAX_LINES
 
 _ROLE_I18N = {
@@ -38,6 +40,18 @@ _FILES_CREATED_MARKERS = (
     "файли створено для",
     "файлы созданы для",
 )
+_URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_URL_TRAILING = ".,;:!?)]}>\"'"
+
+
+def url_spans(text: str):
+    """Start/end of http(s) links inside a log line, without trailing punctuation."""
+    spans = []
+    for match in _URL_RE.finditer(text or ""):
+        raw = match.group(0).rstrip(_URL_TRAILING)
+        if raw:
+            spans.append((match.start(), match.start() + len(raw)))
+    return spans
 
 _PROMPT_INPUT_EXTS = (".txt", ".md")
 
@@ -612,8 +626,7 @@ class LogPanel:
                     tags.append("link")
                 elif tag == "action":
                     tags.append("action")
-                box.insert(cursor, text, tuple(tags))
-                cursor = box.index(f"{cursor}+{len(text)}c")
+                cursor = self._insert_logged_text(cursor, text, tags)
         box.config(state="disabled")
 
     # --- Insert / render -----------------------------------------------------
@@ -632,9 +645,35 @@ class LogPanel:
             tags.append(tag)
         tags.extend(extra_tags)
         self.log_box.config(state="normal")
-        self.log_box.insert("end", text, tuple(tags))
+        self._insert_logged_text("end", text, tags)
         self._trim_if_needed()
         self.log_box.config(state="disabled")
+
+    def _insert_logged_text(self, index, text, tags):
+        """Insert a log line. A web address inside it is its own clickable link."""
+        box = self.log_box
+        tags = tuple(tags)
+        if index == "end":
+            index = box.index("end")
+        if "link" in tags or "action" in tags or not url_spans(text):
+            box.insert(index, text, tags)
+            return box.index(f"{index}+{len(text)}c")
+        cursor = index
+        pos = 0
+        for start, end in url_spans(text):
+            if start > pos:
+                chunk = text[pos:start]
+                box.insert(cursor, chunk, tags)
+                cursor = box.index(f"{cursor}+{len(chunk)}c")
+            url = text[start:end]
+            box.insert(cursor, url, tags + ("link",))
+            cursor = box.index(f"{cursor}+{len(url)}c")
+            pos = end
+        if pos < len(text):
+            chunk = text[pos:]
+            box.insert(cursor, chunk, tags)
+            cursor = box.index(f"{cursor}+{len(chunk)}c")
+        return cursor
 
     def _tagged_span(self, tag):
         """First start .. last end of a tag, including gaps from embedded windows."""
@@ -960,8 +999,7 @@ class LogPanel:
             tags = list(base_body)
             if tag == "link":
                 tags.append("link")
-            box.insert(cursor, display, tuple(tags))
-            cursor = box.index(f"{cursor}+{len(display)}c")
+            cursor = self._insert_logged_text(cursor, display, tags)
 
         if has_retry:
             rbtn = "   " + t("log_file_retry_ai_btn") + "\n"
@@ -1254,7 +1292,9 @@ class LogPanel:
         if not rng:
             return "break"
         path = self.log_box.get(rng[0], rng[1]).strip().strip('"')
-        if path:
+        if path.lower().startswith(("http://", "https://")):
+            open_url_in_browser(path)
+        elif path:
             open_file(path)
         return "break"
 
@@ -1265,6 +1305,9 @@ class LogPanel:
             return "break"
         path = self.log_box.get(rng[0], rng[1]).strip().strip('"')
         if not path:
+            return "break"
+        if path.lower().startswith(("http://", "https://")):
+            open_url_in_browser(path)
             return "break"
         ok = open_file_location(path)
         if not ok:

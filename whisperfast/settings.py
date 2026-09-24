@@ -40,6 +40,7 @@ _DEFAULTS = {
     "watch_dir": "",
     "watch_enabled": False,
     "device_mode": "AUTO",
+    "keep_gpu_awake": False,
     "play_sound_on_finish": False,
     "save_audio_mp3": False,
     "tray_mode": "panel",
@@ -94,6 +95,10 @@ _DEFAULTS = {
     "telegram_api_base": "http://127.0.0.1:8081",
     "telegram_allowed_chat_ids": [],
     "telegram_work_dir": "",
+    "telegram_social_to_queue": False,
+    "telegram_social_quality": "best",
+    "telegram_listener_enabled": False,
+    "telegram_learn_mode": False,
     "telegram_mode": "bot",
     "telegram_phone": "",
     "telegram_self_chat_names": [],
@@ -253,6 +258,14 @@ def _sanitize_loaded_settings(data, defaults):
                 if data[key] != text:
                     changed = True
             continue
+        if key == "telegram_social_quality":
+            from whisperfast.telegram.links import normalize_social_quality
+
+            quality = normalize_social_quality(data.get(key))
+            sanitized[key] = quality
+            if data.get(key) != quality:
+                changed = True
+            continue
         if key == "telegram_mode":
             mode = str(data.get(key) or "bot").strip().lower()
             if mode not in ("bot", "account"):
@@ -270,6 +283,10 @@ def _sanitize_loaded_settings(data, defaults):
                 sanitized[key] = normalized
                 if data[key] != normalized:
                     changed = True
+            continue
+        if key == "keep_gpu_awake" and key not in data:
+            sanitized[key] = str(data.get("device_mode") or "AUTO").upper() == "GPU"
+            changed = True
             continue
         if key not in data:
             sanitized[key] = default

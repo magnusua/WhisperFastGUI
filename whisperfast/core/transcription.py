@@ -33,7 +33,7 @@ from whisperfast.core.document_convert import (
     is_document_file,
     needs_office_to_md,
 )
-from whisperfast.core.model_manager import WhisperModelSingleton
+from whisperfast.core.model_manager import GpuRequiredError, WhisperModelSingleton
 from whisperfast.i18n import t
 from whisperfast.utils import (
     format_timestamp,
@@ -191,11 +191,27 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
         def get_model():
             nonlocal model
             if model is None:
-                model = WhisperModelSingleton.get(
-                    app.log,
-                    opts.get("device_mode", "AUTO"),
-                    opts.get("whisper_model", DEFAULT_MODEL),
-                )
+                try:
+                    model = WhisperModelSingleton.get(
+                        app.log,
+                        opts.get("device_mode", "AUTO"),
+                        opts.get("whisper_model", DEFAULT_MODEL),
+                        keep_gpu_awake=opts.get("keep_gpu_awake"),
+                    )
+                except GpuRequiredError:
+                    ask = getattr(app, "ask_gpu_required", None)
+                    choice = ask() if ask else None
+                    if choice not in ("AUTO", "CPU"):
+                        raise
+                    opts["device_mode"] = choice
+                    opts["keep_gpu_awake"] = False
+                    model = None
+                    model = WhisperModelSingleton.get(
+                        app.log,
+                        choice,
+                        opts.get("whisper_model", DEFAULT_MODEL),
+                        keep_gpu_awake=False,
+                    )
             return model
 
         # Снимок очереди, чтобы индексы не выходили за границы при изменении очереди в GUI

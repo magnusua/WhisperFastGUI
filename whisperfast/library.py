@@ -86,6 +86,9 @@ class ConversationLibrary:
                 "INSERT OR IGNORE INTO meta(key, value) VALUES ('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
             )
+            cols = {row[1] for row in cur.execute("PRAGMA table_info(jobs)").fetchall()}
+            if "telegram_to" not in cols:
+                cur.execute("ALTER TABLE jobs ADD COLUMN telegram_to TEXT")
             self._conn.commit()
 
     def close(self) -> None:
@@ -133,6 +136,7 @@ class ConversationLibrary:
             "json_path": _norm_path(merged.get("json_path") or ""),
             "vtt_path": _norm_path(merged.get("vtt_path") or ""),
             "extra_outputs": json.dumps(list(extra), ensure_ascii=False),
+            "telegram_to": merged.get("telegram_to") or "",
         }
         with self._lock:
             self._conn.execute(
@@ -140,11 +144,11 @@ class ConversationLibrary:
                 INSERT INTO jobs (
                     id, created_at, source, name, status, language, model,
                     summary, category, tags, txt_path, srt_path, mp3_path,
-                    json_path, vtt_path, extra_outputs
+                    json_path, vtt_path, extra_outputs, telegram_to
                 ) VALUES (
                     :id, :created_at, :source, :name, :status, :language, :model,
                     :summary, :category, :tags, :txt_path, :srt_path, :mp3_path,
-                    :json_path, :vtt_path, :extra_outputs
+                    :json_path, :vtt_path, :extra_outputs, :telegram_to
                 )
                 ON CONFLICT(id) DO UPDATE SET
                     created_at=excluded.created_at,
@@ -161,7 +165,8 @@ class ConversationLibrary:
                     mp3_path=excluded.mp3_path,
                     json_path=excluded.json_path,
                     vtt_path=excluded.vtt_path,
-                    extra_outputs=excluded.extra_outputs
+                    extra_outputs=excluded.extra_outputs,
+                    telegram_to=excluded.telegram_to
                 """,
                 row,
             )
@@ -415,6 +420,24 @@ class ConversationLibrary:
 
 _default_library: Optional[ConversationLibrary] = None
 _default_lock = threading.Lock()
+
+
+def note_telegram_recipient(source: str, recipient: str, *, library: Optional["ConversationLibrary"] = None) -> None:
+    """Append one recipient. The column keeps every chat that received the results."""
+    label = str(recipient or "").strip()
+    if not source or not label:
+        return
+    lib = library or get_library()
+    job = lib.find_by_source(source)
+    if not job:
+        return
+    old = str(job.get("telegram_to") or "")
+    parts = [part.strip() for part in old.split(",") if part.strip()]
+    if any(part.casefold() == label.casefold() for part in parts):
+        return
+    parts.append(label)
+    job["telegram_to"] = ", ".join(parts)
+    lib.upsert_job(job, reindex=False)
 
 
 def get_library(path: Optional[str] = None) -> ConversationLibrary:

@@ -48,7 +48,7 @@ Supported documents: `.pdf`, `.doc`, `.docx` (converted to Markdown; Whisper is 
 1. PDF/DOC/DOCX are converted to `.md` (package `markitdown`).
 2. Other text formats are prepared as Markdown in the save folder.
 3. If **To AI** is on, a prompt dialog opens (Cursor / Gemini / Claude / Copilot); **Markdown** is sent to AI. The log notes that the original PDF/DOC/DOCX was **not** passed to AI.
-4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each AI result). If Pandoc is missing, the app can install it via **Dependencies** / **Updates**, or from https://pandoc.org/installing.html
+4. If **MD → Word** is on, Pandoc creates `.docx` after Markdown is ready (or after each AI result). If Pandoc is missing, the app can install it from the **Environment** menu, or from https://pandoc.org/installing.html
 
 The log shows conversion steps, output paths, AI progress, and final results.
 
@@ -65,7 +65,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 - **Device: AUTO** uses an NVIDIA GPU when available and otherwise uses the CPU.
 - **GPU** uses CUDA. If an NVIDIA GPU has powered down, FTW wakes it first; without a GPU the work runs on the CPU.
 - **CPU** works without CUDA and is suitable for systems with AMD or integrated graphics.
-- Click the model name to select, download, load, or update a Whisper model. Smaller models are faster; larger models generally provide better recognition.
+- Click the chip icon to select, download, load, or update a Whisper model. The current name is in the tooltip. Smaller models are faster; larger models generally provide better recognition.
 
 ## Output options
 
@@ -107,7 +107,7 @@ After Whisper or document conversion, the log shows a clickable **Send to AI** l
 
 ## Archive, capture, extra exports
 
-- **Archive** lists processed jobs (`library.sqlite`). Search by transcript text. Double-click an SRT line to hear that moment (needs the source or a saved MP3). **Delete all files** removes the source and every derivative. **Ask** sends a question about that transcript to the current API provider. **Speakers** renames You/Them using the first and longest utterance.
+- **Archive** lists processed jobs (`library.sqlite`). Search by transcript text. The **Sent to** column lists everyone who already received the results. **Send to Telegram** sends the same files as the queue; Shift+click always asks for a recipient, even when a chat is already known. Double-click an SRT line to hear that moment (needs the source or a saved MP3). **Delete all files** removes the source and every derivative. **Ask** sends a question about that transcript to the current API provider. **Speakers** renames You/Them using the first and longest utterance.
 - **Record** (also tray / **Ctrl+Shift+R**) captures microphone + system audio. PCM is written to disk as you go; **Stop** and **Clip** encode to Opus (default 24 kbit/s mono), AAC, MP3, or WAV and always enqueue. **Pause** / **Ctrl+Shift+P** skips audio until you resume. The gear opens **recording settings**: mix vs device, codec, auto-record (Zoom/Teams/Meet/Telegram/Viber/Phone Link/WhatsApp), Google Calendar / Outlook / ICS, filename tokens (`%W`, `%C`, …). **Sign in to Google Calendar** opens the browser (same pattern as Cursor Chat without an API key) and copies the auth URL; you still need your own Desktop OAuth client ID (Google does not allow shipping one). PKCE, secret optional. Manual Start/Stop outranks auto-record and the calendar. A 15 s silence auto-stop applies only to auto sessions. You are asked to tell the room the first time. An interrupted recording is repaired on the next launch. CLI: `python main.py sessions` | `process <folder>` | `record start|stop`.
 - **Save settings** can also write **JSON** segments, **WebVTT**, word timestamps, and stereo speaker labels (You/Them). Session folders get `meta.json`, `speakers.json`, and `summary.md` next to the transcript.
 
@@ -115,7 +115,9 @@ Output file names come from the prompt title quotes (e.g. `*_TW_core.md` from `#
 
 ## Telegram
 
-The Telegram icon in the toolbar opens settings. The checkbox to its left starts or stops the listener in this FTW window. If the account or bot is not filled in yet, an error asks you to open settings first. Keep FTW open while the listener runs. Hover a field for where the value comes from.
+The Telegram icon in the toolbar opens settings. The checkbox to its left starts or stops the listener in this FTW window. If it was on when FTW closed, the listener starts again with the window. If the account or bot is not filled in yet, an error asks you to open settings first. Keep FTW open while the listener runs. Hover a field for where the value comes from.
+
+A YouTube, Instagram, or Facebook link is downloaded and sent back to the chat. It enters the Whisper queue only when “Put videos downloaded from social networks into the Whisper queue” is on. Learning mode does not process a new chat until you answer; closing the question leaves the line in the log.
 
 - **Account** — private chats of this Telegram user. You need `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org) (API development tools, platform Desktop) and a phone number such as `+380501111111`. **Sign in** receives the code inside Telegram, not by SMS; a cloud password is asked for when the account has one. The listener can start only after you are signed in.
 - **Bot** — a bot from @BotFather: send `/newbot`, the username must end with `bot`, and the token looks like `123456789:AAH…`. You also need `api_id`, `api_hash`, and a local `telegram-bot-api.exe` (files up to about 2 GB) from [tdlib/telegram-bot-api](https://github.com/tdlib/telegram-bot-api/releases). The default address is `http://127.0.0.1:8081`. Before the first local start, call `logOut` on the cloud Bot API for this token.
@@ -124,33 +126,36 @@ Audio and video go into the queue. As soon as a file is accepted, a line appears
 
 In account mode, messages you send yourself are skipped, except **Saved Messages** and the chats named in “Also process your own audio and video in these chats” (first name, full name, or `@username`, ignoring case). A group with that title sends every audio and video. When the listener starts, the same notice is sent to Saved Messages. An empty chat-id list means every private chat. In bot mode, while the chat-id list is empty, the bot ignores media and answers `/start` with that chat’s id.
 
+In the queue, the trash column removes the row (the archive entry stays). The Telegram column sends the same result set as an automatic reply. If the file is not tied to a chat, a window asks for a group or contact name and lists the last 10 recipients. Shift+click on that column always asks who should receive the files, even when a chat is already known. Status shows an hourglass while waiting, a check mark when the transcript is done, `AI` / `TG` / `AI + TG` for the later steps, or the error text.
+
 ## Log
 
 - The log is stored in `app_log.json` next to the program (batched writes).
 - Entries are grouped by day; past days load when expanded; **today** stays expanded.
 - One input file → one log block (segments, TXT/SRT/AI paths, etc.).
-- **Clear log** clears the window and `app_log.json`.
+- **Clear log** clears the window and `app_log.json`. The word Log and the button sit on the left of the same row as Start.
+- The progress bar appears above the log only while transcription is running.
 
 ## Buttons
 
-- **Start** — start processing the queue.
+- **Start** — a play icon on the same row as the language switch. Starts the queue.
 - **Cancel** — stop the current task.
 - **Add files / Add directory** — add media or documents.
-- **Archive** — search past transcripts; click a line to hear it.
+- **Archive** — search past transcripts; click a line to hear it. **Sent to** column and **Send to Telegram**.
 - **Record** — capture microphone + system audio into the queue (Ctrl+Shift+R). Pause with Ctrl+Shift+P. **Clip** saves the last N seconds; the gear opens recording settings.
 - **Clear queue** — remove all queue items.
-- **System** — check Python, FFmpeg, Pandoc, GPU, CUDA, and installed components.
-- **Dependencies** — install or reinstall pip packages (including `markitdown`) and system tools (FFmpeg, Pandoc).
-- **Updates** — check app, pip, Whisper model, and FFmpeg/Pandoc updates, then install the selected items. A package is offered only when the version is newer and matches this Python.
-- **Model name** — select and manage the Whisper model.
+- **Environment** — one puzzle icon. The menu is **Check system** (Python, FFmpeg, Pandoc, GPU, CUDA), **Check updates** (the app, pip, Whisper models, FFmpeg/Pandoc; a package is offered only when the version is newer and matches this Python), and **Install or reinstall** pip packages (including `markitdown`) and system tools.
+- **Model** — a chip icon. The current model name is in the tooltip. The device icon to its left opens AUTO, GPU, or CPU. In GPU mode the video card stays awake while FTW is open.
 - **Clear log** — clear the log window and `app_log.json`.
-- **Autostart** — add delayed startup on Windows.
+- **Autostart** — the icon turns delayed Windows startup on or off.
 - **To AI** — enable AI post-processing; the label opens a prompt list (defaults + edit file).
 - **API keys** — Cursor / Gemini / Claude / Azure OpenAI / Ollama / OpenAI-compatible keys.
 - **Telegram** — account or bot settings. The checkbox to the left starts or stops the listener.
 - **Help** — open this file in the interface language. Use the document list at the top to also read architecture, setup, and other docs from `docs/`.
 
 ## Display modes
+
+The taskbar icon opens the choice. The current mode is marked in the menu.
 
 - **Taskbar** — the program appears on the taskbar; closing the window exits after confirmation.
 - **Tray** — the program runs in the system tray; closing the window hides it. Use the tray menu → **Exit** to quit.
@@ -163,7 +168,7 @@ In account mode, messages you send yourself are skipped, except **Saved Messages
 - **Delete** — remove selected queue items.
 - **Ctrl+V** — paste a directory path into the save-folder field (or a row in the watch-folders dialog).
 - **Double-click a queue row** — edit its time range.
-- **Shift+click a queue row** — show the source file.
+- **Shift+click a queue row** — show the source file. Shift+click the Telegram column asks who should receive the results.
 - **Click a log link** — open the file; **Shift+click** — show it in the folder.
 
 ## Interface language
@@ -172,8 +177,8 @@ Use the **EN / UK / RU** dropdown at the top of the window. The interface langua
 
 ## If processing does not start
 
-1. Open **System** and check Python, FFmpeg, CUDA, Pandoc (for Word export), and dependencies.
-2. Use **Dependencies** to install missing pip packages and system tools (FFmpeg, Pandoc).
+1. Open **Environment → Check system** and check Python, FFmpeg, CUDA, Pandoc (for Word export), and dependencies.
+2. Use **Environment → Install or reinstall** to install missing pip packages and system tools (FFmpeg, Pandoc).
 3. Try **AUTO** or **CPU** if GPU processing fails.
 4. Check that the source media file contains an audio track.
 5. Read the log for the exact error.

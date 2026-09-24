@@ -77,18 +77,18 @@ class TestCaptureSessionPause(unittest.TestCase):
 
 
 class TestLoopbackFallbackLog(unittest.TestCase):
-    def test_wasapi_settings_without_auto_convert(self):
-        from whisperfast.core.capture import _wasapi_loopback_settings
+    def test_pcm16_mixes_to_mono(self):
+        import ctypes
 
-        class FakeSd:
-            class WasapiSettings:
-                def __init__(self, loopback=False, auto_convert=False):
-                    if auto_convert:
-                        raise TypeError("unexpected keyword")
-                    self.loopback = loopback
+        import numpy as np
 
-        extra = _wasapi_loopback_settings(FakeSd())
-        self.assertTrue(extra.loopback)
+        from whisperfast.core.wasapi_loopback import _frames_to_mono
+
+        stereo = np.array([[1000, -1000], [2000, 0]], dtype="<i2")
+        raw = ctypes.create_string_buffer(stereo.tobytes())
+        mono = _frames_to_mono(ctypes.c_void_p(ctypes.addressof(raw)), 2, 2, 1, 16, 4)
+        self.assertEqual(mono.shape, (2,))
+        self.assertAlmostEqual(float(mono[0]), 0.0, places=4)
 
     def test_note_flushes_when_log_attached(self):
         session = CaptureSession()
@@ -420,6 +420,53 @@ class TestEnqueueCapture(unittest.TestCase):
                 out = finalize_wav(wav, {"capture_codec": "opus"}, window_title="FTW")
             self.assertEqual(os.path.normcase(out), os.path.normcase(opus))
             self.assertFalse(os.path.isfile(wav))
+
+
+class TestLogCancelStopsCapture(unittest.TestCase):
+    def test_enabled_while_recording_and_stops_it(self):
+        import threading
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from whisperfast.core.capture import get_capture_session
+        from whisperfast.ui.capture_ui import handle_log_cancel, sync_log_cancel_button
+
+        class Btn:
+            def __init__(self):
+                self.state = "disabled"
+
+            def config(self, **kw):
+                if "state" in kw:
+                    self.state = kw["state"]
+
+        session = get_capture_session()
+        was = session._running
+        session._running = True
+        logs = []
+        lock = threading.Lock()
+        app = SimpleNamespace(
+            cancel_requested=False,
+            log=logs.append,
+            _process_queue_lock=lock,
+            cancel_btn=Btn(),
+        )
+        try:
+            sync_log_cancel_button(app)
+            self.assertEqual(app.cancel_btn.state, "normal")
+            with patch("whisperfast.ui.capture_ui.stop_capture") as stop:
+                handle_log_cancel(app)
+            stop.assert_called_once_with(app)
+            self.assertFalse(app.cancel_requested)
+            self.assertEqual(logs, [])
+            lock.acquire()
+            with patch("whisperfast.ui.capture_ui.stop_capture"):
+                handle_log_cancel(app)
+            self.assertTrue(app.cancel_requested)
+            self.assertTrue(logs)
+        finally:
+            session._running = was
+            if lock.locked():
+                lock.release()
 
 
 if __name__ == "__main__":

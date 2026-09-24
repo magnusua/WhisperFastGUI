@@ -35,12 +35,25 @@ class TestLoadAppSettings(SettingsTmpTestCase):
         self.assertFalse(data["send_txt_to_ai"])
         self.assertFalse(data["send_txt_to_cursor"])
 
+    def test_gpu_mode_without_checkbox_keeps_the_card_awake(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"device_mode": "GPU"}, f)
+        data = load_app_settings()
+        self.assertTrue(data["keep_gpu_awake"])
+
+    def test_auto_mode_without_checkbox_releases_the_card(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"device_mode": "AUTO"}, f)
+        data = load_app_settings()
+        self.assertFalse(data["keep_gpu_awake"])
+
     def test_fills_missing_keys_from_defaults(self):
         with open(self.path, "w", encoding="utf-8") as f:
             json.dump({"language": "UK"}, f)
         data = load_app_settings()
         self.assertEqual(data["language"], "UK")
         self.assertEqual(data["output_mode"], default_settings()["output_mode"])
+        self.assertFalse(data["telegram_listener_enabled"])
 
     def test_wrong_types_fall_back_to_defaults_without_dropping_valid_fields(self):
         with open(self.path, "w", encoding="utf-8") as f:

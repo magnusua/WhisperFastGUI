@@ -177,6 +177,7 @@ class WhisperGUI:
         
         # Переменные интерфейса
         self.device_mode = tk.StringVar(value="AUTO")
+        self.keep_gpu_awake = tk.BooleanVar(value=False)
         self.lang_mode = tk.StringVar(value=LANG_AUTO_VALUE)  # AUTO для языка транскрипции
         self.output_dir = tk.StringVar()
         self.output_mode = tk.StringVar(value="beside")  # beside | custom | named_folder | custom_named
@@ -218,6 +219,11 @@ class WhisperGUI:
         self.telegram_api_base = tk.StringVar(value="http://127.0.0.1:8081")
         self.telegram_allowed_chat_ids_text = tk.StringVar(value="")
         self.telegram_work_dir = tk.StringVar(value="")
+        self.telegram_social_to_queue = tk.BooleanVar(value=False)
+        self.telegram_learn_mode = tk.BooleanVar(value=False)
+        self.telegram_social_quality = tk.StringVar(value="best")
+        self.telegram_listener_on = tk.BooleanVar(value=False)
+        self._telegram_listener_wanted = False
         self.telegram_mode = tk.StringVar(value="bot")
         self.telegram_phone = tk.StringVar(value="")
         self.telegram_self_chat_names_text = tk.StringVar(value="")
@@ -238,6 +244,10 @@ class WhisperGUI:
         self.watch_dir.set(serialize_watch_dirs(parse_watch_dirs(saved.get("watch_dir", "") or "")))
         self.watch_enabled.set(bool(saved.get("watch_enabled", False)))
         self.device_mode.set(saved.get("device_mode", "AUTO"))
+        if "keep_gpu_awake" in saved:
+            self.keep_gpu_awake.set(bool(saved.get("keep_gpu_awake")))
+        else:
+            self.keep_gpu_awake.set(self.device_mode.get() == "GPU")
         self.play_sound_on_finish.set(bool(saved.get("play_sound_on_finish", False)))
         self.save_audio_mp3.set(bool(saved.get("save_audio_mp3", False)))
         send_ai = saved.get("send_txt_to_ai")
@@ -294,6 +304,12 @@ class WhisperGUI:
         )
         self.telegram_allowed_chat_ids_text.set(format_chat_ids(saved.get("telegram_allowed_chat_ids")))
         self.telegram_work_dir.set((saved.get("telegram_work_dir") or "").strip())
+        self.telegram_social_to_queue.set(bool(saved.get("telegram_social_to_queue", False)))
+        self.telegram_learn_mode.set(bool(saved.get("telegram_learn_mode", False)))
+        from whisperfast.telegram.links import normalize_social_quality
+
+        self.telegram_social_quality.set(normalize_social_quality(saved.get("telegram_social_quality")))
+        self._telegram_listener_wanted = bool(saved.get("telegram_listener_enabled", False))
         mode = str(saved.get("telegram_mode") or "bot").strip().lower()
         self.telegram_mode.set(mode if mode in ("bot", "account") else "bot")
         self.telegram_phone.set((saved.get("telegram_phone") or "").strip())
@@ -373,6 +389,7 @@ class WhisperGUI:
         # Якщо слідкування було увімкнено — запускаємо після побудови UI
         if self.watch_enabled.get() and valid_watch_dirs(self.watch_dir.get()):
             self.queue_ctrl.start_watch()
+        self._restore_telegram_listener()
 
         if not DND_OK:
             self.log(t("warning_dnd"))
@@ -423,6 +440,27 @@ class WhisperGUI:
     def _save_queue_to_file(self):
         self.queue_ctrl.save_to_file()
 
+    def _set_tg_column_heading(self):
+        photo = (getattr(self, "_toolbar_photos", None) or {}).get("telegram")
+        try:
+            if photo is not None:
+                self.queue_list.heading("tg", text="", image=photo, anchor="center")
+            else:
+                self.queue_list.heading("tg", text="TG", anchor="center")
+        except tk.TclError:
+            pass
+
+    def _set_remove_column_heading(self):
+        """Trash icon in the header of the per-row delete column."""
+        photo = (getattr(self, "_toolbar_photos", None) or {}).get("clear_log")
+        try:
+            if photo is not None:
+                self.queue_list.heading("remove", text="", image=photo, anchor="center")
+            else:
+                self.queue_list.heading("remove", text="×", anchor="center")
+        except tk.TclError:
+            pass
+
     def _refresh_queue_treeview(self):
         self.queue_ctrl.refresh_treeview()
 
@@ -436,6 +474,8 @@ class WhisperGUI:
         except tk.TclError:
             return
         if idx < 0 or idx >= len(self.queue):
+            return
+        if self._queue_column_name(event) in ("remove", "tg"):
             return
         if self._queue_column_name(event) == "note":
             self._edit_queue_note_cell(iid, idx)
@@ -540,14 +580,19 @@ class WhisperGUI:
         file_id = self.find_file_log_id(path) if path else None
         if file_id:
             self.apply_file_note(file_id, note, log_event=False)
+        self._refresh_archive_window()
+
+    def _refresh_archive_window(self):
         win = getattr(self, "_archive_window", None)
-        if win is not None:
-            refresh = getattr(win, "_wf_refresh", None)
-            if callable(refresh):
-                try:
-                    refresh()
-                except Exception:
-                    pass
+        if win is None:
+            return
+        refresh = getattr(win, "_wf_refresh", None)
+        if not callable(refresh):
+            return
+        try:
+            refresh()
+        except Exception:
+            pass
 
     def apply_file_note(self, file_id, note, log_event=True):
         """Put the queue brief into the work log header and archive «Кратко»."""
@@ -629,7 +674,7 @@ class WhisperGUI:
 
         # === БЛОК 1: ОЧЕРЕДЬ ФАЙЛОВ ===
         header_f = ttk.Frame(main)
-        header_f.pack(fill="x", pady=(0, 5))
+        header_f.pack(fill="x", pady=(0, 2))
         
         self.queue_header_label = ttk.Label(header_f, text=t("queue_header"), font=("Segoe UI", 9, "bold"))
         self.queue_header_label.pack(side="left")
@@ -641,11 +686,11 @@ class WhisperGUI:
         self.clear_queue_btn = ttk.Button(header_f, command=self.clear_queue)
         self.clear_queue_btn.pack(side="left", padx=2)
         self.archive_sep = ttk.Label(header_f, text="|")
-        self.archive_sep.pack(side="left", padx=(10, 8))
+        self.archive_sep.pack(side="left", padx=(4, 4))
         self.archive_btn = ttk.Button(header_f, command=self._open_archive)
         self.archive_btn.pack(side="left", padx=2)
         self.capture_sep = ttk.Label(header_f, text="|")
-        self.capture_sep.pack(side="left", padx=(10, 8))
+        self.capture_sep.pack(side="left", padx=(4, 4))
         self.capture_settings_btn = ttk.Button(header_f, command=self._open_capture_settings)
         self.capture_settings_btn.pack(side="left", padx=(0, 4))
         self.capture_btn = ttk.Button(header_f, command=self._toggle_capture)
@@ -667,9 +712,24 @@ class WhisperGUI:
         self.capture_clip_entry.bind("<Return>", lambda e: capture_ui.normalize_clip_entry(self))
         self.capture_clip_entry.bind("<FocusOut>", lambda e: capture_ui.normalize_clip_entry(self))
         self.notify_sep = ttk.Label(header_f, text="|")
-        self.notify_sep.pack(side="left", padx=(10, 8))
+        self.notify_sep.pack(side="left", padx=(4, 4))
         self.play_sound_btn = ttk.Button(header_f, command=self._toggle_play_sound)
         self.play_sound_btn.pack(side="left", padx=2)
+        watch_frame = ttk.Frame(header_f)
+        watch_frame.pack(side="left", padx=(2, 0))
+        self.watch_folder_check = ttk.Checkbutton(
+            watch_frame,
+            text="",
+            variable=self.watch_enabled,
+            command=self._on_watch_toggled,
+            width=0,
+        )
+        self.watch_folder_check.pack(side="left")
+        self.watch_dirs_btn = ttk.Button(
+            watch_frame, command=self._open_watch_dirs_dialog
+        )
+        self.watch_dirs_btn.pack(side="left", padx=(0, 0))
+        ttk.Label(header_f, text="|").pack(side="left", padx=(4, 4))
         toolbar_icons.apply_static(self)
         capture_ui.refresh_capture_buttons(self)
         
@@ -703,30 +763,50 @@ class WhisperGUI:
             self.ui_lang_combo.current(0)
         self.ui_lang_combo.pack(side="left")
         self.ui_lang_combo.bind("<<ComboboxSelected>>", self._on_ui_lang_combo)
+        # Системні кнопки — ліворуч від мови інтерфейсу. side=right кладе кожен
+        # наступний віджет лівіше, тож пакуємо з правого краю групи.
+        self.header_tools_sep = ttk.Label(header_f, text="|")
+        self.header_tools_sep.pack(side="right", padx=(4, 4))
+        self.autostart_btn = ttk.Button(header_f, command=self._toggle_autostart)
+        self.autostart_btn.pack(side="right", padx=2)
+        ttk.Label(header_f, text="|").pack(side="right", padx=(4, 4))
+        self.tray_mode_btn = ttk.Button(header_f, command=self._show_tray_mode_menu)
+        self.tray_mode_btn.pack(side="right", padx=2)
+        ttk.Label(header_f, text="|").pack(side="right", padx=(4, 4))
+        self.model_btn = ttk.Button(header_f, command=self._show_model_dialog)
+        self.model_btn.pack(side="right", padx=2)
+        self.device_btn = ttk.Button(header_f, command=self._show_device_dialog)
+        self.device_btn.pack(side="right", padx=2)
+        ttk.Label(header_f, text="|").pack(side="right", padx=(4, 4))
+        self.dependencies_btn = ttk.Button(header_f, command=self._show_environment_menu)
+        self.dependencies_btn.pack(side="right", padx=2)
 
         q_frame = ttk.Frame(main)
-        q_frame.pack(fill="both", pady=5)
-        cols = ("num", "filename", "note", "ai", "start", "end_seg1", "end_seg2", "end", "status")
+        q_frame.pack(fill="both", expand=True, pady=(2, 2))
+        cols = ("num", "remove", "filename", "note", "ai", "tg", "start", "end_seg1", "end_seg2", "end", "status")
         self.queue_list = ttk.Treeview(q_frame, columns=cols, show="headings", height=8, selectmode="extended")
         self.queue_list.heading("num", text=t("col_num"))
+        self._set_remove_column_heading()
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))
         self.queue_list.heading("ai", text=t("col_ai"))
+        self._set_tg_column_heading()
         self.queue_list.heading("start", text=t("col_start"))
         self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
         self.queue_list.heading("end_seg2", text=t("col_end_seg2"))
         self.queue_list.heading("end", text=t("col_end"))
         self.queue_list.heading("status", text=t("col_status"))
-        _num_w = 38
-        self.queue_list.column("num", width=_num_w, minwidth=_num_w)
+        self.queue_list.column("num", width=28, minwidth=28, stretch=False, anchor="center")
+        self.queue_list.column("remove", width=26, minwidth=26, stretch=False, anchor="center")
         self.queue_list.column("filename", width=200)
         self.queue_list.column("note", width=180, minwidth=80)
-        self.queue_list.column("ai", width=44, minwidth=36, stretch=False, anchor="center")
+        self.queue_list.column("ai", width=28, minwidth=28, stretch=False, anchor="center")
+        self.queue_list.column("tg", width=28, minwidth=28, stretch=False, anchor="center")
         self.queue_list.column("start", width=90)
         self.queue_list.column("end_seg1", width=90)
         self.queue_list.column("end_seg2", width=90)
         self.queue_list.column("end", width=90)
-        self.queue_list.column("status", width=100)
+        self.queue_list.column("status", width=88, minwidth=72, stretch=False)
         scroll_q = ttk.Scrollbar(q_frame, orient="vertical", command=self.queue_list.yview)
         self.queue_list.configure(yscrollcommand=scroll_q.set)
         self.queue_list.pack(side="left", fill="both", expand=True, padx=2, pady=2)
@@ -741,13 +821,24 @@ class WhisperGUI:
         self.queue_menu = tk.Menu(self.root, tearoff=0)
         self.queue_menu.add_command(label=t("delete_from_queue"), command=self.delete_selected_queue_items)
 
-        # === БЛОК 2: Выбор языка распознавания слева + кнопка «Начать транскрибацию» ===
-        start_f = ttk.Frame(main)
-        start_f.pack(fill="x", pady=10)
-        self.lang_f = ttk.LabelFrame(start_f, text=t("language_switcher"))
-        self.lang_f.pack(side="left", padx=5)
+        # Мова, старт, лог і решта кнопок — один горизонтальний ряд
+        tools_row = ttk.Frame(main)
+        tools_row.pack(fill="x", pady=(2, 2))
+        tools_row.columnconfigure(0, weight=1)
+        tools_row.columnconfigure(2, weight=1)
+
+        log_side = ttk.Frame(tools_row)
+        log_side.grid(row=0, column=0, sticky="w")
+        self.log_header_label = ttk.Label(log_side, text=t("log_header"), font=("Segoe UI", 9, "bold"))
+        self.log_header_label.pack(side="left")
+        self.clear_log_btn = ttk.Button(log_side, command=self.log_panel.clear)
+        self.clear_log_btn.pack(side="left", padx=(8, 2))
+
+        tools_center = ttk.Frame(tools_row)
+        tools_center.grid(row=0, column=1)
+
         self.lang_mode_combo = ttk.Combobox(
-            self.lang_f,
+            tools_center,
             state="readonly",
             width=6,
             values=self.RECOG_LANG_LABELS,
@@ -759,15 +850,9 @@ class WhisperGUI:
             self.lang_mode_combo.current(0)
         self.lang_mode_combo.pack(side="left", padx=4, pady=2)
         self.lang_mode_combo.bind("<<ComboboxSelected>>", self._on_recog_lang_combo)
-        self.start_btn = ttk.Button(start_f, text=t("start_transcription"), command=self.handle_start_logic)
-        self.start_btn.pack(side="left", fill="x", expand=True, padx=5, ipady=10)
-
-        # Одна компактна строка: збереження, MP3, слідкування і Cursor
-        tools_row = ttk.Frame(main)
-        tools_row.pack(fill="x", pady=10)
-        ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
-        tools_center = ttk.Frame(tools_row)
-        tools_center.pack(side="left")
+        self.start_btn = ttk.Button(tools_center, command=self.handle_start_logic)
+        self.start_btn.pack(side="left", padx=2)
+        ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
 
         self.root.bind_all("<Return>", self._on_enter_key)
         self.root.bind_all("<space>", self._on_space_key)
@@ -776,9 +861,9 @@ class WhisperGUI:
         )
         self.output_folder_btn.pack(side="left", padx=2)
 
-        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
         mp3_frame = ttk.Frame(tools_center)
-        mp3_frame.pack(side="left", padx=5)
+        mp3_frame.pack(side="left", padx=(2, 2))
         self.save_audio_check = ttk.Checkbutton(
             mp3_frame,
             text="",
@@ -792,25 +877,9 @@ class WhisperGUI:
         )
         self.mp3_settings_btn.pack(side="left", padx=(0, 0))
 
-        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
-        watch_frame = ttk.Frame(tools_center)
-        watch_frame.pack(side="left", padx=5)
-        self.watch_folder_check = ttk.Checkbutton(
-            watch_frame,
-            text="",
-            variable=self.watch_enabled,
-            command=self._on_watch_toggled,
-            width=0,
-        )
-        self.watch_folder_check.pack(side="left")
-        self.watch_dirs_btn = ttk.Button(
-            watch_frame, command=self._open_watch_dirs_dialog
-        )
-        self.watch_dirs_btn.pack(side="left", padx=(0, 0))
-
-        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
         cursor_frame = ttk.Frame(tools_center)
-        cursor_frame.pack(side="left", padx=5)
+        cursor_frame.pack(side="left", padx=(2, 2))
         self.send_txt_cursor_check = ttk.Checkbutton(
             cursor_frame,
             text="",
@@ -829,10 +898,9 @@ class WhisperGUI:
         )
         self.cursor_api_key_btn.pack(side="left", padx=2)
 
-        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
         telegram_frame = ttk.Frame(tools_center)
-        telegram_frame.pack(side="left", padx=5)
-        self.telegram_listener_on = tk.BooleanVar(value=False)
+        telegram_frame.pack(side="left", padx=(2, 2))
         self.telegram_listener_check = ttk.Checkbutton(
             telegram_frame,
             text="",
@@ -846,9 +914,9 @@ class WhisperGUI:
         )
         self.telegram_btn.pack(side="left", padx=(0, 0))
 
-        ttk.Label(tools_center, text=" | ").pack(side="left", padx=5)
+        ttk.Label(tools_center, text="|").pack(side="left", padx=(4, 4))
         docx_frame = ttk.Frame(tools_center)
-        docx_frame.pack(side="left", padx=5)
+        docx_frame.pack(side="left", padx=(2, 2))
         self.export_md_docx_check = ttk.Checkbutton(
             docx_frame,
             text="",
@@ -861,63 +929,18 @@ class WhisperGUI:
             docx_frame, command=self._toggle_export_md_to_docx
         )
         self.export_md_docx_btn.pack(side="left", padx=(0, 0))
-        toolbar_icons.apply_static(self)
 
-        ttk.Frame(tools_row).pack(side="left", fill="x", expand=True)
-        ensure_redactor_file()
-
-        # Прогресс
-        self.progress = ttk.Progressbar(main, length=900)
-        self.progress.pack(fill="x", pady=(10, 5))
-        
-        # === БЛОК 4: ЛОГ И КНОПКА ОТМЕНЫ (блок «Очистить лог» | Устройство | кнопки — по центру) ===
-        log_header = ttk.Frame(main)
-        log_header.pack(fill="x", pady=(5, 0))
-        ttk.Frame(log_header).pack(side="left", fill="x", expand=True)
-        log_center = ttk.Frame(log_header)
-        log_center.pack(side="left")
-        self.clear_log_btn = ttk.Button(log_center, command=self.log_panel.clear)
-        self.clear_log_btn.pack(side="left")
-        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
-        self.dev_f = ttk.LabelFrame(log_center, text=t("device_label"))
-        self.dev_f.pack(side="left", padx=5)
-        for device in ["AUTO", "GPU", "CPU"]:
-            ttk.Radiobutton(self.dev_f, text=device, variable=self.device_mode, value=device).pack(side="left", padx=5)
-        self.system_btn = ttk.Button(log_center, command=lambda: check_system(self.log))
-        self.system_btn.pack(side="left", padx=2)
-        self.updates_btn = ttk.Button(log_center, command=self.run_updates_check)
-        self.updates_btn.pack(side="left", padx=2)
-        self.dependencies_btn = ttk.Button(log_center, command=self.run_install)
-        self.dependencies_btn.pack(side="left", padx=2)
-        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
-        self.model_btn = ttk.Button(log_center, text=self._model_button_label(), width=14, command=self._show_model_dialog)
-        self.model_btn.pack(side="left", padx=2)
-        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
-        self.tray_mode_combo = ttk.Combobox(log_center, state="readonly", width=14, values=[t("tray_mode_panel"), t("tray_mode_tray"), t("tray_mode_panel_tray")])
-        self.tray_mode_combo.pack(side="left", padx=2)
-        idx = self.TRAY_MODE_KEYS.index(self.tray_mode.get()) if self.tray_mode.get() in self.TRAY_MODE_KEYS else 0
-        self.tray_mode_combo.current(idx)
-        self.tray_mode_combo.bind("<<ComboboxSelected>>", self._on_tray_mode_change)
-        ttk.Label(log_center, text=" | ").pack(side="left", padx=5)
-        autostart_frame = ttk.Frame(log_center)
-        autostart_frame.pack(side="left", padx=5)
-        self.autostart_check = ttk.Checkbutton(
-            autostart_frame,
-            text="",
-            variable=self.autostart_enabled,
-            command=self._on_autostart_toggled,
-            width=0,
-        )
-        self.autostart_check.pack(side="left")
-        self.autostart_btn = ttk.Button(autostart_frame, command=self._toggle_autostart)
-        self.autostart_btn.pack(side="left", padx=(0, 0))
-        ttk.Frame(log_header).pack(side="left", fill="x", expand=True)
-        self.cancel_btn = ttk.Button(log_header, command=self.cancel_action, state="disabled")
+        cancel_side = ttk.Frame(tools_row)
+        cancel_side.grid(row=0, column=2, sticky="e")
+        self.cancel_btn = ttk.Button(cancel_side, command=self.cancel_action, state="disabled")
         self.cancel_btn.pack(side="right")
+        ensure_redactor_file()
+        self._apply_gpu_hold()
         toolbar_icons.apply_static(self)
-        
+
+        self.progress = ttk.Progressbar(main, length=900)
         self.log_box = scrolledtext.ScrolledText(main, height=18, state="disabled", wrap="word", font=("Consolas", 9))
-        self.log_box.pack(fill="both", expand=True, pady=5)
+        self.log_box.pack(fill="both", expand=True, pady=(2, 0))
         self.log_panel.bind_widget(self.log_box)
 
         self._tooltips = []
@@ -943,8 +966,7 @@ class WhisperGUI:
         tip(self.lang_selector_frame, "tooltip_ui_language")
         tip(self.ui_lang_combo, "tooltip_ui_language")
         tip(self.start_btn, "tooltip_start")
-        tip(self.dev_f, "tooltip_device")
-        tip(self.lang_f, "tooltip_language_switcher")
+        tip(self.device_btn, "tooltip_device")
         tip(self.lang_mode_combo, "tooltip_language_switcher")
         tip(self.save_audio_check, "tooltip_save_mp3")
         tip(self.mp3_settings_btn, "tooltip_mp3_settings")
@@ -955,12 +977,10 @@ class WhisperGUI:
         tip(self.telegram_btn, "tooltip_telegram")
         tip(self.export_md_docx_check, "tooltip_export_md_to_docx")
         tip(self.export_md_docx_btn, "tooltip_export_md_to_docx")
-        tip(self.system_btn, "tooltip_system")
-        tip(self.updates_btn, "tooltip_updates")
-        tip(self.dependencies_btn, "tooltip_dependencies")
-        self._tooltips.append(Tooltip(self.model_btn, t("tooltip_model_btn", cache_dir=get_whisper_cache_dir()), is_key=False))
-        tip(self.tray_mode_combo, "tooltip_tray_mode")
-        tip(self.autostart_check, "tooltip_autostart")
+        tip(self.dependencies_btn, "tooltip_environment")
+        self._model_tip = Tooltip(self.model_btn, self._model_tooltip_text(), is_key=False)
+        self._tooltips.append(self._model_tip)
+        tip(self.tray_mode_btn, "tooltip_tray_mode")
         tip(self.autostart_btn, "tooltip_autostart")
         tip(self.output_folder_btn, "tooltip_output_folder")
         tip(self.watch_folder_check, "tooltip_watch_folder")
@@ -1003,6 +1023,7 @@ class WhisperGUI:
         except tk.TclError:
             pass
         self.queue_header_label.config(font=("Segoe UI", font_size, "bold"))
+        self.log_header_label.config(font=("Segoe UI", font_size, "bold"))
         # ttk.Button: шрифт уже через style.configure("TButton", ...)
         try:
             style = ttk.Style()
@@ -1149,9 +1170,11 @@ class WhisperGUI:
             pass
         self.start_btn.config(state="disabled")
         self.cancel_btn.config(state="normal")
+        self._show_progress()
         # Читаем Tk-переменные только в главном потоке и передаём в воркер
         options = {
             "device_mode": self.device_mode.get(),
+            "keep_gpu_awake": bool(self.keep_gpu_awake.get()),
             "whisper_model": self.whisper_model.get(),
             "lang_mode": self.lang_mode.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
@@ -1493,6 +1516,14 @@ class WhisperGUI:
 
     def end_file_log(self, status="done", error=None, file_id=None):
         self.log_panel.end_file(status=status, error=error, file_id=file_id)
+        if status == "failed" and file_id:
+            try:
+                entry = self.log_panel._store.get_file(file_id)
+                source = str((entry or {}).get("source") or "")
+                if source:
+                    self.queue_ctrl.set_result(source, error=str(error or t("status_error")))
+            except Exception:
+                pass
         if file_id:
             try:
                 self.library.set_meta(file_id, status=status)
@@ -1534,9 +1565,25 @@ class WhisperGUI:
     def clear_log(self):
         self.log_panel.clear()
 
+    def _show_progress(self):
+        """Смуга з’являється над логом лише на час транскрибації."""
+        try:
+            if not self.progress.winfo_ismapped():
+                self.progress.pack(fill="x", pady=(4, 2), before=self.log_box)
+        except tk.TclError:
+            pass
+
+    def _hide_progress(self):
+        try:
+            self.progress.pack_forget()
+            self.progress["value"] = 0
+        except tk.TclError:
+            pass
+
     def _set_progress_value(self, value):
         """Установка значения прогресс-бара (вызывать из главного потока)."""
         try:
+            self._show_progress()
             self.progress["value"] = value
         except Exception:
             pass
@@ -1589,11 +1636,11 @@ class WhisperGUI:
     def reset_ui(self):
         self.start_btn.config(state="normal")
         self.cancel_btn.config(state="disabled")
-        self.progress["value"] = 0
+        self._hide_progress()
+        capture_ui.sync_log_cancel_button(self)
 
     def cancel_action(self):
-        self.cancel_requested = True
-        self.log(t("waiting_segment"))
+        capture_ui.handle_log_cancel(self)
 
 
     def show_help(self):
@@ -1636,10 +1683,100 @@ class WhisperGUI:
         except tk.TclError:
             pass
 
+    def _telegram_log(self, msg, tag=None):
+        """Forward a listener line, including a file path tagged as a document link."""
+        self.root.after(0, lambda m=msg, tg=tag: self.log(m, tg))
+
+    def _add_telegram_auto_chat(self, name, chat_id):
+        """Remember a chat so the next message from it is processed without asking."""
+        names = normalize_chat_names(self.telegram_self_chat_names_text.get())
+        title = str(name or "").strip()
+        if title and title.casefold() not in {item.casefold() for item in names}:
+            names.append(title)
+            self.telegram_self_chat_names_text.set(", ".join(names))
+        ids = parse_chat_id_text(self.telegram_allowed_chat_ids_text.get())
+        mode = (self.telegram_mode.get() or "bot").strip().lower()
+        if mode == "bot" or ids:
+            try:
+                number = int(chat_id)
+            except (TypeError, ValueError):
+                number = 0
+            if number and number not in ids:
+                ids.append(number)
+                self.telegram_allowed_chat_ids_text.set(format_chat_ids(ids))
+        self._persist_settings()
+
+    def ask_telegram_learn(self, chat, material, settle, chat_id):
+        """Show the question and keep a clickable log line if the window is closed."""
+        state = {"done": False}
+
+        def finish(decision):
+            if state["done"]:
+                return
+            state["done"] = True
+            if decision == "always":
+                self._add_telegram_auto_chat(chat, chat_id)
+            try:
+                settle(decision)
+            except Exception:
+                pass
+
+        def reopen():
+            if state["done"]:
+                return
+            ui_dialogs.show_telegram_learn_prompt(self, chat, material, finish)
+
+        def show():
+            self.log_action(t("telegram_learn_question", chat=chat, material=material), reopen)
+            reopen()
+
+        try:
+            self.root.after(0, show)
+        except tk.TclError:
+            finish("no")
+
+    def _remember_telegram_listener(self, wanted):
+        """Remember whether the listener should come back after the next launch."""
+        self._telegram_listener_wanted = bool(wanted)
+        self._persist_settings()
+
+    def _restore_telegram_listener(self):
+        """Start the listener when it was left on before the window closed."""
+        if not self._telegram_listener_wanted:
+            return
+        from whisperfast.telegram.service import listener_kind, start as start_listener
+
+        kind = listener_kind(self._telegram_settings_snapshot())
+        if not kind:
+            return
+
+        def on_done(code):
+            def ui():
+                from whisperfast.telegram.service import is_running
+
+                if is_running():
+                    return
+                try:
+                    self.telegram_listener_on.set(False)
+                except tk.TclError:
+                    return
+
+            try:
+                self.root.after(0, ui)
+            except tk.TclError:
+                pass
+
+        if start_listener(log=self._telegram_log, on_done=on_done, ask=self.ask_telegram_learn):
+            self.telegram_listener_on.set(True)
+            self.log(
+                t("telegram_listener_started_account" if kind == "account" else "telegram_listener_started_bot")
+            )
+
     def _on_telegram_listener_toggled(self):
         from whisperfast.telegram.service import listener_kind, start as start_listener, stop as stop_listener
 
         if not self.telegram_listener_on.get():
+            self._remember_telegram_listener(False)
             stop_listener()
             return
         kind = listener_kind(self._telegram_settings_snapshot())
@@ -1647,6 +1784,7 @@ class WhisperGUI:
             self.telegram_listener_on.set(False)
             messagebox.showerror(t("telegram_settings_title"), t("telegram_not_configured"), parent=self.root)
             return
+        self._remember_telegram_listener(True)
 
         def on_done(code):
             def ui():
@@ -1668,7 +1806,7 @@ class WhisperGUI:
             except tk.TclError:
                 pass
 
-        start_listener(log=lambda msg: self.root.after(0, lambda m=msg: self.log(m)), on_done=on_done)
+        start_listener(log=self._telegram_log, on_done=on_done, ask=self.ask_telegram_learn)
         messagebox.showinfo(
             t("telegram_settings_title"),
             t("telegram_listener_started_account" if kind == "account" else "telegram_listener_started_bot"),
@@ -1876,16 +2014,56 @@ class WhisperGUI:
         self._persist_settings()
 
     def _model_button_label(self):
-        """Текст кнопки выбора модели: текущая модель (короткое имя)."""
+        """Коротка назва поточної моделі для підказки."""
         return self.whisper_model.get() or DEFAULT_MODEL
 
-    def _on_tray_mode_change(self, event=None):
-        """Обробник зміни перемикача Панель / Трей / Панель + Трей."""
-        idx = self.tray_mode_combo.current()
-        if 0 <= idx < len(self.TRAY_MODE_KEYS):
-            self.tray_mode.set(self.TRAY_MODE_KEYS[idx])
-            self._apply_tray_mode()
-            self._persist_settings()
+    def _model_tooltip_text(self):
+        return t(
+            "tooltip_model_btn",
+            model=self._model_button_label(),
+            cache_dir=get_whisper_cache_dir(),
+        )
+
+    def _refresh_model_tooltip(self):
+        tip = getattr(self, "_model_tip", None)
+        if tip is not None:
+            tip._text_or_key = self._model_tooltip_text()
+
+    def _show_environment_menu(self):
+        """Одна іконка: перевірка системи, оновлення або встановлення залежностей."""
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label=t("env_menu_system"), command=lambda: check_system(self.log))
+        menu.add_command(label=t("env_menu_updates"), command=self.run_updates_check)
+        menu.add_command(label=t("env_menu_install"), command=self.run_install)
+        btn = self.dependencies_btn
+        x = btn.winfo_rootx()
+        y = btn.winfo_rooty() + btn.winfo_height()
+        try:
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def _show_tray_mode_menu(self):
+        """Іконка трею: меню Панель / Трей / Панель + Трей."""
+        menu = tk.Menu(self.root, tearoff=0)
+        labels = ("tray_mode_panel", "tray_mode_tray", "tray_mode_panel_tray")
+        for key, label_key in zip(self.TRAY_MODE_KEYS, labels):
+            menu.add_radiobutton(
+                label=t(label_key),
+                value=key,
+                variable=self.tray_mode,
+                command=self._choose_tray_mode,
+            )
+        x = self.tray_mode_btn.winfo_rootx()
+        y = self.tray_mode_btn.winfo_rooty() + self.tray_mode_btn.winfo_height()
+        try:
+            menu.tk_popup(x, y)
+        finally:
+            menu.grab_release()
+
+    def _choose_tray_mode(self):
+        self._apply_tray_mode()
+        self._persist_settings()
 
     def _toggle_autostart(self):
         try:
@@ -1924,6 +2102,99 @@ class WhisperGUI:
         if removed:
             self.log(t("autostart_registry_cleared", names=", ".join(removed)))
 
+    def _show_device_dialog(self):
+        """Вікно вибору AUTO, GPU або CPU. Поточний режим лишається на іконці."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("device_label"))
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        chosen = tk.StringVar(value=self.device_mode.get() if self.device_mode.get() in ("AUTO", "GPU", "CPU") else "AUTO")
+        box = ttk.Frame(dialog, padding=16)
+        box.pack()
+        for device in ("AUTO", "GPU", "CPU"):
+            ttk.Radiobutton(box, text=device, value=device, variable=chosen).pack(anchor="w", pady=2)
+
+        def apply_choice():
+            self.device_mode.set(chosen.get())
+            self._on_device_mode_change()
+            dialog.destroy()
+
+        ttk.Button(box, text=t("save"), command=apply_choice).pack(anchor="e", pady=(12, 0))
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.bind("<Escape>", lambda event: dialog.destroy())
+        self._center_toplevel(dialog)
+
+    def _on_device_mode_change(self):
+        if self.device_mode.get() == "GPU":
+            self.keep_gpu_awake.set(True)
+        else:
+            self.keep_gpu_awake.set(False)
+        self._apply_gpu_hold()
+        toolbar_icons.apply_device_state(self)
+        self._persist_settings()
+
+    def _on_keep_gpu_awake_toggled(self):
+        self._apply_gpu_hold()
+        self._persist_settings()
+
+    def _apply_gpu_hold(self):
+        try:
+            from whisperfast.setup.gpu_info import prepare_nvidia_gpu, release_nvidia_display_client
+            if self.keep_gpu_awake.get():
+                prepare_nvidia_gpu(hold=True)
+            else:
+                release_nvidia_display_client()
+        except Exception:
+            pass
+
+    def ask_gpu_required(self):
+        """Ask how to continue when GPU mode cannot start CUDA. Returns AUTO, CPU, or None."""
+        if threading.current_thread() is threading.main_thread():
+            return self._gpu_required_dialog()
+        result = {"choice": None}
+        done = threading.Event()
+
+        def show():
+            result["choice"] = self._gpu_required_dialog()
+            done.set()
+
+        self.root.after(0, show)
+        done.wait()
+        return result["choice"]
+
+    def _gpu_required_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("gpu_required_title"))
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        ttk.Label(dialog, text=t("gpu_required_body"), wraplength=460, justify="left").pack(
+            padx=16, pady=(16, 8)
+        )
+        choice = {"value": None}
+
+        def pick(value):
+            choice["value"] = value
+            dialog.destroy()
+
+        row = ttk.Frame(dialog)
+        row.pack(padx=16, pady=(0, 16))
+        ttk.Button(row, text="AUTO", command=lambda: pick("AUTO")).pack(side="left", padx=4)
+        ttk.Button(row, text="CPU", command=lambda: pick("CPU")).pack(side="left", padx=4)
+        ttk.Button(row, text=t("gpu_required_close"), command=lambda: pick(None)).pack(side="left", padx=4)
+        dialog.protocol("WM_DELETE_WINDOW", lambda: pick(None))
+        self._center_toplevel(dialog)
+        dialog.wait_window()
+        selected = choice["value"]
+        if selected in ("AUTO", "CPU"):
+            self.device_mode.set(selected)
+            if selected != "GPU":
+                self.keep_gpu_awake.set(False)
+            self._apply_gpu_hold()
+            toolbar_icons.apply_device_state(self)
+            self._persist_settings()
+        return selected
+
     def on_window_close(self):
         """Вызывается при нажатии X на окне: в режиме «Трей» — свернуть в трей, иначе — диалог закрытия."""
         if self.tray_mode.get() == "tray":
@@ -1934,6 +2205,8 @@ class WhisperGUI:
 
     def _persist_settings(self):
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
+        from whisperfast.telegram.links import normalize_social_quality
+
         payload = {
             "language": self.ui_language.get(),
             "output_mode": self.output_mode.get() or "beside",
@@ -1944,6 +2217,7 @@ class WhisperGUI:
             "watch_dir": serialize_watch_dirs(parse_watch_dirs(self.watch_dir.get())),
             "watch_enabled": self.watch_enabled.get(),
             "device_mode": self.device_mode.get(),
+            "keep_gpu_awake": bool(self.keep_gpu_awake.get()),
             "play_sound_on_finish": self.play_sound_on_finish.get(),
             "save_audio_mp3": self.save_audio_mp3.get(),
             "send_txt_to_ai": self.send_txt_to_ai.get(),
@@ -1993,6 +2267,10 @@ class WhisperGUI:
                 self.telegram_allowed_chat_ids_text.get()
             ),
             "telegram_work_dir": (self.telegram_work_dir.get() or "").strip(),
+            "telegram_social_to_queue": bool(self.telegram_social_to_queue.get()),
+            "telegram_learn_mode": bool(self.telegram_learn_mode.get()),
+            "telegram_social_quality": normalize_social_quality(self.telegram_social_quality.get()),
+            "telegram_listener_enabled": bool(getattr(self, "_telegram_listener_wanted", False)),
             "telegram_mode": (self.telegram_mode.get() or "bot").strip().lower(),
             "telegram_phone": (self.telegram_phone.get() or "").strip(),
             "telegram_self_chat_names": normalize_chat_names(self.telegram_self_chat_names_text.get()),
@@ -2183,6 +2461,182 @@ class WhisperGUI:
     def clear_queue(self):
         self.queue_ctrl.clear()
 
+    def _delete_queue_row_at(self, event):
+        """Drop the single queue row under the pointer."""
+        iid = self.queue_list.identify_row(event.y)
+        if not iid:
+            return
+        try:
+            idx = self.queue_list.index(iid)
+        except tk.TclError:
+            return
+        self.queue_ctrl.delete_indices([idx])
+
+    def _ask_telegram_recipient(self, filename: str) -> str:
+        """Ask which group or contact should receive a file that has no chat yet."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("telegram_send_ask_title"))
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        ttk.Label(
+            dialog,
+            text=t("telegram_send_ask_body", name=filename),
+            wraplength=420,
+        ).pack(padx=16, pady=(16, 8), anchor="w")
+        name = tk.StringVar()
+        entry = ttk.Entry(dialog, textvariable=name, width=42)
+        entry.pack(padx=16, fill="x")
+        entry.focus_set()
+        from whisperfast.telegram.recent import recent_names, remember_name
+
+        recent = recent_names()
+        if recent:
+            ttk.Label(dialog, text=t("telegram_send_recent")).pack(padx=16, pady=(10, 4), anchor="w")
+            listed = tk.Listbox(dialog, height=min(10, len(recent)), activestyle="dotbox")
+            for item in recent:
+                listed.insert("end", item)
+            listed.pack(padx=16, fill="x")
+
+            def pick(_event=None):
+                sel = listed.curselection()
+                if sel:
+                    name.set(listed.get(sel[0]))
+
+            listed.bind("<<ListboxSelect>>", pick)
+            listed.bind("<Double-Button-1>", lambda _event: accept())
+        chosen = {"value": ""}
+
+        def accept(_event=None):
+            chosen["value"] = (name.get() or "").strip()
+            dialog.destroy()
+
+        def cancel(_event=None):
+            dialog.destroy()
+
+        buttons = ttk.Frame(dialog)
+        buttons.pack(padx=16, pady=16, anchor="e")
+        ttk.Button(buttons, text=t("save"), command=accept).pack(side="left", padx=(0, 6))
+        ttk.Button(buttons, text=t("cancel_btn"), command=cancel).pack(side="left")
+        dialog.protocol("WM_DELETE_WINDOW", cancel)
+        dialog.bind("<Return>", accept)
+        dialog.bind("<Escape>", cancel)
+        self._center_toplevel(dialog)
+        dialog.wait_window()
+        if chosen["value"]:
+            remember_name(chosen["value"])
+        return chosen["value"]
+
+    def _send_queue_row_to_telegram(self, event):
+        """Send this row's transcript and AI files back to its Telegram chat."""
+        iid = self.queue_list.identify_row(event.y)
+        if not iid:
+            return
+        try:
+            idx = self.queue_list.index(iid)
+        except tk.TclError:
+            return
+        if not (0 <= idx < len(self.queue)):
+            return
+        item = self.queue[idx]
+        if not item.get("processed"):
+            return
+        source = str(item.get("path") or "")
+        from whisperfast.telegram.gui_bridge import _file_entry, select_telegram_files
+        from whisperfast.telegram.outbox import enqueue_outgoing
+
+        entry = _file_entry(self, source_path=source)
+        outputs = [o for o in ((entry or {}).get("outputs") or []) if isinstance(o, dict)]
+        files = select_telegram_files(source, outputs)
+        if not files:
+            self.log(t("telegram_send_nothing", name=os.path.basename(source)))
+            return
+        chat_id = item.get("telegram_chat_id")
+        chat_name = ""
+        reply = None
+        force_ask = bool(event is not None and (getattr(event, "state", 0) & 0x0001))
+        if chat_id is None or force_ask:
+            chat_name = self._ask_telegram_recipient(os.path.basename(source))
+            if not chat_name:
+                return
+            chat_id = None
+        else:
+            try:
+                reply = int(item.get("telegram_message_id") or 0)
+            except (TypeError, ValueError):
+                reply = 0
+        enqueue_outgoing(
+            None if chat_id is None else int(chat_id),
+            reply,
+            text="",
+            files=[{"path": row["path"], "caption": row["caption"]} for row in files],
+            chat_name=chat_name,
+        )
+        self.queue_ctrl.set_result(source, tg_sent=True)
+        from whisperfast.library import note_telegram_recipient
+
+        note_telegram_recipient(
+            source,
+            chat_name or ("" if chat_id is None else str(int(chat_id))),
+            library=getattr(self, "library", None),
+        )
+        self._refresh_archive_window()
+        self.log(t("telegram_sent_manual", name=os.path.basename(source)))
+
+    def send_archive_job_to_telegram(self, job, *, force_ask=False):
+        """Same send as a processed queue row. Shift always asks who should receive it."""
+        if not isinstance(job, dict):
+            return
+        source = str(job.get("source") or job.get("txt_path") or "")
+        name = os.path.basename(str(job.get("name") or source))
+        from whisperfast.telegram.gui_bridge import _file_entry, select_telegram_files
+        from whisperfast.telegram.origin import lookup
+        from whisperfast.telegram.outbox import enqueue_outgoing
+
+        entry = _file_entry(self, file_id=str(job.get("id") or ""), source_path=source)
+        outputs = [o for o in ((entry or {}).get("outputs") or []) if isinstance(o, dict)]
+        if not outputs:
+            if job.get("txt_path"):
+                outputs.append({"role": "txt", "path": job.get("txt_path")})
+            if job.get("mp3_path"):
+                outputs.append({"role": "mp3", "path": job.get("mp3_path")})
+            for extra in job.get("extra_outputs") or []:
+                if isinstance(extra, dict):
+                    outputs.append(extra)
+        files = select_telegram_files(source, outputs)
+        if not files:
+            self.log(t("telegram_send_nothing", name=name))
+            return
+        origin = lookup(source) or {}
+        chat_id = None if force_ask else origin.get("chat_id")
+        chat_name = ""
+        reply = None
+        if chat_id is None:
+            chat_name = self._ask_telegram_recipient(name)
+            if not chat_name:
+                return
+        else:
+            try:
+                reply = int(origin.get("message_id") or 0)
+            except (TypeError, ValueError):
+                reply = 0
+        enqueue_outgoing(
+            None if chat_id is None else int(chat_id),
+            reply,
+            text="",
+            files=[{"path": row["path"], "caption": row["caption"]} for row in files],
+            chat_name=chat_name,
+        )
+        from whisperfast.library import note_telegram_recipient
+
+        note_telegram_recipient(
+            source,
+            chat_name or str(int(chat_id)),
+            library=getattr(self, "library", None),
+        )
+        self._refresh_archive_window()
+        self.log(t("telegram_sent_manual", name=name))
+
     def delete_selected_queue_items(self, event=None):
         """Удаляет выделенные строки из очереди и сохраняет изменения."""
         selected = self.queue_list.selection()
@@ -2250,6 +2704,16 @@ class WhisperGUI:
             self.queue_ctrl.add_files(file_paths)
 
     def on_drag_start(self, event):
+        if self._queue_column_name(event) == "remove":
+            self._drag_iid = None
+            self._drag_index = -1
+            self._delete_queue_row_at(event)
+            return "break"
+        if self._queue_column_name(event) == "tg":
+            self._drag_iid = None
+            self._drag_index = -1
+            self._send_queue_row_to_telegram(event)
+            return "break"
         if self._queue_column_name(event) == "ai":
             self._queue_ai_armed = True
             self._drag_iid = None
@@ -2313,6 +2777,9 @@ class WhisperGUI:
         except tk.TclError:
             return "break"
         if 0 <= idx < len(self.queue):
+            if self._queue_column_name(event) == "tg":
+                self._send_queue_row_to_telegram(event)
+                return "break"
             open_file_location(self.queue[idx]["path"])
         return "break"
 
@@ -2360,15 +2827,13 @@ class WhisperGUI:
         
         # Обновляем элементы интерфейса
         self.queue_header_label.config(text=t("queue_header"))
+        self.log_header_label.config(text=t("log_header"))
         toolbar_icons.apply_static(self)
         try:
             capture_ui.refresh_capture_buttons(self)
         except Exception:
             toolbar_icons.apply_capture_state(self, running=False, paused=False)
         self.help_btn.config(text=t("help"))
-        self.start_btn.config(text=t("start_transcription"))
-        self.dev_f.config(text=t("device_label"))
-        self.lang_f.config(text=t("language_switcher"))
         try:
             ui = self.ui_language.get()
             if ui in SUPPORTED_LANGUAGES:
@@ -2380,22 +2845,18 @@ class WhisperGUI:
             self.lang_mode_combo.current(self.RECOG_LANG_LABELS.index(recog_label))
         except (tk.TclError, ValueError):
             pass
-        self.model_btn.config(text=self._model_button_label())
+        self._refresh_model_tooltip()
         self.queue_list.heading("num", text=t("col_num"))
+        self._set_remove_column_heading()
         self.queue_list.heading("filename", text=t("col_filename"))
         self.queue_list.heading("note", text=t("col_note"))
         self.queue_list.heading("ai", text=t("col_ai"))
+        self._set_tg_column_heading()
         self.queue_list.heading("start", text=t("col_start"))
         self.queue_list.heading("end_seg1", text=t("col_end_seg1"))
         self.queue_list.heading("end_seg2", text=t("col_end_seg2"))
         self.queue_list.heading("end", text=t("col_end"))
         self.queue_list.heading("status", text=t("col_status"))
-        self.tray_mode_combo["values"] = [t("tray_mode_panel"), t("tray_mode_tray"), t("tray_mode_panel_tray")]
-        try:
-            idx = self.TRAY_MODE_KEYS.index(self.tray_mode.get()) if self.tray_mode.get() in self.TRAY_MODE_KEYS else 0
-            self.tray_mode_combo.current(idx)
-        except tk.TclError:
-            pass
         try:
             self.log_panel.update_copy_menu_label()
             self.log_panel.refresh_i18n()

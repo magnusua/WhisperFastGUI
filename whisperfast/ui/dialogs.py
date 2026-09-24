@@ -962,7 +962,9 @@ def show_model_dialog(app):
         except Exception:
             # WhisperModelSingleton.get() already logged model_load_error.
             return
-        app.model_btn.config(text=app._model_button_label())
+        refresh = getattr(app, "_refresh_model_tooltip", None)
+        if callable(refresh):
+            refresh()
         app._persist_settings()
         app.log(t("model_loaded", model=chosen))
 
@@ -971,7 +973,9 @@ def show_model_dialog(app):
         if sel:
             chosen = WHISPER_MODELS[sel[0]]
             app.whisper_model.set(chosen)
-            app.model_btn.config(text=app._model_button_label())
+            refresh = getattr(app, "_refresh_model_tooltip", None)
+            if callable(refresh):
+                refresh()
             WhisperModelSingleton.reset()
             app._persist_settings()
             app.log(t("model_selected", model=chosen))
@@ -1426,6 +1430,10 @@ def show_telegram_settings_dialog(app):
     base = tk.StringVar(value=app.telegram_api_base.get() or "http://127.0.0.1:8081")
     chats = tk.StringVar(value=app.telegram_allowed_chat_ids_text.get())
     work_dir = tk.StringVar(value=app.telegram_work_dir.get())
+    social_holder = getattr(app, "telegram_social_to_queue", None)
+    social_queue = tk.BooleanVar(value=bool(social_holder.get()) if social_holder is not None else False)
+    learn_holder = getattr(app, "telegram_learn_mode", None)
+    learn_mode = tk.BooleanVar(value=bool(learn_holder.get()) if learn_holder is not None else False)
     phone = tk.StringVar(value=app.telegram_phone.get())
     names_holder = getattr(app, "telegram_self_chat_names_text", None)
     self_chats = tk.StringVar(value=names_holder.get() if names_holder is not None else "")
@@ -1518,6 +1526,32 @@ def show_telegram_settings_dialog(app):
     chats_entry_tip = Tooltip(chats_entry, "telegram_tip_chats_bot", is_key=True)
     tips.extend((chats_tip, chats_entry_tip))
     browse_row(frame, "telegram_work_dir_label", work_dir, "telegram_ph_work_dir", choose_dir, tip_key="telegram_tip_work_dir")
+    social_check = ttk.Checkbutton(frame, text=t("telegram_social_queue_label"), variable=social_queue)
+    social_check.pack(anchor="w", pady=(8, 0))
+    tip(social_check, "telegram_tip_social_queue")
+    learn_check = ttk.Checkbutton(frame, text=t("telegram_learn_label"), variable=learn_mode)
+    learn_check.pack(anchor="w", pady=(8, 0))
+    tip(learn_check, "telegram_tip_learn")
+
+    from whisperfast.telegram.links import normalize_social_quality
+
+    quality_holder = getattr(app, "telegram_social_quality", None)
+    social_quality = tk.StringVar(
+        value=normalize_social_quality(quality_holder.get()) if quality_holder is not None else "best"
+    )
+    quality_label = ttk.Label(frame, text=t("telegram_social_quality_label"))
+    quality_label.pack(anchor="w", pady=(8, 0))
+    tip(quality_label, "telegram_tip_social_quality")
+    quality_row = ttk.Frame(frame)
+    quality_row.pack(anchor="w")
+    for value, key in (
+        ("best", "telegram_social_quality_best"),
+        ("720", "telegram_social_quality_720"),
+        ("360", "telegram_social_quality_360"),
+    ):
+        choice = ttk.Radiobutton(quality_row, text=t(key), value=value, variable=social_quality)
+        choice.pack(side="left", padx=(0, 12))
+        tip(choice, "telegram_tip_social_quality")
 
     def apply_mode():
         account_box.pack_forget()
@@ -1685,10 +1719,19 @@ def show_telegram_settings_dialog(app):
         ids = parse_chat_id_text(chats.get())
         app.telegram_allowed_chat_ids_text.set(format_chat_ids(ids))
         app.telegram_work_dir.set((work_dir.get() or "").strip())
+        if social_holder is not None:
+            social_holder.set(bool(social_queue.get()))
+        if learn_holder is not None:
+            learn_holder.set(bool(learn_mode.get()))
+        if quality_holder is not None:
+            quality_holder.set(normalize_social_quality(social_quality.get()))
         app._persist_settings()
 
     def toggle_listener():
         if is_running():
+            remember = getattr(app, "_remember_telegram_listener", None)
+            if callable(remember):
+                remember(False)
             stop_listener()
             refresh_listener()
             sync = getattr(app, "sync_telegram_listener_check", None)
@@ -1696,6 +1739,9 @@ def show_telegram_settings_dialog(app):
                 sync()
             return
         remember_fields()
+        remember = getattr(app, "_remember_telegram_listener", None)
+        if callable(remember):
+            remember(True)
 
         def on_done(code):
             def ui():
@@ -1711,7 +1757,16 @@ def show_telegram_settings_dialog(app):
             except tk.TclError:
                 pass
 
-        start_listener(log=lambda msg: app.root.after(0, lambda m=msg: app.log(m)), on_done=on_done)
+        def log_line(msg, tag=None):
+            app.root.after(0, lambda m=msg, tg=tag: app.log(m, tg))
+
+        forward = getattr(app, "_telegram_log", None)
+        ask = getattr(app, "ask_telegram_learn", None)
+        start_listener(
+            log=forward if callable(forward) else log_line,
+            on_done=on_done,
+            ask=ask if callable(ask) else None,
+        )
         refresh_listener()
         sync = getattr(app, "sync_telegram_listener_check", None)
         if callable(sync):
@@ -1731,6 +1786,55 @@ def show_telegram_settings_dialog(app):
     ttk.Button(buttons, text=t("save"), command=save_telegram).pack(side="right")
     dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
     dialog.bind("<Escape>", lambda event: close_without_saving())
+    center_toplevel(app, dialog)
+
+
+def show_telegram_learn_prompt(app, chat, material, finish):
+    """Yes processes the message. Closing the window leaves the log line to answer later."""
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("telegram_settings_title"))
+    dialog.transient(app.root)
+    ttk.Label(
+        dialog,
+        text=t("telegram_learn_question", chat=chat, material=material),
+        wraplength=440,
+    ).pack(padx=16, pady=(16, 8))
+    buttons = ttk.Frame(dialog)
+    buttons.pack(pady=(0, 16))
+
+    def answer_no():
+        dialog.destroy()
+        finish("no")
+
+    def answer_yes():
+        dialog.destroy()
+        _ask_learn_add(app, chat, finish)
+
+    ttk.Button(buttons, text=t("telegram_learn_yes"), command=answer_yes).pack(side="left", padx=4)
+    ttk.Button(buttons, text=t("telegram_learn_no"), command=answer_no).pack(side="left", padx=4)
+    dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+    center_toplevel(app, dialog)
+
+
+def _ask_learn_add(app, chat, finish):
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("telegram_settings_title"))
+    dialog.transient(app.root)
+    ttk.Label(
+        dialog,
+        text=t("telegram_learn_add", chat=chat),
+        wraplength=440,
+    ).pack(padx=16, pady=(16, 8))
+    buttons = ttk.Frame(dialog)
+    buttons.pack(pady=(0, 16))
+
+    def answer(decision):
+        dialog.destroy()
+        finish(decision)
+
+    ttk.Button(buttons, text=t("telegram_learn_yes"), command=lambda: answer("always")).pack(side="left", padx=4)
+    ttk.Button(buttons, text=t("telegram_learn_no"), command=lambda: answer("once")).pack(side="left", padx=4)
+    dialog.protocol("WM_DELETE_WINDOW", lambda: answer("once"))
     center_toplevel(app, dialog)
 
 

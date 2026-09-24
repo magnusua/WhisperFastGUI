@@ -7,6 +7,11 @@ from whisperfast.config import DEFAULT_MODEL, WHISPER_MODELS
 
 from whisperfast.i18n import t
 
+
+class GpuRequiredError(RuntimeError):
+    """GPU mode was requested and CUDA did not answer. Do not fall back to CPU."""
+
+
 class WhisperModelSingleton:
     """
     Класс-синглтон для управления моделью Whisper.
@@ -24,7 +29,7 @@ class WhisperModelSingleton:
     _lock = threading.RLock()
 
     @classmethod
-    def get(cls, log_func, mode, model_name=None):
+    def get(cls, log_func, mode, model_name=None, keep_gpu_awake=None):
         """
         Загружает модель, если она еще не в памяти или если сменилось устройство/модель.
         model_name — короткое имя (tiny, base, large-v3-turbo и т.д.) или None для DEFAULT_MODEL.
@@ -33,9 +38,18 @@ class WhisperModelSingleton:
         if name not in WHISPER_MODELS:
             name = DEFAULT_MODEL
 
+        if keep_gpu_awake is None:
+            keep_gpu_awake = _saved_keep_gpu_awake(mode)
+        from whisperfast.setup.gpu_info import prepare_nvidia_gpu, release_nvidia_display_client
+
+        if keep_gpu_awake:
+            prepare_nvidia_gpu(hold=True)
+        else:
+            release_nvidia_display_client()
+
         # Определяем устройство (cuda или cpu). Сплячу відеокарту спочатку будимо.
         want_gpu = mode in ["GPU", "AUTO"]
-        device = "cuda" if (want_gpu and cuda_available(log_func)) else "cpu"
+        device = "cuda" if (want_gpu and cuda_available(log_func, hold_gpu=keep_gpu_awake)) else "cpu"
 
         # Определяем точность вычислений
         if device == "cuda":
@@ -47,7 +61,10 @@ class WhisperModelSingleton:
         else:
             compute = "int8"
 
-        if device == "cpu" and mode in ["GPU", "AUTO"] and not torch.cuda.is_available():
+        if device == "cpu" and mode == "GPU":
+            _log_cuda_fallback(log_func)
+            raise GpuRequiredError(t("gpu_required_failed"))
+        if device == "cpu" and mode == "AUTO" and not torch.cuda.is_available():
             _log_cuda_fallback(log_func)
 
         with cls._lock:
@@ -127,7 +144,18 @@ def _log_cuda_fallback(log_func):
         log_func("⚠ CUDA is not available — running on CPU (including AMD Radeon GPUs).")
 
 
-def cuda_available(log_func=None, attempts=6, pause=0.75) -> bool:
+def _saved_keep_gpu_awake(mode) -> bool:
+    try:
+        from whisperfast.settings import load_app_settings
+        saved = load_app_settings()
+    except Exception:
+        return mode == "GPU"
+    if "keep_gpu_awake" in saved:
+        return bool(saved.get("keep_gpu_awake"))
+    return mode == "GPU"
+
+
+def cuda_available(log_func=None, attempts=6, pause=0.75, hold_gpu=False) -> bool:
     """True when CUDA answers. If the GPU powered down, poke the driver and retry."""
     if torch.cuda.is_available():
         return True
@@ -136,7 +164,7 @@ def cuda_available(log_func=None, attempts=6, pause=0.75) -> bool:
     misses = 0
     announced = False
     for _ in range(attempts):
-        if poke_nvidia_gpu():
+        if poke_nvidia_gpu(hold=hold_gpu):
             if torch_build_too_old_for(poke_nvidia_gpu.last_name):
                 return False
             misses = 0

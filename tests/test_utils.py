@@ -110,11 +110,21 @@ class TestMakeQueueItem(unittest.TestCase):
             item = make_queue_item("folder/talk.mp4", note="sales call")
         values = queue_tree_values(3, item)
         self.assertEqual(values[0], 3)
-        self.assertEqual(values[1], "talk.mp4")
-        self.assertEqual(values[2], "sales call")
-        self.assertEqual(values[3], "")
+        self.assertEqual(values[1], "×")
+        self.assertEqual(values[2], "talk.mp4")
+        self.assertEqual(values[3], "sales call")
+        self.assertEqual(values[4], "")
+        self.assertEqual(values[-1], "⏳")
         item["processed"] = True
-        self.assertEqual(queue_tree_values(3, item)[3], "▶")
+        self.assertEqual(queue_tree_values(3, item)[4], "▶")
+        self.assertEqual(queue_tree_values(3, item)[5], "➤")
+        self.assertEqual(queue_tree_values(3, item)[-1], "✓")
+        item["ai_done"] = True
+        self.assertEqual(queue_tree_values(3, item)[-1], "AI")
+        item["tg_sent"] = True
+        self.assertEqual(queue_tree_values(3, item)[-1], "AI + TG")
+        item["error"] = "disk full"
+        self.assertEqual(queue_tree_values(3, item)[-1], "disk full")
 
 
 class TestLogFileNoteHeader(unittest.TestCase):

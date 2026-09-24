@@ -32,8 +32,8 @@ def show_archive_window(app):
     dialog = tk.Toplevel(app.root)
     dialog.title(t("archive_title"))
     dialog.transient(app.root)
-    dialog.minsize(860, 520)
-    dialog.geometry("960x600")
+    dialog.minsize(980, 520)
+    dialog.geometry("1100x600")
 
     outer = ttk.Frame(dialog, padding=8)
     outer.pack(fill="both", expand=True)
@@ -54,14 +54,16 @@ def show_archive_window(app):
     body.add(left, weight=1)
     body.add(right, weight=2)
 
-    cols = ("when", "name", "summary")
+    cols = ("when", "name", "summary", "telegram")
     tree = ttk.Treeview(left, columns=cols, show="headings", selectmode="browse")
     tree.heading("when", text=t("archive_col_when"))
     tree.heading("name", text=t("archive_col_name"))
     tree.heading("summary", text=t("archive_col_summary"))
+    tree.heading("telegram", text=t("archive_col_telegram"))
     tree.column("when", width=130, minwidth=80)
-    tree.column("name", width=180, minwidth=80)
-    tree.column("summary", width=220, minwidth=80)
+    tree.column("name", width=160, minwidth=80)
+    tree.column("summary", width=180, minwidth=80)
+    tree.column("telegram", width=140, minwidth=80)
     scroll_l = ttk.Scrollbar(left, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=scroll_l.set)
     tree.pack(side="left", fill="both", expand=True)
@@ -80,6 +82,7 @@ def show_archive_window(app):
     del_btn = ttk.Button(actions, text=t("archive_delete"))
     qa_btn = ttk.Button(actions, text=t("archive_ask"))
     ai_btn = ttk.Button(actions, text=t("archive_ai"))
+    tg_btn = ttk.Button(actions, text=t("archive_send_telegram"))
     spk_btn = ttk.Button(actions, text=t("archive_rename_speakers"))
     hint_lbl = ttk.Label(actions, text=t("archive_click_hint"))
     open_btn.pack(side="left")
@@ -87,6 +90,7 @@ def show_archive_window(app):
     del_btn.pack(side="left", padx=4)
     qa_btn.pack(side="left", padx=4)
     ai_btn.pack(side="left", padx=4)
+    tg_btn.pack(side="left", padx=4)
     spk_btn.pack(side="left", padx=4)
     hint_lbl.pack(side="left", padx=10)
 
@@ -108,6 +112,7 @@ def show_archive_window(app):
                     (job.get("created_at") or "")[:19].replace("T", " "),
                     job.get("name") or "",
                     (job.get("summary") or "")[:80],
+                    job.get("telegram_to") or "",
                 ),
             )
 
@@ -217,6 +222,15 @@ def show_archive_window(app):
         if not ok:
             messagebox.showinfo(t("archive_title"), t("archive_ai_no_text"), parent=dialog)
 
+    def _send_telegram(event=None):
+        job = _selected_job()
+        if not job:
+            return
+        force_ask = bool(event is not None and (getattr(event, "state", 0) & 0x0001))
+        app.send_archive_job_to_telegram(job, force_ask=force_ask)
+        _load(search_var.get())
+        return "break"
+
     def _rename_speakers():
         job = _selected_job()
         if not job:
@@ -236,10 +250,12 @@ def show_archive_window(app):
         del_btn.config(text=t("archive_delete"))
         qa_btn.config(text=t("archive_ask"))
         ai_btn.config(text=t("archive_ai"))
+        tg_btn.config(text=t("archive_send_telegram"))
         spk_btn.config(text=t("archive_rename_speakers"))
         tree.heading("when", text=t("archive_col_when"))
         tree.heading("name", text=t("archive_col_name"))
         tree.heading("summary", text=t("archive_col_summary"))
+        tree.heading("telegram", text=t("archive_col_telegram"))
 
     search_btn.config(command=lambda: _load(search_var.get()))
     search_entry.bind("<Return>", lambda e: _load(search_var.get()))
@@ -251,6 +267,7 @@ def show_archive_window(app):
     del_btn.config(command=_delete)
     qa_btn.config(command=_ask)
     ai_btn.config(command=_run_ai)
+    tg_btn.bind("<Button-1>", _send_telegram)
     spk_btn.config(command=_rename_speakers)
 
     def _on_close():

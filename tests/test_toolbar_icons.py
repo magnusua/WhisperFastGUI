@@ -57,12 +57,11 @@ class TestToolbarIcons(unittest.TestCase):
             telegram_btn=ttk.Button(root),
             export_md_docx_btn=ttk.Button(root),
             clear_log_btn=ttk.Button(root),
-            system_btn=ttk.Button(root),
-            updates_btn=ttk.Button(root),
             dependencies_btn=ttk.Button(root),
             autostart_btn=ttk.Button(root),
             autostart_enabled=tk.BooleanVar(value=False),
             cancel_btn=ttk.Button(root),
+            start_btn=ttk.Button(root),
         )
         toolbar_icons.apply_static(app)
         self.assertEqual(app.add_files_btn._toolbar_icon_key, "add_files")
@@ -80,11 +79,11 @@ class TestToolbarIcons(unittest.TestCase):
         self.assertEqual(app.telegram_btn.cget("text"), "")
         self.assertEqual(app.export_md_docx_btn._toolbar_icon_key, "export_md_docx")
         self.assertEqual(app.clear_log_btn._toolbar_icon_key, "clear_log")
-        self.assertEqual(app.system_btn._toolbar_icon_key, "system")
-        self.assertEqual(app.updates_btn._toolbar_icon_key, "updates")
         self.assertEqual(app.dependencies_btn._toolbar_icon_key, "dependencies")
         self.assertEqual(app.autostart_btn._toolbar_icon_key, "autostart_off")
         self.assertEqual(app.cancel_btn._toolbar_icon_key, "cancel")
+        self.assertEqual(app.start_btn._toolbar_icon_key, "start_transcription")
+        self.assertEqual(app.start_btn.cget("text"), "")
         self.assertEqual(app.add_files_btn.cget("text"), "")
         self.assertEqual(app.play_sound_btn.cget("text"), "")
         self.assertEqual(app.output_folder_btn.cget("text"), "")

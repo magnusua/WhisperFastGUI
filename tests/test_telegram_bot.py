@@ -6,7 +6,7 @@ import threading
 import time
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from whisperfast.cli import maybe_run_cli
 from whisperfast.secrets_store import SECRET_SETTING_KEYS
@@ -770,6 +770,118 @@ class TestInWindowListener(unittest.TestCase):
             while service.is_running() and time.time() < deadline:
                 time.sleep(0.02)
         self.assertFalse(service.is_running())
+
+
+class TestVideoLinks(unittest.TestCase):
+    def test_extracts_youtube_instagram_and_facebook_only(self):
+        from whisperfast.telegram.links import extract_video_urls
+
+        text = (
+            "see https://youtu.be/abc123 and https://www.instagram.com/reel/XYZ/ "
+            "https://fb.watch/qq and https://example.com/youtube.com/no"
+        )
+        urls = extract_video_urls(text)
+        self.assertEqual(urls[0], "https://youtu.be/abc123")
+        self.assertIn("https://www.instagram.com/reel/XYZ/", urls)
+        self.assertIn("https://fb.watch/qq", urls)
+        self.assertEqual(len(urls), 3)
+
+    def test_newest_media_file_is_the_downloaded_video(self):
+        from whisperfast.telegram.links import newest_media_file
+
+        with tempfile.TemporaryDirectory() as tmp:
+            thumb = os.path.join(tmp, "cover.jpg")
+            video = os.path.join(tmp, "clip.mp4")
+            with open(thumb, "wb") as handle:
+                handle.write(b"j")
+            with open(video, "wb") as handle:
+                handle.write(b"v")
+            self.assertEqual(os.path.normcase(newest_media_file(tmp)), os.path.normcase(video))
+
+    def test_social_video_stays_out_of_the_queue_unless_enabled(self):
+        from whisperfast.telegram.links import (
+            consume_own_upload,
+            mark_own_upload,
+            social_videos_go_to_queue,
+        )
+
+        self.assertFalse(social_videos_go_to_queue({}))
+        self.assertFalse(social_videos_go_to_queue({"telegram_social_to_queue": False}))
+        self.assertTrue(social_videos_go_to_queue({"telegram_social_to_queue": True}))
+        mark_own_upload(5, r"C:\in\clip.mp4")
+        self.assertTrue(consume_own_upload(5, "clip.mp4"))
+        self.assertFalse(consume_own_upload(5, "clip.mp4"))
+
+    def test_learn_mode_asks_until_the_chat_is_listed(self):
+        from whisperfast.telegram.learn import chat_is_automatic, learn_enabled, material_label
+
+        settings = {"telegram_learn_mode": True, "telegram_self_chat_names": ["Архів"], "telegram_allowed_chat_ids": []}
+        self.assertTrue(learn_enabled(settings))
+        self.assertFalse(learn_enabled({}))
+        self.assertTrue(chat_is_automatic(1, ["Архів"], settings))
+        self.assertFalse(chat_is_automatic(2, ["Інший"], settings))
+        self.assertEqual(material_label("clip.mp4"), "clip.mp4")
+        self.assertEqual(
+            material_label("", ["https://www.facebook.com/reel/XYZ"]),
+            "XYZ (Facebook)",
+        )
+
+    def test_downloaded_video_is_logged_as_a_file_link(self):
+        from whisperfast.telegram.worker import _ingest_bot_links
+
+        video = r"C:\in\clip.mp4"
+        logged = []
+
+        def log(msg, tag=None):
+            logged.append((msg, tag))
+
+        message = {
+            "text": "https://youtube.com/shorts/cz8hpRokpE5",
+            "chat": {"id": 7},
+            "message_id": 3,
+        }
+        client = Mock()
+        with patch("whisperfast.telegram.seen.classify", return_value=("ready", None)), patch(
+            "whisperfast.telegram.links.claim_link", return_value=("new", video, None)
+        ), patch("whisperfast.settings.load_app_settings", return_value={}), patch(
+            "whisperfast.telegram.links.mark_own_upload"
+        ), patch("whisperfast.telegram.links.remember_link"):
+            _ingest_bot_links(message, {"telegram_work_dir": "."}, client, None, log)
+        self.assertIn((video, "link"), logged)
+        client.send_document.assert_called_once()
+
+    def test_source_url_in_a_log_line_is_its_own_link(self):
+        from whisperfast.ui.log_panel import url_spans
+
+        line = "Завантажую відео: https://youtube.com/shorts/cz8hpRokpE5?si=1utjR08a55-J2mRg\n"
+        spans = url_spans(line)
+        self.assertEqual(len(spans), 1)
+        start, end = spans[0]
+        self.assertEqual(line[start:end], "https://youtube.com/shorts/cz8hpRokpE5?si=1utjR08a55-J2mRg")
+
+    def test_quality_caps_height_and_best_is_the_default(self):
+        from whisperfast.telegram.links import download_format, normalize_social_quality
+
+        self.assertEqual(normalize_social_quality(""), "best")
+        self.assertEqual(normalize_social_quality("720p"), "720")
+        self.assertEqual(normalize_social_quality("nope"), "best")
+        self.assertEqual(download_format("best"), "bv*+ba/b")
+        self.assertEqual(download_format("720"), "bv*[height<=720]+ba/b[height<=720]")
+        self.assertEqual(download_format("360"), "bv*[height<=360]+ba/b[height<=360]")
+
+    def test_every_received_link_is_kept(self):
+        from whisperfast.telegram import links
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = os.path.join(tmp, "links.json")
+            with patch.object(links, "_LINKS_FILE", store):
+                links.remember_link("https://youtu.be/abc")
+                links.remember_link("https://youtu.be/abc", os.path.join(tmp, "clip.mp4"))
+                links.remember_link("https://youtu.be/second")
+                with open(store, encoding="utf-8") as handle:
+                    rows = json.load(handle)
+        self.assertEqual([row["url"] for row in rows], ["https://youtu.be/abc", "https://youtu.be/second"])
+        self.assertTrue(rows[0]["path"].endswith("clip.mp4"))
 
 
 class TestSameTelegramFile(unittest.TestCase):

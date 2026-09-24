@@ -245,6 +245,36 @@ def maybe_deliver_telegram(
 
         settings = load_app_settings()
         files = [{"path": item["path"], "caption": item["caption"]} for item in fresh]
+        if fresh:
+            sent_labels = [str(int(meta["chat_id"]))]
+            for extra in extras:
+                try:
+                    sent_labels.append(str(int(extra["chat_id"])))
+                except (KeyError, TypeError, ValueError):
+                    continue
+
+            def _mark_sent(source=source, labels=tuple(sent_labels)):
+                ctrl = getattr(app, "queue_ctrl", None)
+                if ctrl is not None:
+                    ctrl.set_result(source, tg_sent=True)
+                try:
+                    from whisperfast.library import note_telegram_recipient
+
+                    for label in labels or []:
+                        note_telegram_recipient(source, label)
+                except Exception:
+                    pass
+                refresh = getattr(app, "_refresh_archive_window", None)
+                if callable(refresh):
+                    try:
+                        refresh()
+                    except Exception:
+                        pass
+
+            try:
+                app.root.after(0, _mark_sent)
+            except Exception:
+                _mark_sent()
         if normalize_mode(settings.get("telegram_mode")) == "account":
             enqueue_outgoing(
                 meta["chat_id"],

@@ -63,24 +63,43 @@ def normalize_queue_note(text) -> str:
     return " ".join(str(text or "").split())[:200]
 
 
+def queue_status_text(item) -> str:
+    """Final state: error, AI + TG, AI, TG, a check mark, or a waiting mark."""
+    error = str(item.get("error") or "").strip()
+    if error:
+        return error[:80]
+    if not item.get("processed"):
+        return "⏳"
+    parts = []
+    if item.get("ai_done"):
+        parts.append("AI")
+    if item.get("tg_sent"):
+        parts.append("TG")
+    if parts:
+        return " + ".join(parts)
+    return "✓"
+
+
 def queue_tree_values(num, item):
-    """Treeview row: #, filename, note, AI, start, end seg 1/2, end, status."""
+    """Treeview row: #, remove, filename, note, AI, Telegram, start, end seg 1/2, end, status."""
     from whisperfast.i18n import t
 
-    status_text = t("status_processed") if item.get("processed") else t("status_not_processed")
     path = item.get("path") or ""
     ext = os.path.splitext(path)[1].lower()
     ai_text = t("col_ai_run") if item.get("processed") or ext in (".txt", ".md") else ""
+    tg_text = "➤" if item.get("processed") else ""
     return (
         num,
+        "×",
         os.path.basename(path),
         normalize_queue_note(item.get("note")),
         ai_text,
+        tg_text,
         item.get("start") or "",
         item.get("end_segment_1") or "",
         item.get("end_segment_2") or "",
         item.get("end") or "",
-        status_text,
+        queue_status_text(item),
     )
 
 

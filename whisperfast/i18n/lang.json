@@ -9,6 +9,11 @@
     "UK": "Черга",
     "RU": "Очередь"
   },
+  "log_header": {
+    "EN": "Log",
+    "UK": "Лог",
+    "RU": "Лог"
+  },
   "tooltip_queue_header": {
     "EN": "Table: add files (buttons or drag & drop), select a row and press Start to transcribe.\n• Columns: Start = from time (default 00:00:00); End = to time (default = full file); End seg. 1/2 = optional segment boundaries.\n• Double-click a row to edit time range (Start, End seg 1/2, End). Only the [Start — End] range is transcribed; use segments to process one file in parts (e.g. 0–20 min in one language, 20–60 min in another).\n• Shift + click a row to open file location in the file manager (Windows: open folder and select file).\n• Queue is saved to request_queue.json and restored on startup.",
     "UK": "Таблиця: додайте файли (кнопки або перетягування), виберіть рядок і натисніть Старт для транскрибації.\n• Колонки: Початок = час початку (за замовч. 00:00:00); Кінець = час кінця (за замовч. — тривалість файлу); Кінець відр. 1/2 = необов’язкові межі відрізків.\n• Подвійний клік по рядку — редагування діапазону (Початок, Кінець відр. 1/2, Кінець). Обробляється лише діапазон [Початок — Кінець]; відрізки дозволяють обробити один файл частинами (напр. 0–20 хв однією мовою, 20–60 хв іншою).\n• Shift + клік по рядку — відкрити розташування файлу у файловому менеджері (у Windows папка відкривається з виділенням файлу).\n• Черга зберігається в request_queue.json і відновлюється при запуску.",
@@ -74,6 +79,41 @@
     "UK": "Не оброблено",
     "RU": "Не обработано"
   },
+  "status_error": {
+    "EN": "Error",
+    "UK": "Помилка",
+    "RU": "Ошибка"
+  },
+  "telegram_send_nothing": {
+    "EN": "Nothing to send to Telegram for {name}.",
+    "UK": "Для {name} немає файлів, які можна надіслати в Telegram.",
+    "RU": "Для {name} нет файлов, которые можно отправить в Telegram."
+  },
+  "telegram_send_ask_title": {
+    "EN": "Send to Telegram",
+    "UK": "Надіслати в Telegram",
+    "RU": "Отправить в Telegram"
+  },
+  "telegram_send_recent": {
+    "EN": "Last 10",
+    "UK": "Останні 10",
+    "RU": "Последние 10"
+  },
+  "telegram_send_ask_body": {
+    "EN": "Who should receive the results for {name}? Type a group or contact name.",
+    "UK": "Кому надіслати результати для {name}? Вкажіть назву групи або контакту.",
+    "RU": "Кому отправить результаты для {name}? Укажите название группы или контакта."
+  },
+  "telegram_chat_not_found": {
+    "EN": "Telegram chat «{name}» was not found.",
+    "UK": "Чат Telegram «{name}» не знайдено.",
+    "RU": "Чат Telegram «{name}» не найден."
+  },
+  "telegram_sent_manual": {
+    "EN": "Sent {name} to Telegram.",
+    "UK": "Надіслано {name} у Telegram.",
+    "RU": "Отправлено {name} в Telegram."
+  },
   "process_again": {
     "EN": "Process all files again?",
     "UK": "Обробити всі файли заново?",
@@ -118,6 +158,31 @@
     "EN": "Device",
     "UK": "Пристрій",
     "RU": "Устройство"
+  },
+  "keep_gpu_awake": {
+    "EN": "Don't release the GPU",
+    "UK": "Не відпускати відеокарту",
+    "RU": "Не отпускать видеокарту"
+  },
+  "gpu_required_title": {
+    "EN": "GPU did not start",
+    "UK": "Відеокарта не запустилась",
+    "RU": "Видеокарта не запустилась"
+  },
+  "gpu_required_body": {
+    "EN": "FTW could not start on the GPU.\n\nTurn on AUTO — FTW will try the GPU and, if it does not answer, use the CPU.\nOr switch to CPU.\nOr restart the computer and check that the required components are installed.",
+    "UK": "FTW не зміг запуститися на відеокарті.\n\nУвімкніть AUTO — FTW спробує відеокарту і, якщо вона не відповість, перейде на CPU.\nАбо виберіть CPU.\nАбо перезавантажте пристрій і перевірте, що потрібні компоненти встановлені.",
+    "RU": "FTW не смог запуститься на видеокарте.\n\nВключите AUTO — FTW попробует видеокарту и, если она не ответит, перейдёт на CPU.\nИли выберите CPU.\nИли перезагрузите устройство и проверьте, что нужные компоненты установлены."
+  },
+  "gpu_required_close": {
+    "EN": "Close",
+    "UK": "Закрити",
+    "RU": "Закрыть"
+  },
+  "gpu_required_failed": {
+    "EN": "FTW could not start on the GPU.",
+    "UK": "FTW не зміг запуститися на відеокарті.",
+    "RU": "FTW не смог запуститься на видеокарте."
   },
   "language_switcher": {
     "EN": "Language Switcher",
@@ -983,6 +1048,16 @@
     "EN": "▶ Restarting AI job: {name}",
     "UK": "▶ Перезапуск завдання AI: {name}",
     "RU": "▶ Перезапуск задания AI: {name}"
+  },
+  "ai_retry_skip_done": {
+    "EN": "Skipping prompts that already have a file: {names}",
+    "UK": "Пропуск промптів, файл яких уже є: {names}",
+    "RU": "Пропуск промптов, файл которых уже есть: {names}"
+  },
+  "ai_retry_nothing_pending": {
+    "EN": "Every selected prompt already has a file, nothing to restart: {name}",
+    "UK": "Усі вибрані промпти вже мають файл, повтор не потрібен: {name}",
+    "RU": "У всех выбранных промптов уже есть файл, повтор не нужен: {name}"
   },
   "log_file_header": {
     "EN": "{mark} {name}  ",
@@ -2450,9 +2525,14 @@
     "RU": "Начать транскрибацию. Если выбран один файл: «Только этот» или «Все в очереди». Клавиша: Enter при наличии файлов."
   },
   "tooltip_device": {
-    "EN": "AUTO: use GPU if NVIDIA CUDA available, else CPU. GPU: force GPU. CPU: force CPU (e.g. for AMD Radeon).",
-    "UK": "AUTO: GPU якщо є NVIDIA CUDA, інакше CPU. GPU: примусово GPU. CPU: примусово CPU (наприклад AMD Radeon).",
-    "RU": "AUTO: GPU при наличии NVIDIA CUDA, иначе CPU. GPU: принудительно GPU. CPU: принудительно CPU (например AMD Radeon)."
+    "EN": "AUTO: use GPU if NVIDIA CUDA is available, otherwise CPU. GPU: GPU only, no CPU fallback; the video card stays awake the whole time FTW is open. CPU: CPU only.",
+    "UK": "AUTO: GPU, якщо є NVIDIA CUDA, інакше CPU. GPU: лише GPU, без переходу на CPU; відеокарта весь час у очікуванні, поки FTW відкрито. CPU: лише CPU.",
+    "RU": "AUTO: GPU, если есть NVIDIA CUDA, иначе CPU. GPU: только GPU, без перехода на CPU; видеокарта всё время в ожидании, пока FTW открыт. CPU: только CPU."
+  },
+  "tooltip_keep_gpu_awake": {
+    "EN": "Keep the discrete NVIDIA GPU powered on while FTW is open, including with the lid closed and no monitor. Turned on automatically when GPU is selected.",
+    "UK": "Тримати дискретну NVIDIA увімкненою, поки відкритий FTW, зокрема із закритою кришкою і без монітора. Вмикається само, коли вибрано GPU.",
+    "RU": "Держать дискретную NVIDIA включённой, пока открыт FTW, в том числе с закрытой крышкой и без монитора. Включается само, когда выбран GPU."
   },
   "tooltip_language_switcher": {
     "EN": "Recognition language: AUTO (detect), RU, UK, EN. Does not affect interface language.",
@@ -2505,9 +2585,9 @@
     "RU": "Панель: только панель задач; закрытие окна (×) — диалог выхода. Трей: только трей; закрытие окна сворачивает в трей (программа продолжает работать); выход — через меню иконки «Выход». Панель + Трей: оба; × — диалог выхода; свернуть (−), чтобы оставить в фоне."
   },
   "tooltip_model_btn": {
-    "EN": "Current model / select another. Downloaded models are stored in: {cache_dir}",
-    "UK": "Поточна модель / обрати іншу. Завантажені моделі зберігаються в: {cache_dir}",
-    "RU": "Текущая модель / выбрать другую. Загруженные модели хранятся в: {cache_dir}"
+    "EN": "Model: {model}. Click to choose another. Downloaded models are stored in: {cache_dir}",
+    "UK": "Модель: {model}. Натисніть, щоб обрати іншу. Завантажені моделі зберігаються в: {cache_dir}",
+    "RU": "Модель: {model}. Нажмите, чтобы выбрать другую. Загруженные модели хранятся в: {cache_dir}"
   },
   "model_dialog_title": {
     "EN": "Whisper model",
@@ -2664,6 +2744,26 @@
     "UK": "Не вдалося змінити автозапуск",
     "RU": "Не удалось изменить автозапуск"
   },
+  "tooltip_environment": {
+    "EN": "System check, updates, or install and reinstall packages and tools.",
+    "UK": "Перевірка системи, оновлення або встановлення й перевстановлення пакетів і утиліт.",
+    "RU": "Проверка системы, обновления или установка и переустановка пакетов и утилит."
+  },
+  "env_menu_system": {
+    "EN": "Check system",
+    "UK": "Перевірити систему",
+    "RU": "Проверить систему"
+  },
+  "env_menu_updates": {
+    "EN": "Check updates",
+    "UK": "Перевірити оновлення",
+    "RU": "Проверить обновления"
+  },
+  "env_menu_install": {
+    "EN": "Install or reinstall",
+    "UK": "Встановити або перевстановити",
+    "RU": "Установить или переустановить"
+  },
   "tooltip_dependencies": {
     "EN": "Install or reinstall pip packages (PyTorch, faster-whisper, markitdown…) and system tools (FFmpeg, Pandoc). Option: Force Reinstall.",
     "UK": "Встановити або перевстановити pip-пакети (PyTorch, faster-whisper, markitdown…) і системні утиліти (FFmpeg, Pandoc). Опція: примусова перевстановка.",
@@ -2760,9 +2860,9 @@
     "RU": "Очистить окно лога."
   },
   "tooltip_cancel": {
-    "EN": "Stop the current transcription (after finishing the current segment).",
-    "UK": "Зупинити поточну транскрибацію (після завершення поточного сегмента).",
-    "RU": "Остановить текущую транскрибацию (после завершения текущего сегмента)."
+    "EN": "Stop the current transcription (after the current segment), or stop a recording in progress.",
+    "UK": "Зупинити поточну транскрибацію (після поточного сегмента) або зупинити активний запис.",
+    "RU": "Остановить текущую транскрибацию (после текущего сегмента) или остановить идущую запись."
   },
   "pydub_import_error": {
     "EN": "{error_label}: Failed to import pydub.\n\nPython {major}.{minor} requires audioop-lts (stdlib audioop was removed).\n\nInstall with:\npip install audioop-lts\n\nOr use the [{deps}] button for automatic installation.",
@@ -2953,6 +3053,16 @@
     "EN": "Summary",
     "UK": "Коротко",
     "RU": "Кратко"
+  },
+  "archive_col_telegram": {
+    "EN": "Sent to",
+    "UK": "Кому",
+    "RU": "Кому"
+  },
+  "archive_send_telegram": {
+    "EN": "Send to Telegram",
+    "UK": "Надіслати в Telegram",
+    "RU": "Отправить в Telegram"
   },
   "archive_open_txt": {
     "EN": "Open text",
@@ -3750,6 +3860,86 @@
     "EN": "Queued ({position}).",
     "UK": "У черзі ({position}).",
     "RU": "В очереди ({position})."
+  },
+  "telegram_learn_label": {
+    "EN": "Learning mode: ask before processing a new chat",
+    "UK": "Режим навчання: питати перед обробкою нового чату",
+    "RU": "Режим обучения: спрашивать перед обработкой нового чата"
+  },
+  "telegram_tip_learn": {
+    "EN": "Chats are not processed until you agree. A video, audio file, or social-network link asks whether to process it and whether to add that chat to the automatic list. Closing the question leaves it in the log.",
+    "UK": "Чати не обробляються, доки ви не погодитесь. Відео, аудіо або посилання з соцмережі питає, чи обробляти, і чи додати чат до списку автоматичної обробки. Якщо закрити питання, воно лишається в логу.",
+    "RU": "Чаты не обрабатываются, пока вы не согласитесь. Видео, аудио или ссылка из соцсети спрашивает, обрабатывать ли, и добавить ли чат в список автоматической обработки. Если закрыть вопрос, он остаётся в логе."
+  },
+  "telegram_learn_question": {
+    "EN": "Message from {chat} with {material}. Process it?",
+    "UK": "Отримано повідомлення від {chat} з {material}. Обробити?",
+    "RU": "Получено сообщение от {chat} с {material}. Обработать?"
+  },
+  "telegram_learn_add": {
+    "EN": "Add «{chat}» to the automatic processing list?",
+    "UK": "Додати «{chat}» до списку автоматичної обробки?",
+    "RU": "Добавить «{chat}» в список автоматической обработки?"
+  },
+  "telegram_learn_yes": {
+    "EN": "Yes",
+    "UK": "Так",
+    "RU": "Да"
+  },
+  "telegram_learn_no": {
+    "EN": "No",
+    "UK": "Ні",
+    "RU": "Нет"
+  },
+  "telegram_social_queue_label": {
+    "EN": "Put videos downloaded from social networks into the Whisper queue",
+    "UK": "Ставити відео з соцмереж у чергу Whisper",
+    "RU": "Ставить видео из соцсетей в очередь Whisper"
+  },
+  "telegram_tip_social_queue": {
+    "EN": "Off by default. A YouTube, Instagram, or Facebook link is downloaded and sent back to the chat. Turn this on to also run that video through Whisper.",
+    "UK": "За замовчуванням вимкнено. Посилання YouTube, Instagram або Facebook скачується і надсилається назад у чат. Увімкніть, щоб це відео ще й пішло в обробку Whisper.",
+    "RU": "По умолчанию выключено. Ссылка YouTube, Instagram или Facebook скачивается и отправляется обратно в чат. Включите, чтобы это видео ещё и пошло в обработку Whisper."
+  },
+  "telegram_social_quality_label": {
+    "EN": "Download quality",
+    "UK": "Якість завантаження",
+    "RU": "Качество загрузки"
+  },
+  "telegram_social_quality_best": {
+    "EN": "Highest available",
+    "UK": "Найвища доступна",
+    "RU": "Наивысшее доступное"
+  },
+  "telegram_social_quality_720": {
+    "EN": "No higher than 720",
+    "UK": "Не вище 720",
+    "RU": "Не выше 720"
+  },
+  "telegram_social_quality_360": {
+    "EN": "No higher than 360",
+    "UK": "Не вище 360",
+    "RU": "Не выше 360"
+  },
+  "telegram_tip_social_quality": {
+    "EN": "Highest available is the default. 720 and 360 keep the best picture that is not taller than that.",
+    "UK": "За замовчуванням — найвища доступна. 720 і 360 беруть найкращу картинку, не вищу за цю межу.",
+    "RU": "По умолчанию — наивысшее доступное. 720 и 360 берут лучшую картинку не выше этой границы."
+  },
+  "telegram_link_saved": {
+    "EN": "Video downloaded and sent back. It was not added to the Whisper queue.",
+    "UK": "Відео скачано і надіслано в чат. У чергу Whisper не ставив.",
+    "RU": "Видео скачано и отправлено в чат. В очередь Whisper не ставил."
+  },
+  "telegram_link_downloading": {
+    "EN": "Downloading the video: {url}",
+    "UK": "Завантажую відео: {url}",
+    "RU": "Скачиваю видео: {url}"
+  },
+  "telegram_link_failed": {
+    "EN": "Could not download the video: {error}",
+    "UK": "Не вдалося завантажити відео: {error}",
+    "RU": "Не удалось скачать видео: {error}"
   },
   "telegram_same_queued": {
     "EN": "Already downloaded and still in the queue: {name}. It will not be downloaded again.",

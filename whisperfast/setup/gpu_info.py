@@ -189,10 +189,28 @@ def _cu_init() -> bool:
         return False
 
 
-def prepare_nvidia_gpu() -> None:
+def release_nvidia_display_client() -> None:
+    """Drop the held D3D11 device so Windows may power the discrete GPU off again."""
+    held = list(_d3d_keepalive)
+    _d3d_keepalive.clear()
+    for item in held:
+        for com_ptr in reversed(item):
+            try:
+                if not com_ptr:
+                    continue
+                release = _com_method(com_ptr, 2, ctypes.c_ulong)
+                release(com_ptr)
+            except (OSError, AttributeError, ValueError):
+                pass
+
+
+def prepare_nvidia_gpu(hold=True) -> None:
     """Wake a laptop dGPU that Windows powered off with the lid closed and no monitor."""
     prefer_discrete_gpu()
-    hold_nvidia_display_client()
+    if hold:
+        hold_nvidia_display_client()
+    else:
+        release_nvidia_display_client()
     _cu_init()
 
 
@@ -213,9 +231,9 @@ def nvidia_smi_name() -> str:
     return line[0].strip() if line else ""
 
 
-def poke_nvidia_gpu() -> bool:
+def poke_nvidia_gpu(hold=False) -> bool:
     """Wake a powered-down discrete GPU, then ask the driver to list it."""
-    prepare_nvidia_gpu()
+    prepare_nvidia_gpu(hold=hold)
     name = nvidia_smi_name()
     poke_nvidia_gpu.last_name = name
     return bool(name)

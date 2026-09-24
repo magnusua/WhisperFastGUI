@@ -41,6 +41,12 @@ FILE_MAP = {
     "autostart_off": "power-settings-new.png",
     "autostart_on": "power-settings-new.png",
     "cancel": "cancel.png",
+    "start_transcription": "play-arrow.png",
+    "model": "model.png",
+    "tray_mode": "tray.png",
+    "device_auto": "device-auto.png",
+    "device_gpu": "device-gpu.png",
+    "device_cpu": "device-cpu.png",
 }
 
 # Recolor a black Material glyph (RGB kept, alpha from the PNG).
@@ -77,6 +83,12 @@ UNICODE_FALLBACK = {
     "autostart_off": "\uE7E8",
     "autostart_on": "\uE7E8",
     "cancel": "\uE711",
+    "start_transcription": "\uE768",
+    "model": "\uE964",
+    "tray_mode": "\uE138",
+    "device_auto": "\uE7F4",
+    "device_gpu": "\uE7F8",
+    "device_cpu": "\uE950",
 }
 
 _ICON_SIZE = 20
@@ -161,14 +173,16 @@ def apply_static(app) -> None:
         ("telegram_btn", "telegram"),
         ("export_md_docx_btn", "export_md_docx"),
         ("clear_log_btn", "clear_log"),
-        ("system_btn", "system"),
-        ("updates_btn", "updates"),
         ("dependencies_btn", "dependencies"),
         ("cancel_btn", "cancel"),
+        ("start_btn", "start_transcription"),
+        ("model_btn", "model"),
+        ("tray_mode_btn", "tray_mode"),
     ):
         set_icon(getattr(app, attr, None), photos, key)
     apply_notify_state(app)
     apply_autostart_state(app)
+    apply_device_state(app)
 
 
 def apply_notify_state(app) -> None:
@@ -181,6 +195,19 @@ def apply_notify_state(app) -> None:
         except tk.TclError:
             pass
     set_icon(getattr(app, "play_sound_btn", None), photos, "notify_on" if on else "notify_off")
+
+
+def apply_device_state(app) -> None:
+    photos = getattr(app, "_toolbar_photos", None) or {}
+    mode = "AUTO"
+    var = getattr(app, "device_mode", None)
+    if var is not None:
+        try:
+            mode = str(var.get() or "AUTO").upper()
+        except tk.TclError:
+            pass
+    key = {"GPU": "device_gpu", "CPU": "device_cpu"}.get(mode, "device_auto")
+    set_icon(getattr(app, "device_btn", None), photos, key)
 
 
 def apply_autostart_state(app) -> None:

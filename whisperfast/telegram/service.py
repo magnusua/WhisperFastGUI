@@ -19,7 +19,11 @@ def is_stopping() -> bool:
     return _stop.is_set() and is_running()
 
 
-def start(log: Optional[Callable[[str], None]] = None, on_done: Optional[Callable[[int], None]] = None) -> bool:
+def start(
+    log: Optional[Callable[[str], None]] = None,
+    on_done: Optional[Callable[[int], None]] = None,
+    ask: Optional[Callable] = None,
+) -> bool:
     """Start the listener thread. Returns False if it is already running."""
     global _thread
     with _lock:
@@ -39,6 +43,7 @@ def start(log: Optional[Callable[[str], None]] = None, on_done: Optional[Callabl
                     stop=_stop.is_set,
                     log=log or (lambda _msg: None),
                     poll_timeout=5,
+                    ask=ask,
                 )
             finally:
                 if on_done is not None:

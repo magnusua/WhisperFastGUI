@@ -17,12 +17,19 @@ def outbox_dir() -> str:
     return os.path.join(BASE_DIR, ".ftw_tg_out")
 
 
-def enqueue_outgoing(chat_id: int, reply_to: int, text: str = "", files: List[Dict[str, str]] | None = None) -> str:
+def enqueue_outgoing(
+    chat_id: int | None,
+    reply_to: int | None,
+    text: str = "",
+    files: List[Dict[str, str]] | None = None,
+    chat_name: str = "",
+) -> str:
     folder = outbox_dir()
     os.makedirs(folder, exist_ok=True)
     payload: Dict[str, Any] = {
-        "chat_id": int(chat_id),
-        "reply_to": int(reply_to),
+        "chat_id": None if chat_id is None else int(chat_id),
+        "chat_name": str(chat_name or "").strip(),
+        "reply_to": None if reply_to is None else int(reply_to),
         "text": text or "",
         "files": list(files or []),
         "ts": time.time(),
@@ -58,6 +65,6 @@ def take_outgoing() -> List[Dict[str, Any]]:
             os.remove(path)
         except OSError:
             pass
-        if isinstance(data, dict) and data.get("chat_id") is not None:
+        if isinstance(data, dict) and (data.get("chat_id") is not None or str(data.get("chat_name") or "").strip()):
             out.append(data)
     return out

@@ -24,6 +24,7 @@ telegram_inbox/
 .ftw_tg_out/
 .ftw_tg_origin.json
 .ftw_tg_seen.json
+.ftw_tg_recent.json
 telegram_user.session
 telegram_user.session-journal
 

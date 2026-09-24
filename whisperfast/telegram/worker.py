@@ -366,12 +366,136 @@ def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) 
     return False
 
 
+def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
+    from whisperfast.telegram.links import claim_link, extract_video_urls, remember_link, remember_wait
+    from whisperfast.telegram.seen import classify
+
+    text = message.get("text") if isinstance(message.get("text"), str) else ""
+    urls = extract_video_urls(text)[:3]
+    if not urls:
+        return
+    try:
+        chat_id = int((message.get("chat") or {}).get("id"))
+        message_id = int(message.get("message_id"))
+    except (TypeError, ValueError):
+        return
+    work = resolve_work_dir(settings)
+    for url in urls:
+        dest = os.path.join(work, f"{chat_id}_{message_id}")
+        remember_link(url)
+        if classify("url:" + url)[0] == "download":
+            notice = t("telegram_link_downloading", url=url)
+            log(notice)
+            client.send_message(chat_id, notice, reply_to=message_id)
+        else:
+            log(url)
+        try:
+            action, path, known = claim_link(url, dest)
+            remember_link(url, path or str((known or {}).get("path") or ""))
+        except Exception as exc:
+            err = t("telegram_link_failed", error=str(exc))
+            log(err)
+            client.send_message(chat_id, err, reply_to=message_id)
+            continue
+        if action == "send":
+            text_out = t(
+                "telegram_same_ai" if known.get("ai") else "telegram_same_done",
+                name=os.path.basename(url),
+            )
+            log(text_out)
+            client.send_message(chat_id, text_out, reply_to=message_id)
+            for item in (known.get("outputs") or []):
+                client.send_document(
+                    chat_id, item["path"], caption=str(item.get("caption") or ""), reply_to=message_id,
+                )
+            continue
+        if action == "wait":
+            remember_wait(url, chat_id, message_id)
+            text_out = t("telegram_same_queued", name=os.path.basename(url))
+            log(text_out)
+            client.send_message(chat_id, text_out, reply_to=message_id)
+            continue
+        from whisperfast.settings import load_app_settings
+        from whisperfast.telegram.links import (
+            log_downloaded_file,
+            mark_own_upload,
+            social_videos_go_to_queue,
+        )
+
+        if not social_videos_go_to_queue(load_app_settings()):
+            mark_own_upload(chat_id, path)
+            notice = t("telegram_link_saved")
+            log(notice)
+            log_downloaded_file(log, path)
+            client.send_document(chat_id, path, caption=notice, reply_to=message_id)
+            continue
+        if submit is None:
+            from whisperfast.telegram.gui_bridge import submit_to_running_gui
+            submit = submit_to_running_gui
+        try:
+            submit(path, chat_id, message_id)
+        except Exception as exc:
+            client.send_message(chat_id, t("telegram_failed", error=str(exc)), reply_to=message_id)
+            continue
+        client.send_message(
+            chat_id, t("telegram_gui_added", name=os.path.basename(path)), reply_to=message_id,
+        )
+        log(t("telegram_gui_added", name=os.path.basename(path)))
+        log_downloaded_file(log, path)
+
+
+def _defer_learn(message, log: LogFunc, ask: Optional[Callable]) -> bool:
+    """Ask about media from a chat that is not automatic. True when this update is held."""
+    from whisperfast.settings import load_app_settings
+    from whisperfast.telegram.learn import (
+        chat_is_automatic,
+        learn_enabled,
+        material_label,
+        push_ready,
+    )
+    from whisperfast.telegram.links import extract_video_urls
+
+    settings = load_app_settings()
+    if not learn_enabled(settings):
+        return False
+    chat = message.get("chat") if isinstance(message.get("chat"), Mapping) else {}
+    try:
+        chat_id = int(chat.get("id"))
+    except (TypeError, ValueError):
+        return False
+    names = [chat_display_name(chat, chat_id)]
+    if chat_is_automatic(chat_id, names, settings):
+        return False
+    job = media_from_message(message)
+    text = message.get("text") if isinstance(message.get("text"), str) else ""
+    urls = [] if job else extract_video_urls(text)[:3]
+    if not job and not urls:
+        return False
+    material = material_label(job.filename if job else "", urls)
+    chat_name = chat_display_name(chat, chat_id)
+    kind = "media" if job else "links"
+    payload = job if job else message
+
+    def settle(decision, kind=kind, payload=payload):
+        push_ready((decision, kind, payload))
+
+    if ask is None:
+        log(t("telegram_learn_question", chat=chat_name, material=material))
+        settle("no")
+        return True
+    ask(chat_name, material, settle, chat_id)
+    return True
+
+
 def accept_updates(
     updates: Sequence[Mapping[str, Any]],
     allowlist: Sequence[int],
     client: TelegramClient,
     pending: List[IncomingMedia],
     log: Optional[LogFunc] = None,
+    settings: Optional[Mapping[str, Any]] = None,
+    submit: Optional[Callable] = None,
+    ask: Optional[Callable] = None,
 ) -> Optional[int]:
     """Enqueue accepted media. Returns the next getUpdates offset, if any."""
     log = log or (lambda _msg: None)
@@ -384,6 +508,9 @@ def accept_updates(
                 pass
         decision = decide_update(update, allowlist)
         if decision.log:
+            message = update.get("message") if isinstance(update, Mapping) else None
+            if isinstance(message, Mapping) and _defer_learn(message, log, ask):
+                continue
             log(decision.log)
         if decision.reply_text and decision.reply_chat_id is not None:
             client.send_message(decision.reply_chat_id, decision.reply_text)
@@ -403,6 +530,11 @@ def accept_updates(
                 t("telegram_queued", position=len(pending)),
                 reply_to=decision.job.message_id,
             )
+            continue
+        if settings is not None and not decision.log and not decision.reply_text:
+            message = update.get("message") if isinstance(update, Mapping) else None
+            if isinstance(message, Mapping):
+                _ingest_bot_links(message, settings, client, submit, log)
     return offset
 
 
@@ -417,6 +549,7 @@ def run_bot(
     max_cycles: Optional[int] = None,
     poll_timeout: int = 50,
     stop: Optional[Callable[[], bool]] = None,
+    ask: Optional[Callable] = None,
 ) -> int:
     log = log or print
     token = str(settings.get("telegram_bot_token") or "").strip()
@@ -428,16 +561,28 @@ def run_bot(
         base, _host, _port = api_endpoint(settings)
         client = TelegramClient(token, api_base=base)
 
-    allowlist = normalize_chat_ids(settings.get("telegram_allowed_chat_ids"))
     offset = None
     cycles = 0
     while max_cycles is None or cycles < max_cycles:
         if stop and stop():
             break
         cycles += 1
+        fresh = load_app_settings()
+        allowlist = normalize_chat_ids(fresh.get("telegram_allowed_chat_ids"))
         updates = client.get_updates(offset=offset, timeout=poll_timeout)
         pending: List[IncomingMedia] = []
-        new_offset = accept_updates(updates, allowlist, client, pending, log=log)
+        new_offset = accept_updates(
+            updates, allowlist, client, pending, log=log, settings=fresh, submit=submit, ask=ask,
+        )
+        from whisperfast.telegram.learn import take_ready
+
+        for decision, kind, payload in take_ready():
+            if decision not in ("once", "always"):
+                continue
+            if kind == "media":
+                pending.append(payload)
+            elif kind == "links":
+                _ingest_bot_links(payload, settings, client, submit, log)
         if new_offset is not None:
             offset = new_offset
         if pending:
@@ -458,13 +603,16 @@ def run_from_settings(
     stop: Optional[Callable[[], bool]] = None,
     log: Optional[LogFunc] = None,
     poll_timeout: int = 50,
+    ask: Optional[Callable] = None,
 ) -> int:
     from whisperfast.telegram.account import normalize_mode, run_account
 
     settings = load_app_settings()
     try:
         if normalize_mode(settings.get("telegram_mode")) == "account":
-            return run_account(settings, submit=submit, gui_running=gui_running, stop=stop, log=log)
+            return run_account(
+                settings, submit=submit, gui_running=gui_running, stop=stop, log=log, ask=ask,
+            )
         return run_bot(
             settings,
             submit=submit,
@@ -472,6 +620,7 @@ def run_from_settings(
             stop=stop,
             log=log,
             poll_timeout=poll_timeout,
+            ask=ask,
         )
     except KeyboardInterrupt:
         print("stopped")

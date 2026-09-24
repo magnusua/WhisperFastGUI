@@ -18,7 +18,7 @@
     ├── settings.py           — settings.json: дефолти, читання/запис, DPAPI-обгортка ключів
     ├── utils.py              — час, шляхи черги, тривалість аудіо, звук завершення
     ├── log_store.py          — app_log.json: дні + file-сесії, batch flush
-    ├── library.py            — library.sqlite: архів розмов + FTS5
+    ├── library.py            — library.sqlite: архів розмов + FTS5; стовпець telegram_to — усі адресати Telegram
     ├── srt_parse.py / audio_player.py — клік по рядку субтитрів
     ├── secrets_store.py      — ключі API: DPAPI (Windows), login Keychain (macOS), chmod 0600 (Linux)
     ├── platform_util.py      — subprocess без вікна консолі на Windows
@@ -118,6 +118,9 @@
 | `gui_bridge.py` | Кладє файл у чергу і повертає результати: TXT, кожен AI, MP3 з відео, відрізок аудіо (`*_ГГ-ХХ-СС_ГГ-ХХ-СС_audio.mp3`). MP3 зі звукового джерела не надсилається. |
 | `origin.py` | `.ftw_tg_origin.json`: chat id і message id за шляхом. `retarget` викликається з `source_relocate`, коли джерело переїжджає. |
 | `seen.py` | `.ftw_tg_seen.json`: id файлу Telegram → локальний шлях, готові TXT/AI і чати, які переслали той самий файл, поки він ще оброблявся. |
+| `links.py` | Посилання YouTube, Instagram і Facebook: скачування через yt-dlp. У чергу Whisper — лише якщо `telegram_social_to_queue`. |
+| `learn.py` | Режим навчання: питання перед обробкою чату, якого немає в автоматичному списку. |
+| `recent.py` | `.ftw_tg_recent.json`: до 10 останніх груп і контактів, куди надсилали файли. |
 
 ### i18n/
 

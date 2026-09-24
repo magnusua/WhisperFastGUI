@@ -315,6 +315,20 @@ class TestCudaWake(unittest.TestCase):
         self.assertEqual(poke.call_count, 2)
         self.assertEqual(sleep.call_count, 1)
 
+    def test_gpu_mode_does_not_fall_back_to_cpu(self):
+        from whisperfast.core.model_manager import GpuRequiredError
+        from whisperfast.core import model_manager as mm
+
+        with patch.object(mm.torch.cuda, "is_available", return_value=False):
+            with patch("whisperfast.setup.gpu_info.prepare_nvidia_gpu"):
+                with patch("whisperfast.setup.gpu_info.release_nvidia_display_client"):
+                    with patch("whisperfast.setup.gpu_info.poke_nvidia_gpu", return_value=False):
+                        with patch.object(mm.time, "sleep"):
+                            with self.assertRaises(GpuRequiredError):
+                                mm.WhisperModelSingleton.get(
+                                    lambda _line: None, "GPU", keep_gpu_awake=True
+                                )
+
 
 if __name__ == "__main__":
     unittest.main()

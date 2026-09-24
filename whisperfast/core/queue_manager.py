@@ -366,6 +366,9 @@ class QueueController:
                             overrides[key] = int(item.get(key))
                         except (TypeError, ValueError):
                             pass
+                overrides["ai_done"] = bool(item.get("ai_done"))
+                overrides["tg_sent"] = bool(item.get("tg_sent"))
+                overrides["error"] = str(item.get("error") or "")
                 self.queue.append(make_queue_item(path, **overrides))
             self.refresh_treeview()
         except (json.JSONDecodeError, OSError):
@@ -388,6 +391,12 @@ class QueueController:
                 for key in ("telegram_chat_id", "telegram_message_id"):
                     if q.get(key) is not None:
                         row[key] = q.get(key)
+                if q.get("ai_done"):
+                    row["ai_done"] = True
+                if q.get("tg_sent"):
+                    row["tg_sent"] = True
+                if q.get("error"):
+                    row["error"] = str(q.get("error"))
                 data.append(row)
             with open(self._request_queue_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
@@ -494,9 +503,25 @@ class QueueController:
         for idx, q in enumerate(self.queue):
             if _path_match_keys(q.get("path")) & keys:
                 q["processed"] = True
+                q["error"] = ""
                 self._update_treeview_row(idx)
                 break
         self.schedule_save()
+
+    def set_result(self, path, **flags):
+        """Remember AI, Telegram, or an error on the queue row that owns this file."""
+        keys = _path_match_keys(path)
+        if not keys:
+            return False
+        for idx, q in enumerate(self.queue):
+            if not (_path_match_keys(q.get("path")) & keys):
+                continue
+            for name, value in flags.items():
+                q[name] = value
+            self._update_treeview_row(idx)
+            self.schedule_save()
+            return True
+        return False
 
     def update_path(self, old_path, new_path):
         """Оновлює path у черзі після переносу файлу. Повертає True якщо знайдено."""
@@ -523,6 +548,7 @@ class QueueController:
                 if new_norm:
                     q["path"] = new_norm
                 q["processed"] = True
+                q["error"] = ""
                 self._update_treeview_row(idx)
                 break
         self.schedule_save()
@@ -530,6 +556,7 @@ class QueueController:
     def mark_done(self, idx):
         if 0 <= idx < len(self.queue):
             self.queue[idx]["processed"] = True
+            self.queue[idx]["error"] = ""
             self._update_treeview_row(idx)
             self.schedule_save()
 
