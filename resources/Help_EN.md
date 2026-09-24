@@ -63,7 +63,7 @@ Double-click a queue row to edit **Start**, intermediate segment boundaries, and
 - **Recognition language: AUTO** detects the spoken language automatically.
 - Choose **EN**, **UK**, or **RU** when the language is known.
 - **Device: AUTO** uses an NVIDIA GPU when available and otherwise uses the CPU.
-- **GPU** forces CUDA processing.
+- **GPU** uses CUDA. If an NVIDIA GPU has powered down, FTW wakes it first; without a GPU the work runs on the CPU.
 - **CPU** works without CUDA and is suitable for systems with AMD or integrated graphics.
 - Click the model name to select, download, load, or update a Whisper model. Smaller models are faster; larger models generally provide better recognition.
 
@@ -120,9 +120,9 @@ The Telegram icon in the toolbar opens settings. The checkbox to its left starts
 - **Account** — private chats of this Telegram user. You need `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org) (API development tools, platform Desktop) and a phone number such as `+380501111111`. **Sign in** receives the code inside Telegram, not by SMS; a cloud password is asked for when the account has one. The listener can start only after you are signed in.
 - **Bot** — a bot from @BotFather: send `/newbot`, the username must end with `bot`, and the token looks like `123456789:AAH…`. You also need `api_id`, `api_hash`, and a local `telegram-bot-api.exe` (files up to about 2 GB) from [tdlib/telegram-bot-api](https://github.com/tdlib/telegram-bot-api/releases). The default address is `http://127.0.0.1:8081`. Before the first local start, call `logOut` on the cloud Bot API for this token.
 
-Audio and video go into the queue, and the results return to the same chat: the transcript (TXT), every AI file, an MP3 extracted from a video, and a later audio clip (caption “Clip of the audio”). An MP3 made from an audio file is not sent back.
+Audio and video go into the queue. As soon as a file is accepted, a line appears in the FTW log, before the download finishes. Results return to the same chat: the transcript (TXT), every AI file, an MP3 extracted from a video, and a later audio clip (caption “Clip of the audio”). An MP3 made from an audio file is not sent back. Stopping transcription in the middle of a file sends nothing for it; files that already finished, and their AI output, are sent on their own. The same Telegram file (a forward) is not downloaded again: if it is still in the queue, the new message receives the results when processing finishes; if the transcript or AI files already exist, those files are sent. After processing the originals stay on disk next to the transcript; the chat receives a copy.
 
-In account mode, messages you send yourself are skipped, except **Saved Messages** and the chats named in “Also process your own audio and video in these chats” (first name, full name, or `@username`, ignoring case). An empty chat-id list means every private chat. In bot mode, while the chat-id list is empty, the bot ignores media and answers `/start` with that chat’s id.
+In account mode, messages you send yourself are skipped, except **Saved Messages** and the chats named in “Also process your own audio and video in these chats” (first name, full name, or `@username`, ignoring case). A group with that title sends every audio and video. When the listener starts, the same notice is sent to Saved Messages. An empty chat-id list means every private chat. In bot mode, while the chat-id list is empty, the bot ignores media and answers `/start` with that chat’s id.
 
 ## Log
 
@@ -141,7 +141,7 @@ In account mode, messages you send yourself are skipped, except **Saved Messages
 - **Clear queue** — remove all queue items.
 - **System** — check Python, FFmpeg, Pandoc, GPU, CUDA, and installed components.
 - **Dependencies** — install or reinstall pip packages (including `markitdown`) and system tools (FFmpeg, Pandoc).
-- **Updates** — check app, pip, Whisper model, and FFmpeg/Pandoc updates, then install the selected items.
+- **Updates** — check app, pip, Whisper model, and FFmpeg/Pandoc updates, then install the selected items. A package is offered only when the version is newer and matches this Python.
 - **Model name** — select and manage the Whisper model.
 - **Clear log** — clear the log window and `app_log.json`.
 - **Autostart** — add delayed startup on Windows.

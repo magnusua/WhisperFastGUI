@@ -142,6 +142,38 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
     if not filename:
         return
     log(t("telegram_found", name=filename, chat=chat_display_name(chat, chat_id)))
+    from whisperfast.telegram.seen import add_target, classify, note_download, telethon_file_key
+
+    file_key = telethon_file_key(message)
+    action, known = classify(file_key)
+    if action == "send":
+        text = t("telegram_same_ai" if known.get("ai") else "telegram_same_done", name=filename)
+        log(text)
+        await event.reply(text)
+        from whisperfast.telegram.outbox import enqueue_outgoing
+
+        enqueue_outgoing(
+            chat_id,
+            int(message.id),
+            text="",
+            files=[{"path": item["path"], "caption": item["caption"]} for item in known.get("outputs") or []],
+        )
+        return
+    if action == "wait":
+        add_target(file_key, chat_id, int(message.id))
+        text = t("telegram_same_queued", name=filename)
+        log(text)
+        await event.reply(text)
+        return
+    if action == "enqueue":
+        try:
+            submit(known["path"], chat_id, int(message.id))
+        except Exception as exc:
+            await event.reply(t("telegram_failed", error=str(exc)))
+            return
+        await event.reply(t("telegram_gui_added", name=os.path.basename(known["path"])))
+        log(t("telegram_gui_added", name=os.path.basename(known["path"])))
+        return
     if not gui_running():
         await event.reply(t("telegram_gui_required"))
         return
@@ -159,6 +191,8 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
     except Exception as exc:
         await event.reply(t("telegram_failed", error=str(exc)))
         return
+    size = getattr(getattr(message, "file", None), "size", None)
+    note_download(file_key, local, size if isinstance(size, int) else None)
     await event.reply(t("telegram_gui_added", name=os.path.basename(local)))
     log(t("telegram_gui_added", name=os.path.basename(local)))
 

@@ -39,7 +39,9 @@ FFmpeg/Pandoc з GitHub Releases усе ще ставляться без пер�
 
 ## Оновлення torch/CUDA для NVIDIA
 
-Кнопка **[Оновлення]** також перевіряє версії pip-пакетів із `config.UPDATE_PACKAGES`. Якщо виявлено NVIDIA-GPU (`settings.json: has_nvidia`), `torch` оновлюється саме з індексу **CUDA 12.1** (`cu121`, `config.CUDA_INDEX`), а не зі звичайного PyPI — щоб користувачу з GPU не запропонували CPU-збірку.
+Кнопка **[Оновлення]** також перевіряє версії pip-пакетів із `config.UPDATE_PACKAGES`. Якщо виявлено NVIDIA-GPU (`settings.json: has_nvidia`), `torch` береться з індексу **CUDA 12.1** (`cu121`, `config.CUDA_INDEX`), а не зі звичайного PyPI — щоб користувачу з GPU не запропонували CPU-збірку.
+
+Пропозиція з’являється лише коли знайдена версія **новіша** за встановлену і її `Requires-Python` підходить до запущеного інтерпретатора (`latest_compatible_pypi_version` у `setup/installer.py`). Остання версія на PyPI, яка вимагає новіший Python, не показується. Старіша збірка на індексі cu121 теж не показується як оновлення, якщо локальний `torch` уже новіший.
 
 ## Куди дивитися далі
 

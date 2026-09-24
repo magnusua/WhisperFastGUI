@@ -50,6 +50,8 @@ class IncomingMedia:
     file_id: str
     filename: str
     kind: str
+    unique_id: str = ""
+    local_path: str = ""
 
 
 @dataclass
@@ -125,7 +127,12 @@ def media_from_message(message: Mapping[str, Any]) -> Optional[IncomingMedia]:
         filename = safe_filename(original, f"{kind}{_DEFAULT_EXT[kind]}")
         if not os.path.splitext(filename)[1]:
             filename += _DEFAULT_EXT[kind]
-        return IncomingMedia(chat_id, message_id, str(obj["file_id"]), filename, kind)
+        from whisperfast.telegram.seen import bot_file_key
+
+        return IncomingMedia(
+            chat_id, message_id, str(obj["file_id"]), filename, kind,
+            unique_id=bot_file_key(obj) or "",
+        )
 
     doc = message.get("document")
     if isinstance(doc, Mapping) and doc.get("file_id"):
@@ -142,7 +149,12 @@ def media_from_message(message: Mapping[str, Any]) -> Optional[IncomingMedia]:
             elif not ext and mime_l.startswith("video/"):
                 ext = ".mp4"
             filename += ext or _DEFAULT_EXT["document"]
-        return IncomingMedia(chat_id, message_id, str(doc["file_id"]), filename, "document")
+        from whisperfast.telegram.seen import bot_file_key
+
+        return IncomingMedia(
+            chat_id, message_id, str(doc["file_id"]), filename, "document",
+            unique_id=bot_file_key(doc) or "",
+        )
     return None
 
 
@@ -302,7 +314,13 @@ def process_pending(
             continue
         dest_dir = os.path.join(root, f"{job.chat_id}_{job.message_id}")
         try:
-            local = materialize_media(job, client, dest_dir)
+            if job.local_path and os.path.isfile(job.local_path):
+                local = job.local_path
+            else:
+                local = materialize_media(job, client, dest_dir)
+            from whisperfast.telegram.seen import note_download
+
+            note_download(job.unique_id, local)
             submit(local, job.chat_id, job.message_id)
         except Exception as exc:
             client.send_message(
@@ -316,6 +334,36 @@ def process_pending(
             t("telegram_gui_added", name=job.filename),
             reply_to=job.message_id,
         )
+
+
+def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) -> bool:
+    """True when this file was already downloaded, so it is not fetched again."""
+    from whisperfast.telegram.seen import add_target, classify
+
+    action, known = classify(job.unique_id)
+    if action == "download":
+        return False
+    name = job.filename
+    if action == "send":
+        text = t("telegram_same_ai" if known.get("ai") else "telegram_same_done", name=name)
+        log(text)
+        client.send_message(job.chat_id, text, reply_to=job.message_id)
+        for item in known.get("outputs") or []:
+            client.send_document(
+                job.chat_id,
+                item["path"],
+                caption=str(item.get("caption") or ""),
+                reply_to=job.message_id,
+            )
+        return True
+    if action == "wait":
+        add_target(job.unique_id, job.chat_id, job.message_id)
+        text = t("telegram_same_queued", name=name)
+        log(text)
+        client.send_message(job.chat_id, text, reply_to=job.message_id)
+        return True
+    job.local_path = str(known.get("path") or "")
+    return False
 
 
 def accept_updates(
@@ -340,7 +388,6 @@ def accept_updates(
         if decision.reply_text and decision.reply_chat_id is not None:
             client.send_message(decision.reply_chat_id, decision.reply_text)
         if decision.job:
-            pending.append(decision.job)
             message = update.get("message") if isinstance(update, Mapping) else None
             chat = message.get("chat") if isinstance(message, Mapping) else None
             log(t(
@@ -348,6 +395,9 @@ def accept_updates(
                 name=decision.job.filename,
                 chat=chat_display_name(chat, decision.job.chat_id),
             ))
+            if _reuse_known_file(decision.job, client, log):
+                continue
+            pending.append(decision.job)
             client.send_message(
                 decision.job.chat_id,
                 t("telegram_queued", position=len(pending)),

@@ -55,6 +55,7 @@ EXCLUDE_FILE_NAMES = frozenset(
         "app_log.json",
         "app_log.json.tmp",
         ".ftw_tg_origin.json",
+        ".ftw_tg_seen.json",
         ".whisperfastgui.pid",
         ".whisperfastgui.pid.tmp",
         "_apply_update.bat",

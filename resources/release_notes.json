@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.2",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "A forwarded Telegram file is not downloaded again. If it is still in the queue, the new chat receives the result when processing finishes. If the transcript or AI files already exist, those files are sent.",
+          "After processing, the original stays on disk next to the transcript. The chat receives a copy."
+        ],
+        "UK": [
+          "Пересланий файл Telegram не завантажується знову. Якщо він ще в черзі, новий чат отримає результат після обробки. Якщо розшифровка або файли ШІ вже є, у чат надсилаються вони.",
+          "Після обробки оригінал лишається на диску поруч із розшифровкою. У чат іде копія."
+        ],
+        "RU": [
+          "Пересланный файл Telegram не скачивается снова. Если он ещё в очереди, новый чат получит результат после обработки. Если расшифровка или файлы ИИ уже есть, в чат отправляются они.",
+          "После обработки оригинал остаётся на диске рядом с расшифровкой. В чат уходит копия."
+        ]
+      }
+    },
+    {
       "version": "2.1.1",
       "date": "24.09.2026",
       "notes": {

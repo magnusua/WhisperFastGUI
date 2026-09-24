@@ -15,6 +15,7 @@
 | `app_log.json` | Лог програми по днях (у `.gitignore`) | `whisperfast/log_store.py` |
 | `library.sqlite` | Архів розмов (FTS-пошук, шляхи txt/srt/mp3/AI) | `whisperfast/library.py` |
 | `.ftw_tg_origin.json` | Який чат Telegram надіслав файл (лишається після зникнення рядка з черги і після перенесення джерела) | `whisperfast/telegram/origin.py` |
+| `.ftw_tg_seen.json` | Які файли Telegram уже скачані й чи є для них розшифровка та файли AI | `whisperfast/telegram/seen.py` |
 | `telegram_user.session` | Сесія входу в акаунт Telegram (Telethon) | `whisperfast/telegram/account.py` |
 | `telegram_inbox/` | Типова папка, куди лягають файли з Telegram до черги, якщо `telegram_work_dir` порожній | `whisperfast/telegram/worker.py` |
 | `captures/` | Каталог стерео WAV запису зустрічі (`capture_YYYYMMDD_HHMMSS.wav`); поруч може бути `.inprogress` | `whisperfast/core/capture.py` |
@@ -83,7 +84,7 @@
 | `telegram_bot_api_exe` | `""` | Шлях до `telegram-bot-api.exe` (режим бота, файли приблизно до 2 ГБ). |
 | `telegram_api_base` | `"http://127.0.0.1:8081"` | Адреса локального Bot API. |
 | `telegram_allowed_chat_ids` | `[]` | Дозволені chat id. Порожній список: для акаунта — усі особисті чати; для бота — медіа ігнорується, `/start` відповідає id чату. |
-| `telegram_self_chat_names` | `[]` | Імена особистих чатів (ім’я, повне ім’я або `@username`, без урахування регістру), у яких обробляються й власні аудіо/відео. Обране (`Saved Messages`) входить завжди. |
+| `telegram_self_chat_names` | `[]` | Імена чатів (ім’я, повне ім’я, `@username` або назва групи, без урахування регістру). В особистому чаті зі списку обробляються й власні аудіо/відео; Обране входить завжди. Група з тією назвою віддає в чергу всі аудіо та відео, не лише власні. |
 | `telegram_work_dir` | `""` | Куди зберігати файли з Telegram перед чергою. Порожньо — `telegram_inbox/` поруч із програмою. |
 
 **Ключі API.** На Windows значення шифруються DPAPI (`dpapi:` + base64) при записі в `settings.json` (`whisperfast/secrets_store.py`) і розшифровуються лише в пам'яті. На macOS секрет лежить у login Keychain, а в файлі лишається позначка `keychain:<ім'я ключа>`. На Linux лишається відкритий текст і `chmod 0600`. Якщо ключ заданий і через змінну середовища, і в `settings.json` — виграє змінна середовища.

@@ -187,7 +187,7 @@ def select_telegram_files(source: str, outputs: Sequence[Mapping[str, Any]]) -> 
             caption = t("telegram_caption_audio")
         else:
             continue
-        fresh.append({"path": path, "caption": caption})
+        fresh.append({"path": path, "caption": caption, "role": role})
     return fresh
 
 
@@ -228,6 +228,10 @@ def maybe_deliver_telegram(
             sent.add(error_key)
     if not fresh and not send_error:
         return
+    from whisperfast.telegram.seen import note_outputs, take_targets
+
+    note_outputs(source, fresh)
+    extras = take_targets(source)
     if sender is not None:
         sender(meta, fresh, error if send_error else "")
         return
@@ -240,13 +244,21 @@ def maybe_deliver_telegram(
         from whisperfast.telegram.worker import api_endpoint
 
         settings = load_app_settings()
+        files = [{"path": item["path"], "caption": item["caption"]} for item in fresh]
         if normalize_mode(settings.get("telegram_mode")) == "account":
             enqueue_outgoing(
                 meta["chat_id"],
                 meta["message_id"],
                 text=t("telegram_failed", error=error) if send_error else "",
-                files=[{"path": item["path"], "caption": item["caption"]} for item in fresh],
+                files=files,
             )
+            for extra in extras:
+                enqueue_outgoing(
+                    int(extra["chat_id"]),
+                    int(extra["message_id"]),
+                    text="",
+                    files=files,
+                )
             return
         token = str(settings.get("telegram_bot_token") or "").strip()
         if not token:
@@ -266,5 +278,13 @@ def maybe_deliver_telegram(
                 caption=item["caption"],
                 reply_to=meta["message_id"],
             )
+        for extra in extras:
+            for item in fresh:
+                client.send_document(
+                    int(extra["chat_id"]),
+                    item["path"],
+                    caption=item["caption"],
+                    reply_to=int(extra["message_id"]),
+                )
 
     threading.Thread(target=_send, daemon=True).start()

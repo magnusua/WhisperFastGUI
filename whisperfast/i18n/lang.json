@@ -3736,6 +3736,21 @@
     "UK": "У черзі ({position}).",
     "RU": "В очереди ({position})."
   },
+  "telegram_same_queued": {
+    "EN": "Already downloaded and still in the queue: {name}. It will not be downloaded again.",
+    "UK": "Уже скачано і ще в черзі: {name}. Повторно не завантажую.",
+    "RU": "Уже скачано и ещё в очереди: {name}. Повторно не загружаю."
+  },
+  "telegram_same_done": {
+    "EN": "Already transcribed: {name}. Sending the existing files, without processing again.",
+    "UK": "Уже розшифровано: {name}. Надсилаю готові файли, без повторної обробки.",
+    "RU": "Уже расшифровано: {name}. Отправляю готовые файлы, без повторной обработки."
+  },
+  "telegram_same_ai": {
+    "EN": "Already transcribed and processed by AI: {name}. Sending the existing files.",
+    "UK": "Уже розшифровано і оброблено ШІ: {name}. Надсилаю готові файли.",
+    "RU": "Уже расшифровано и обработано ИИ: {name}. Отправляю готовые файлы."
+  },
   "telegram_found": {
     "EN": "Found for processing: {name} ({chat}).",
     "UK": "Знайдено для обробки: {name} ({chat}).",

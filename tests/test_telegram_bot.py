@@ -772,5 +772,34 @@ class TestInWindowListener(unittest.TestCase):
         self.assertFalse(service.is_running())
 
 
+class TestSameTelegramFile(unittest.TestCase):
+    def test_forward_is_not_downloaded_again(self):
+        from whisperfast.telegram import seen
+
+        with tempfile.TemporaryDirectory() as tmp:
+            video = os.path.join(tmp, "clip.mp4")
+            transcript = os.path.join(tmp, "clip.txt")
+            note = os.path.join(tmp, "clip_note.md")
+            for path in (video, transcript, note):
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write("x")
+            store = os.path.join(tmp, "seen.json")
+            queue = os.path.join(tmp, "queue.json")
+            with patch.object(seen, "_FILE", store), patch.object(seen, "_QUEUE", queue):
+                self.assertEqual(seen.classify("doc:5")[0], "download")
+                seen.note_download("doc:5", video, 10)
+                self.assertEqual(seen.classify("doc:5")[0], "enqueue")
+                with open(queue, "w", encoding="utf-8") as handle:
+                    json.dump([{"path": video, "processed": False}], handle)
+                self.assertEqual(seen.classify("doc:5")[0], "wait")
+                seen.note_outputs(video, [
+                    {"path": transcript, "caption": "txt", "role": "txt"},
+                    {"path": note, "caption": "AI", "role": "ai"},
+                ])
+                action, row = seen.classify("doc:5")
+                self.assertEqual(action, "send")
+                self.assertTrue(row["ai"])
+
+
 if __name__ == "__main__":
     unittest.main()

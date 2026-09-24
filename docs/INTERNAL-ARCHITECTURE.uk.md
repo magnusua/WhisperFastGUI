@@ -98,9 +98,9 @@
 | Файл | Відповідає за |
 |---|---|
 | `python_selector.py` | Пошук установлених інтерпретаторів Python при першому запуску, вибір і збереження `python_path`/`python_version`, re-exec під обраним інтерпретатором. |
-| `installer.py` | Встановлення/оновлення pip-пакетів (torch з потрібним CUDA-індексом, faster-whisper, ctranslate2, pydub, pystray, cursor-sdk, markitdown тощо); прибирання «зламаних» залишків перерваного pip. |
+| `installer.py` | Встановлення/оновлення pip-пакетів (torch з потрібним CUDA-індексом, faster-whisper, ctranslate2, pydub, pystray, cursor-sdk, markitdown тощо); прибирання «зламаних» залишків перерваного pip. Перевірка оновлень бере лише реліз, новіший за встановлений і сумісний з цим Python. |
 | `external_tools.py` | FFmpeg/Pandoc: перевірка наявності, встановлення через winget/Chocolatey/Homebrew, або запасний варіант — завантаження релізу з GitHub у каталог `tools/`. |
-| `gpu_info.py` | Виявлення відеокарти NVIDIA і моделі GPU для `settings.json`. |
+| `gpu_info.py` | Виявлення відеокарти NVIDIA і моделі GPU для `settings.json`. `poke_nvidia_gpu()` будить дискретну карту через `nvidia-smi -L`. |
 
 Детальніше — [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md).
 
@@ -113,10 +113,11 @@
 | Файл | Відповідає за |
 |---|---|
 | `service.py` | Запуск і зупинка слухача всередині відкритого вікна. `listener_kind` каже, чи вистачає даних для акаунта (api_id, api_hash, телефон і файл сесії) або бота (токен). |
-| `account.py` | Telethon: особисті чати. Власні повідомлення пропускаються, крім Обраного і чатів з `telegram_self_chat_names` (ім’я, повне ім’я, `@username`). |
+| `account.py` | Telethon: особисті чати і групи. Власні повідомлення пропускаються, крім Обраного і чатів з `telegram_self_chat_names` (ім’я, повне ім’я, `@username`). Група з тією назвою віддає всі аудіо та відео. Старт пише рядок у лог і надсилає його в Обране. Прийнятий файл логується до завантаження. |
 | `worker.py` | Режим бота і локальний `telegram-bot-api`. |
 | `gui_bridge.py` | Кладє файл у чергу і повертає результати: TXT, кожен AI, MP3 з відео, відрізок аудіо (`*_ГГ-ХХ-СС_ГГ-ХХ-СС_audio.mp3`). MP3 зі звукового джерела не надсилається. |
 | `origin.py` | `.ftw_tg_origin.json`: chat id і message id за шляхом. `retarget` викликається з `source_relocate`, коли джерело переїжджає. |
+| `seen.py` | `.ftw_tg_seen.json`: id файлу Telegram → локальний шлях, готові TXT/AI і чати, які переслали той самий файл, поки він ще оброблявся. |
 
 ### i18n/
 

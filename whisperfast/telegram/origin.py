@@ -48,6 +48,12 @@ def retarget(old_path: str, new_path: str) -> None:
     data.pop(_key(old_path), None)
     data[_key(new_path)] = row
     _save(data)
+    try:
+        from whisperfast.telegram.seen import retarget as retarget_seen
+
+        retarget_seen(old_path, new_path)
+    except Exception:
+        pass
 
 
 def lookup(path: str) -> Optional[dict]:

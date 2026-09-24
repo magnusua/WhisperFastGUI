@@ -70,7 +70,7 @@
 
 ## GPU / CUDA
 
-`setup/gpu_info.py` виявляє наявність відеокарти NVIDIA і зберігає результат (`has_nvidia`, `gpu_model`) у `settings.json` — це визначає, чи пропонується CUDA-індекс `cu121` для встановлення `torch`, і впливає на логіку вибору пристрою в [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md).
+`setup/gpu_info.py` виявляє наявність відеокарти NVIDIA і зберігає результат (`has_nvidia`, `gpu_model`) у `settings.json` — це визначає, чи пропонується CUDA-індекс `cu121` для встановлення `torch`, і впливає на логіку вибору пристрою в [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md). Перед транскрипцією та сама перевірка будить заснулу дискретну карту (`nvidia-smi -L`) і лише потім падає на CPU.
 
 ## Автозапуск з затримкою (Windows)
 
