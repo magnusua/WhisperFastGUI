@@ -4012,9 +4012,14 @@
     "RU": "Вход отменён."
   },
   "telegram_account_listening": {
-    "EN": "Listening to private chats as {name}.",
-    "UK": "Слухаю особисті чати як {name}.",
-    "RU": "Слушаю личные чаты как {name}."
+    "EN": "Listening to private chats and groups as {name}. Own messages are also processed in: {chats}.",
+    "UK": "Слухаю особисті чати і групи як {name}. Власні повідомлення також обробляю в: {chats}.",
+    "RU": "Слушаю личные чаты и группы как {name}. Свои сообщения также обрабатываю в: {chats}."
+  },
+  "telegram_own_only_saved": {
+    "EN": "Saved Messages only",
+    "UK": "лише Обране",
+    "RU": "только Избранное"
   },
   "telegram_self_chats_label": {
     "EN": "Also process your own audio and video in these chats",
@@ -4027,9 +4032,9 @@
     "RU": "Алексей, Мария"
   },
   "telegram_tip_self_chats": {
-    "EN": "Names of private chats, separated by commas, where files you send yourself are processed too. Match is the person’s first name, full name, or @username, ignoring case. Saved Messages are always included. Other outgoing files stay skipped.",
-    "UK": "Імена особистих чатів через кому, у яких обробляються й файли, надіслані вами. Збіг — ім’я, повне ім’я або @username, без урахування регістру. Обране обробляється завжди. Інші власні повідомлення пропускаються.",
-    "RU": "Имена личных чатов через запятую, в которых обрабатываются и файлы, отправленные вами. Совпадение — имя, полное имя или @username, без учёта регистра. Избранное обрабатывается всегда. Остальные свои сообщения пропускаются."
+    "EN": "Names separated by commas. In a private chat with that name, files you send yourself are processed too. In a group with that title, every audio and video is processed. Match ignores case. Saved Messages are always included. Other groups are skipped.",
+    "UK": "Імена через кому. В особистому чаті з таким ім’ям обробляються і ваші файли. У групі з такою назвою обробляються всі аудіо та відео. Регістр не важливий. Обране обробляється завжди. Інші групи пропускаються.",
+    "RU": "Имена через запятую. В личном чате с таким именем обрабатываются и ваши файлы. В группе с таким названием обрабатываются все аудио и видео. Регистр не важен. Избранное обрабатывается всегда. Другие группы пропускаются."
   },
   "telegram_chats_account_label": {
     "EN": "Private chats only. Empty = all of them. Or list chat ids.",

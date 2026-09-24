@@ -613,6 +613,32 @@ class TestAccountMode(unittest.TestCase):
         self.assertFalse(
             accept_private_chat(5, is_private=False, sender_is_bot=False, outgoing=False, self_id=1, allowlist=[])
         )
+        self.assertTrue(
+            accept_private_chat(
+                5,
+                is_private=False,
+                is_group=True,
+                sender_is_bot=False,
+                outgoing=False,
+                self_id=1,
+                allowlist=[],
+                self_names=["NPG Archive TG"],
+                chat_names=["npg archive tg"],
+            )
+        )
+        self.assertFalse(
+            accept_private_chat(
+                5,
+                is_private=False,
+                is_group=True,
+                sender_is_bot=False,
+                outgoing=False,
+                self_id=1,
+                allowlist=[],
+                self_names=["Інша група"],
+                chat_names=["NPG Archive TG"],
+            )
+        )
         self.assertFalse(
             accept_private_chat(5, is_private=True, sender_is_bot=True, outgoing=False, self_id=1, allowlist=[])
         )

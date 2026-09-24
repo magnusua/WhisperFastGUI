@@ -7,7 +7,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from whisperfast.config import BASE_DIR
 from whisperfast.i18n import t
-from whisperfast.settings import normalize_chat_ids
+from whisperfast.settings import normalize_chat_ids, normalize_chat_names
 from whisperfast.telegram.outbox import take_outgoing
 from whisperfast.telegram.worker import _extension_ok, resolve_work_dir, safe_filename
 
@@ -58,11 +58,15 @@ def accept_private_chat(
     allowlist: Sequence[int],
     self_names: Sequence[str] = (),
     chat_names: Sequence[str] = (),
+    is_group: bool = False,
 ) -> bool:
-    """Personal chats only. Empty allowlist means every private chat. Outgoing stays in Saved Messages, plus named chats."""
-    if not is_private or sender_is_bot:
+    """Private chats, plus groups whose title is listed. Channels stay out."""
+    if sender_is_bot or not (is_private or is_group):
         return False
-    if outgoing and int(chat_id) != int(self_id) and not names_match(chat_names, self_names):
+    if is_group:
+        if not names_match(chat_names, self_names):
+            return False
+    elif outgoing and int(chat_id) != int(self_id) and not names_match(chat_names, self_names):
         return False
     allowed = set(int(item) for item in allowlist)
     if allowed and int(chat_id) not in allowed:
@@ -124,6 +128,7 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
     if not accept_private_chat(
         chat_id,
         is_private=bool(getattr(event, "is_private", False)),
+        is_group=bool(getattr(event, "is_group", False)),
         sender_is_bot=sender_is_bot,
         outgoing=bool(getattr(event, "out", False)),
         self_id=self_id,
@@ -210,7 +215,15 @@ def run_account(
                 await client.disconnect()
 
             pump = asyncio.create_task(_pump())
-            log(t("telegram_account_listening", name=(me.first_name or me.username or str(me.id))))
+            own_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
+            own_list = ", ".join(own_names) if own_names else t("telegram_own_only_saved")
+            log(
+                t(
+                    "telegram_account_listening",
+                    name=(me.first_name or me.username or str(me.id)),
+                    chats=own_list,
+                )
+            )
             try:
                 await client.run_until_disconnected()
             finally:

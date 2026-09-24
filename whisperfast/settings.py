@@ -14,8 +14,9 @@ def _restrict_settings_file_permissions(path):
     """
     Ограничивает доступ к settings.json владельцем файла (chmod 0600).
 
-    В файле хранятся ключи API AI-провайдеров в открытом виде (см.
-    docs/CONFIGURATION.uk.md / docs/CODE-REVIEW.md, раздел 3) — по умолчанию файл
+    В файле остаются ключи API: на Windows и macOS они зашифрованы
+    (DPAPI / Keychain), на Linux — открытый текст (см.
+    docs/CONFIGURATION.uk.md). По умолчанию файл
     создаётся с правами процесса (umask), которые на многопользовательских
     системах могут разрешать чтение другим пользователям. На Windows
     os.chmod не задаёт POSIX-права доступа — там для ограничения доступа

@@ -427,7 +427,9 @@ def store_google_session(
     refresh_token: str,
     email: str = "",
 ) -> None:
-    settings["google_calendar_refresh_token"] = protect_string(refresh_token or "")
+    settings["google_calendar_refresh_token"] = protect_string(
+        refresh_token or "", label="google_calendar_refresh_token"
+    )
     settings["google_calendar_email"] = str(email or "").strip()
 
 

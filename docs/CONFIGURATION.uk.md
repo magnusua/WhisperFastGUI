@@ -51,7 +51,7 @@
 | `ai_default_prompt_nums` | `[1]` | Номери промптів, позначені за замовчуванням у вікні «В AI» і в діалозі запуску. Порожній список = жоден. |
 | `export_md_to_docx` | `false` | Прапорець «MD → Word». |
 | `ai_provider` | `"cursor"` | Обраний провайдер: `cursor` / `gemini` / `claude` / `copilot` / `ollama` / `openai_compat`. |
-| `cursor_api_key` | `""` | Ключ Cursor SDK (пріоритет має env `CURSOR_API_KEY`). На Windows при записі шифрується DPAPI (`dpapi:…`). |
+| `cursor_api_key` | `""` | Ключ Cursor SDK (пріоритет має env `CURSOR_API_KEY`). На Windows при записі шифрується DPAPI (`dpapi:…`), на macOS секрет лежить у Keychain (`keychain:cursor_api_key`). |
 | `gemini_api_key` | `""` | Ключ Gemini (пріоритет має env `GEMINI_API_KEY` / `GOOGLE_API_KEY`). |
 | `gemini_model` | `"gemini-2.0-flash"` | Модель Gemini. |
 | `anthropic_api_key` | `""` | Ключ Claude/Anthropic (пріоритет має env `ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`). |

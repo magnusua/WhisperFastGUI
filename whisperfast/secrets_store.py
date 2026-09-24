@@ -304,11 +304,15 @@ def _keychain_get(account: str) -> str | None:
             ctypes.byref(item),
         )
         if status == _ERR_SEC_ITEM_NOT_FOUND:
+            if item.value:
+                core.CFRelease(item)
             return ""
         if status != _ERR_SEC_SUCCESS or not data.value:
+            if item.value:
+                core.CFRelease(item)
             return None
         try:
-            return ctypes.string_at(data, length.value).decode("utf-8")
+            return ctypes.string_at(data.value, length.value).decode("utf-8")
         finally:
             security.SecKeychainItemFreeContent(None, data)
             if item.value:

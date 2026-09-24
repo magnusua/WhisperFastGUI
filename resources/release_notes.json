@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "2.1.0",
+      "date": "24.09.2026",
+      "notes": {
+        "EN": [
+          "A group whose title is in the chat list sends every audio and video into the queue. Other groups are skipped.",
+          "When the listener starts, the log says it is watching private chats and groups, and lists the chats where your own messages are processed too.",
+          "Toolbar checkboxes sit next to their icons.",
+          "On macOS, Keychain reads no longer drop the secret, and Google Calendar and Gemini tokens are stored under their own names."
+        ],
+        "UK": [
+          "Група, чия назва є в списку чатів, віддає в чергу всі аудіо та відео. Інші групи пропускаються.",
+          "Коли слухач стартує, лог пише, що він слухає особисті чати й групи, і перелічує чати, де обробляються й власні повідомлення.",
+          "Галочка в шапці стоїть впритул до своєї іконки.",
+          "На macOS читання Keychain більше не губить секрет, а токени Google Calendar і Gemini зберігаються під власними іменами."
+        ],
+        "RU": [
+          "Группа, чьё название есть в списке чатов, отдаёт в очередь все аудио и видео. Другие группы пропускаются.",
+          "Когда слушатель стартует, лог пишет, что он слушает личные чаты и группы, и перечисляет чаты, где обрабатываются и свои сообщения.",
+          "Галочка в шапке стоит вплотную к своей иконке.",
+          "На macOS чтение Keychain больше не теряет секрет, а токены Google Calendar и Gemini хранятся под собственными именами."
+        ]
+      }
+    },
+    {
       "version": "2.0.8",
       "date": "24.09.2026",
       "notes": {

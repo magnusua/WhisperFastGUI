@@ -784,7 +784,7 @@ class WhisperGUI:
             text="",
             variable=self.save_audio_mp3,
             command=self._persist_settings,
-            width=2,
+            width=0,
         )
         self.save_audio_check.pack(side="left")
         self.mp3_settings_btn = ttk.Button(
@@ -800,7 +800,7 @@ class WhisperGUI:
             text="",
             variable=self.watch_enabled,
             command=self._on_watch_toggled,
-            width=2,
+            width=0,
         )
         self.watch_folder_check.pack(side="left")
         self.watch_dirs_btn = ttk.Button(
@@ -816,7 +816,7 @@ class WhisperGUI:
             text="",
             variable=self.send_txt_to_ai,
             command=self._on_send_txt_to_ai_toggled,
-            width=2,
+            width=0,
         )
         self.send_txt_cursor_check.pack(side="left")
         self.edit_redactor_btn = ttk.Button(
@@ -838,7 +838,7 @@ class WhisperGUI:
             text="",
             variable=self.telegram_listener_on,
             command=self._on_telegram_listener_toggled,
-            width=2,
+            width=0,
         )
         self.telegram_listener_check.pack(side="left")
         self.telegram_btn = ttk.Button(
@@ -854,7 +854,7 @@ class WhisperGUI:
             text="",
             variable=self.export_md_to_docx,
             command=self._on_export_md_to_docx_toggled,
-            width=2,
+            width=0,
         )
         self.export_md_docx_check.pack(side="left")
         self.export_md_docx_btn = ttk.Button(
@@ -906,7 +906,7 @@ class WhisperGUI:
             text="",
             variable=self.autostart_enabled,
             command=self._on_autostart_toggled,
-            width=2,
+            width=0,
         )
         self.autostart_check.pack(side="left")
         self.autostart_btn = ttk.Button(autostart_frame, command=self._toggle_autostart)

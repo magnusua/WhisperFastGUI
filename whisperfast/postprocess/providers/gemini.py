@@ -55,7 +55,9 @@ def store_gemini_session(
     refresh_token: str,
     email: str = "",
 ) -> None:
-    settings["gemini_oauth_refresh_token"] = protect_string(refresh_token or "")
+    settings["gemini_oauth_refresh_token"] = protect_string(
+        refresh_token or "", label="gemini_oauth_refresh_token"
+    )
     settings["gemini_oauth_email"] = str(email or "").strip()
 
 
