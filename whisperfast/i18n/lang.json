@@ -3942,9 +3942,39 @@
     "RU": "Режим обучения: спрашивать перед обработкой нового чата"
   },
   "telegram_tip_learn": {
-    "EN": "Chats are not processed until you agree. A video, audio file, or social-network link asks whether to process it and whether to add that chat to the automatic list. No puts that group or private chat on the skip list. Closing the question leaves it in the log.",
-    "UK": "Чати не обробляються, доки ви не погодитесь. Відео, аудіо або посилання з соцмережі питає, чи обробляти, і чи додати чат до списку автоматичної обробки. Ні додає цю групу або особистий чат до списку, який не обробляється. Якщо закрити питання, воно лишається в логу.",
-    "RU": "Чаты не обрабатываются, пока вы не согласитесь. Видео, аудио или ссылка из соцсети спрашивает, обрабатывать ли, и добавить ли чат в список автоматической обработки. Нет добавляет эту группу или личный чат в список, который не обрабатывается. Если закрыть вопрос, он остаётся в логе."
+    "EN": "Chats are not processed until you agree. The question only decides whether to take the file, not the text of a reply. No puts that chat on the skip list. Closing the window, or 10 seconds without an answer, skips this file and does not queue it. The log line can ask again.",
+    "UK": "Чати не обробляються, доки ви не погодитесь. Питання лише вирішує, брати файл чи ні, без тексту відповіді в чат. Ні додає чат до списку, який не обробляється. Закриття вікна або 10 с без відповіді пропускає цей файл і не ставить його в чергу. Рядок у логу може запитати знову.",
+    "RU": "Чаты не обрабатываются, пока вы не согласитесь. Вопрос только решает, брать файл или нет, без текста ответа в чат. Нет добавляет чат в список, который не обрабатывается. Закрытие окна или 10 с без ответа пропускает этот файл и не ставит его в очередь. Строка в логе может спросить снова."
+  },
+  "telegram_learn_timeout": {
+    "EN": "No answer: this file is skipped in {seconds} s",
+    "UK": "Немає відповіді: цей файл буде пропущено за {seconds} с",
+    "RU": "Нет ответа: этот файл будет пропущен через {seconds} с"
+  },
+  "telegram_intake_label": {
+    "EN": "What to take from a chat",
+    "UK": "Що брати з чату",
+    "RU": "Что брать из чата"
+  },
+  "telegram_intake_all": {
+    "EN": "Voice, video, and links",
+    "UK": "Голос, відео і посилання",
+    "RU": "Голос, видео и ссылки"
+  },
+  "telegram_intake_media": {
+    "EN": "Voice and video only",
+    "UK": "Лише голос і відео",
+    "RU": "Только голос и видео"
+  },
+  "telegram_intake_links": {
+    "EN": "Links only",
+    "UK": "Лише посилання",
+    "RU": "Только ссылки"
+  },
+  "telegram_tip_intake": {
+    "EN": "Limits what the listener takes. Voice and video only skips social links. Links only skips audio and video files. This is not a separate rules file.",
+    "UK": "Обмежує, що бере слухач. Лише голос і відео пропускає посилання соцмереж. Лише посилання пропускає аудіо та відеофайли. Окремого файлу правил немає.",
+    "RU": "Ограничивает, что берёт слушатель. Только голос и видео пропускает ссылки соцсетей. Только ссылки пропускает аудио и видеофайлы. Отдельного файла правил нет."
   },
   "telegram_ignored_chats_label": {
     "EN": "Groups and private chats that are not processed",
@@ -3962,14 +3992,19 @@
     "RU": "Заполняется, когда один раз ответить Нет. Сообщения из этих групп и личных чатов пропускаются. Удалите название, чтобы снова спрашивать об этом чате."
   },
   "telegram_learn_question": {
-    "EN": "Message from {chat} with {material}. Process it?",
-    "UK": "Отримано повідомлення від {chat} з {material}. Обробити?",
-    "RU": "Получено сообщение от {chat} с {material}. Обработать?"
+    "EN": "Message from {chat} with {material}. Take this file?\n\nYes takes it. No skips this chat. No answer does not download or queue it.",
+    "UK": "Отримано повідомлення від {chat} з {material}. Брати цей файл?\n\nТак бере його. Ні пропускає цей чат. Без відповіді файл не завантажується і не ставиться в чергу.",
+    "RU": "Получено сообщение от {chat} с {material}. Брать этот файл?\n\nДа берёт его. Нет пропускает этот чат. Без ответа файл не скачивается и не ставится в очередь."
+  },
+  "telegram_learn_batch": {
+    "EN": "{count} files: {materials}",
+    "UK": "{count} файлів: {materials}",
+    "RU": "{count} файлов: {materials}"
   },
   "telegram_learn_question_own": {
-    "EN": "Saw a message you sent yourself in {chat}: {material}. Process it?",
-    "UK": "Побачив повідомлення, яке ви надіслали самі в чат {chat}: {material}. Обробити?",
-    "RU": "Увидел сообщение, которое вы отправили сами в чат {chat}: {material}. Обработать?"
+    "EN": "Saw a message you sent yourself in {chat}: {material}. Take this file?\n\nYes takes it. No skips this chat. No answer does not download or queue it.",
+    "UK": "Побачив повідомлення, яке ви надіслали самі в чат {chat}: {material}. Брати цей файл?\n\nТак бере його. Ні пропускає цей чат. Без відповіді файл не завантажується і не ставиться в чергу.",
+    "RU": "Увидел сообщение, которое вы отправили сами в чат {chat}: {material}. Брать этот файл?\n\nДа берёт его. Нет пропускает этот чат. Без ответа файл не скачивается и не ставится в очередь."
   },
   "telegram_learn_add": {
     "EN": "Add «{chat}» to the automatic processing list?",

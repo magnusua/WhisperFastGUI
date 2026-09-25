@@ -99,6 +99,7 @@ _DEFAULTS = {
     "telegram_social_quality": "best",
     "telegram_listener_enabled": False,
     "telegram_learn_mode": False,
+    "telegram_intake": "all",
     "telegram_mode": "bot",
     "telegram_phone": "",
     "telegram_self_chat_names": [],
@@ -281,6 +282,14 @@ def _sanitize_loaded_settings(data, defaults):
                 mode = "bot"
             sanitized[key] = mode
             if data.get(key) != mode:
+                changed = True
+            continue
+        if key == "telegram_intake":
+            from whisperfast.telegram.learn import normalize_intake
+
+            intake = normalize_intake(data.get(key))
+            sanitized[key] = intake
+            if data.get(key) != intake:
                 changed = True
             continue
         if key == "ai_prompt_rules":

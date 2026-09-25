@@ -222,6 +222,7 @@ class WhisperGUI:
         self.telegram_work_dir = tk.StringVar(value="")
         self.telegram_social_to_queue = tk.BooleanVar(value=False)
         self.telegram_learn_mode = tk.BooleanVar(value=False)
+        self.telegram_intake = tk.StringVar(value="all")
         self.telegram_social_quality = tk.StringVar(value="best")
         self.telegram_listener_on = tk.BooleanVar(value=False)
         self._telegram_listener_wanted = False
@@ -309,6 +310,9 @@ class WhisperGUI:
         self.telegram_work_dir.set((saved.get("telegram_work_dir") or "").strip())
         self.telegram_social_to_queue.set(bool(saved.get("telegram_social_to_queue", False)))
         self.telegram_learn_mode.set(bool(saved.get("telegram_learn_mode", False)))
+        from whisperfast.telegram.learn import normalize_intake
+
+        self.telegram_intake.set(normalize_intake(saved.get("telegram_intake")))
         from whisperfast.telegram.links import normalize_social_quality
 
         self.telegram_social_quality.set(normalize_social_quality(saved.get("telegram_social_quality")))
@@ -2391,6 +2395,7 @@ class WhisperGUI:
 
     def _persist_settings(self):
         """Зберігає поточні налаштування в settings.json (викликається при закритті та при зміні слідкування)."""
+        from whisperfast.telegram.learn import normalize_intake
         from whisperfast.telegram.links import normalize_social_quality
 
         payload = {
@@ -2455,6 +2460,7 @@ class WhisperGUI:
             "telegram_work_dir": (self.telegram_work_dir.get() or "").strip(),
             "telegram_social_to_queue": bool(self.telegram_social_to_queue.get()),
             "telegram_learn_mode": bool(self.telegram_learn_mode.get()),
+            "telegram_intake": normalize_intake(self.telegram_intake.get()),
             "telegram_social_quality": normalize_social_quality(self.telegram_social_quality.get()),
             "telegram_listener_enabled": bool(getattr(self, "_telegram_listener_wanted", False)),
             "telegram_mode": (self.telegram_mode.get() or "bot").strip().lower(),

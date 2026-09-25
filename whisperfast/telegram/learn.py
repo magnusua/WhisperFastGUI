@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import os
 import queue
-from typing import Sequence
+import threading
+import time
+from typing import Callable, Sequence
 from urllib.parse import urlsplit
 
 from whisperfast.config import BASE_DIR
@@ -18,6 +20,24 @@ _BUCKETS = ("always", "never", "ask")
 
 def learn_enabled(settings) -> bool:
     return bool(settings.get("telegram_learn_mode"))
+
+
+def normalize_intake(value) -> str:
+    """all, media (voice and video only), or links."""
+    mode = str(value or "all").strip().lower()
+    if mode not in ("all", "media", "links"):
+        return "all"
+    return mode
+
+
+def intake_allows(settings, *, media: bool = False, links: bool = False) -> bool:
+    """Whether this voice, video, or social link should be taken at all."""
+    mode = normalize_intake((settings or {}).get("telegram_intake"))
+    if mode == "media":
+        return bool(media)
+    if mode == "links":
+        return bool(links) and not media
+    return bool(media or links)
 
 
 def load_learn_chats() -> dict:
@@ -145,6 +165,117 @@ def network_name(url: str) -> str:
     if host in ("youtube.com", "youtu.be"):
         return "YouTube"
     return host or url
+
+
+_BATCH_SILENCE = 3.0
+_BATCH_CAP = 10.0
+_batches: dict = {}
+_batch_guard = threading.Lock()
+
+
+def batch_material(labels: Sequence[str]) -> str:
+    """One name stays as it is. Several names become a single pack label."""
+    from whisperfast.i18n import t
+
+    clean = []
+    for label in labels:
+        text = str(label or "").strip()
+        if text and text not in clean:
+            clean.append(text)
+    if not clean:
+        return ""
+    if len(clean) == 1:
+        return clean[0]
+    return t("telegram_learn_batch", count=len(clean), materials=", ".join(clean))
+
+
+def schedule_learn_batch(
+    chat_id: int,
+    item: dict,
+    flush: Callable,
+    silence: float = _BATCH_SILENCE,
+    cap: float = _BATCH_CAP,
+) -> None:
+    """Hold items from one chat until the burst pauses, then flush that pack once."""
+    try:
+        key = int(chat_id)
+    except (TypeError, ValueError):
+        key = 0
+    fire_now = None
+    with _batch_guard:
+        batch = _batches.get(key)
+        if batch is None or batch.get("closed"):
+            batch = {
+                "chat_id": key,
+                "items": [],
+                "flush": flush,
+                "silence": silence,
+                "cap": cap,
+                "started": time.monotonic(),
+                "timer": None,
+                "fired": False,
+                "closed": False,
+            }
+            _batches[key] = batch
+        if not batch.get("fired"):
+            batch["items"].append(item)
+            elapsed = time.monotonic() - batch["started"]
+            if elapsed >= batch["cap"]:
+                delay = 0
+            else:
+                delay = min(batch["silence"], batch["cap"] - elapsed)
+            _arm_batch(batch, delay)
+            if delay <= 0:
+                fire_now = batch
+    if fire_now is not None:
+        _fire_batch(key)
+
+
+def _arm_batch(batch: dict, delay: float) -> None:
+    timer = batch.get("timer")
+    if timer is not None:
+        timer.cancel()
+        batch["timer"] = None
+    if delay <= 0:
+        return
+    timer = threading.Timer(delay, _fire_batch, args=(batch["chat_id"],))
+    timer.daemon = True
+    batch["timer"] = timer
+    timer.start()
+
+
+def _fire_batch(chat_id: int) -> None:
+    with _batch_guard:
+        batch = _batches.get(chat_id)
+        if batch is None or batch.get("fired") or batch.get("closed"):
+            return
+        timer = batch.get("timer")
+        if timer is not None:
+            timer.cancel()
+            batch["timer"] = None
+        batch["fired"] = True
+        batch["released"] = list(batch["items"])
+        batch["closed"] = True
+        if _batches.get(chat_id) is batch:
+            _batches.pop(chat_id, None)
+        flush = batch["flush"]
+    try:
+        flush(batch)
+    except Exception:
+        for item in take_batch_snapshot(batch):
+            notify = item.get("on_decision")
+            if callable(notify):
+                notify("no")
+
+
+def take_batch_snapshot(batch: dict) -> list:
+    """The pack the question was asked about. A later Yes replays the same items."""
+    with _batch_guard:
+        released = batch.get("released")
+        if released is None:
+            released = list(batch.get("items") or [])
+            batch["released"] = released
+        return list(released)
 
 
 def material_label(filename: str = "", urls: Sequence[str] = ()) -> str:

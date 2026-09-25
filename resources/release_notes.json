@@ -2,7 +2,7 @@
   "releases": [
     {
       "version": "2.1.6",
-      "date": "25.09.2026",
+      "date": "26.09.2026",
       "notes": {
         "EN": [
           "One No in Telegram learn mode puts that group or private chat on the skip list. The Chats button next to learn mode edits a file with three lists: always process, never process, and always ask.",
@@ -10,7 +10,8 @@
           "The capture button stays green while recording.",
           "A CPU build of PyTorch is named in the log. pip uninstall no longer receives a progress flag it does not accept.",
           "When a file already exists: Yes overwrites, No writes nothing, and Save under a new name adds the time. If you do not choose, No is used after 10 seconds.",
-          "A message you sent yourself gets its own learn question. A failed social download can be restarted from the log.",
+          "A message you sent yourself gets its own learn question. A failed social download can be restarted from the log. Several files or links from one chat in a few seconds become one question, and the answer applies to the whole pack. The question only decides whether to take the file. No puts the chat on the skip list. Closing the window, or 10 seconds without an answer, skips only this file and does not queue it. The Process line in the log asks again; a later Yes does not download a file that was already processed.",
+          "Telegram settings choose what to take: voice, video, and links; voice and video only; or links only.",
           "A second FTW window does not start while the first one is open.",
           "The progress bar stays above the log."
         ],
@@ -20,7 +21,8 @@
           "Кнопка запису зелена, поки захоплення йде.",
           "Якщо стоїть збірка PyTorch для CPU, лог прямо про це пише. pip uninstall більше не отримує прапор прогресу, якого ця команда не приймає.",
           "Якщо файл уже існує: Так перезаписує, Ні нічого не пише, «Зберегти під новим ім'ям» додає час до назви. Якщо не обрати, за 10 секунд лишається Ні.",
-          "Власне повідомлення питає окремо. Невдале завантаження з соцмережі можна перезапустити з логу.",
+          "Власне повідомлення питає окремо. Невдале завантаження з соцмережі можна перезапустити з логу. Кілька файлів або посилань з одного чату за кілька секунд стають одним питанням, і відповідь стосується всієї пачки. Питання лише вирішує, брати файл чи ні. «Ні» записує чат у список пропуску. Закриття вікна або 10 секунд без відповіді пропускає лише цей файл і не ставить його в чергу. Рядок «Обробити?» у логу відкриває питання знову; повторне «Так» не качає вже оброблений файл.",
+          "У налаштуваннях Telegram обирається, що брати: голос, відео і посилання, лише голос і відео, або лише посилання.",
           "Друге вікно FTW не стартує, поки перше відкрите.",
           "Смуга прогресу лишається над логом."
         ],
@@ -30,7 +32,8 @@
           "Кнопка записи зелёная, пока идёт захват.",
           "Если стоит сборка PyTorch для CPU, лог прямо об этом пишет. pip uninstall больше не получает флаг прогресса, который эта команда не принимает.",
           "Если файл уже существует: Да перезаписывает, Нет ничего не пишет, «Сохранить под новым именем» добавляет время к названию. Если не выбрать, через 10 секунд остаётся Нет.",
-          "Своё сообщение спрашивает отдельно. Неудачную загрузку из соцсети можно перезапустить из лога.",
+          "Своё сообщение спрашивает отдельно. Неудачную загрузку из соцсети можно перезапустить из лога. Несколько файлов или ссылок из одного чата за несколько секунд становятся одним вопросом, и ответ относится ко всей пачке. Вопрос только решает, брать файл или нет. «Нет» записывает чат в список пропуска. Закрытие окна или 10 секунд без ответа пропускает только этот файл и не ставит его в очередь. Строка «Обработать?» в логе открывает вопрос снова; повторное «Да» не скачивает уже обработанный файл.",
+          "В настройках Telegram выбирается, что брать: голос, видео и ссылки, только голос и видео, или только ссылки.",
           "Второе окно FTW не стартует, пока первое открыто.",
           "Полоса прогресса остаётся над логом."
         ]

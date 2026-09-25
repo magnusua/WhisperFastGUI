@@ -119,7 +119,7 @@
 | `origin.py` | `.ftw_tg_origin.json`: chat id і message id за шляхом. `retarget` викликається з `source_relocate`, коли джерело переїжджає. |
 | `seen.py` | `.ftw_tg_seen.json`: id файлу Telegram → локальний шлях, готові TXT/AI і чати, які переслали той самий файл, поки він ще оброблявся. |
 | `links.py` | Посилання YouTube, Instagram і Facebook: скачування через yt-dlp. У чергу Whisper — лише якщо `telegram_social_to_queue`. |
-| `learn.py` | Режим навчання: питання перед обробкою чату, якого немає в автоматичному списку. |
+| `learn.py` | Режим навчання: три списки чатів, одне питання на пачку з одного чату, `telegram_intake` (`all` / `media` / `links`). |
 | `recent.py` | `.ftw_tg_recent.json`: до 10 останніх груп і контактів, куди надсилали файли. |
 
 ### i18n/

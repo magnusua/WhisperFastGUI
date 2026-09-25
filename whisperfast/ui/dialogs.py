@@ -1652,6 +1652,25 @@ def show_telegram_settings_dialog(app):
     )
     learn_file_btn.pack(side="right")
     tip(learn_file_btn, "telegram_tip_learn_file")
+    from whisperfast.telegram.learn import normalize_intake
+
+    intake_holder = getattr(app, "telegram_intake", None)
+    intake = tk.StringVar(
+        value=normalize_intake(intake_holder.get()) if intake_holder is not None else "all"
+    )
+    intake_label = ttk.Label(frame, text=t("telegram_intake_label"))
+    intake_label.pack(anchor="w", pady=(8, 0))
+    tip(intake_label, "telegram_tip_intake")
+    intake_row = ttk.Frame(frame)
+    intake_row.pack(anchor="w")
+    for value, key in (
+        ("all", "telegram_intake_all"),
+        ("media", "telegram_intake_media"),
+        ("links", "telegram_intake_links"),
+    ):
+        choice = ttk.Radiobutton(intake_row, text=t(key), value=value, variable=intake)
+        choice.pack(side="left", padx=(0, 12))
+        tip(choice, "telegram_tip_intake")
 
     from whisperfast.telegram.links import normalize_social_quality
 
@@ -1843,6 +1862,8 @@ def show_telegram_settings_dialog(app):
             social_holder.set(bool(social_queue.get()))
         if learn_holder is not None:
             learn_holder.set(bool(learn_mode.get()))
+        if intake_holder is not None:
+            intake_holder.set(normalize_intake(intake.get()))
         if quality_holder is not None:
             quality_holder.set(normalize_social_quality(social_quality.get()))
         app._persist_settings()
@@ -1978,33 +1999,71 @@ def show_telegram_learn_file(app):
 
 
 def show_telegram_learn_prompt(app, chat, material, finish, outgoing=False):
-    """Yes processes the message. Closing the window leaves the log line to answer later."""
+    """Yes takes the file. No skips the chat. Close or 10 seconds skips only this file."""
     dialog = tk.Toplevel(app.root)
     dialog.title(t("telegram_settings_title"))
     dialog.transient(app.root)
     ttk.Label(
         dialog,
-                text=t(
-                    "telegram_learn_question_own" if outgoing else "telegram_learn_question",
-                    chat=chat,
-                    material=material,
-                ),
+        text=t(
+            "telegram_learn_question_own" if outgoing else "telegram_learn_question",
+            chat=chat,
+            material=material,
+        ),
         wraplength=440,
     ).pack(padx=16, pady=(16, 8))
+    clock = {"id": None, "closed": False}
+    note = ttk.Label(dialog, text="", wraplength=440)
+    note.pack(padx=16, pady=(0, 8))
     buttons = ttk.Frame(dialog)
     buttons.pack(pady=(0, 16))
 
-    def answer_no():
-        dialog.destroy()
-        finish("no")
+    def stop_clock():
+        if clock["id"] is not None:
+            try:
+                dialog.after_cancel(clock["id"])
+            except Exception:
+                pass
+            clock["id"] = None
+
+    def finish_once(decision):
+        if clock["closed"]:
+            return
+        clock["closed"] = True
+        stop_clock()
+        try:
+            dialog.destroy()
+        except Exception:
+            pass
+        finish(decision)
 
     def answer_yes():
-        dialog.destroy()
+        if clock["closed"]:
+            return
+        clock["closed"] = True
+        stop_clock()
+        try:
+            dialog.destroy()
+        except Exception:
+            pass
         _ask_learn_add(app, chat, finish)
 
+    def count_down(left):
+        if clock["closed"]:
+            return
+        try:
+            note.configure(text=t("telegram_learn_timeout", seconds=left))
+        except tk.TclError:
+            return
+        if left <= 0:
+            finish_once("skip")
+            return
+        clock["id"] = dialog.after(1000, lambda: count_down(left - 1))
+
     ttk.Button(buttons, text=t("telegram_learn_yes"), command=answer_yes).pack(side="left", padx=4)
-    ttk.Button(buttons, text=t("telegram_learn_no"), command=answer_no).pack(side="left", padx=4)
-    dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+    ttk.Button(buttons, text=t("telegram_learn_no"), command=lambda: finish_once("no")).pack(side="left", padx=4)
+    count_down(10)
+    dialog.protocol("WM_DELETE_WINDOW", lambda: finish_once("skip"))
     center_toplevel(app, dialog)
 
 

@@ -880,6 +880,14 @@ class TestVideoLinks(unittest.TestCase):
             self.assertFalse(learn_mod.chat_always_asks(9, ["ЧАТ БЕРЕГ"]))
         finally:
             learn_mod._FILE = previous
+        from whisperfast.telegram.learn import intake_allows, normalize_intake
+
+        self.assertEqual(normalize_intake("nope"), "all")
+        self.assertTrue(intake_allows({"telegram_intake": "all"}, media=True))
+        self.assertTrue(intake_allows({"telegram_intake": "media"}, media=True))
+        self.assertFalse(intake_allows({"telegram_intake": "media"}, links=True))
+        self.assertTrue(intake_allows({"telegram_intake": "links"}, links=True))
+        self.assertFalse(intake_allows({"telegram_intake": "links"}, media=True, links=True))
         self.assertEqual(material_label("clip.mp4"), "clip.mp4")
         self.assertEqual(
             material_label("", ["https://www.facebook.com/reel/XYZ"]),
@@ -973,6 +981,47 @@ class TestSameTelegramFile(unittest.TestCase):
                 self.assertTrue(row["ai"])
 
 
+class TestLearnBatch(unittest.TestCase):
+    def test_one_chat_burst_asks_once(self):
+        import time
+
+        from whisperfast.telegram.learn import batch_material, schedule_learn_batch, take_batch_snapshot
+
+        self.assertEqual(batch_material(["a.mp3"]), "a.mp3")
+        packed = batch_material(["a.mp3", "b.mp4"])
+        self.assertIn("a.mp3", packed)
+        self.assertIn("b.mp4", packed)
+        self.assertIn("2", packed)
+
+        asked = []
+
+        def flush(batch):
+            items = take_batch_snapshot(batch)
+            asked.append([item["material"] for item in items])
+
+        schedule_learn_batch(88001, {"material": "a.mp3"}, flush, silence=0.2, cap=1)
+        schedule_learn_batch(88001, {"material": "b.mp4"}, flush, silence=0.2, cap=1)
+        time.sleep(0.6)
+        schedule_learn_batch(88001, {"material": "c.mp3"}, flush, silence=0.2, cap=1)
+        time.sleep(0.6)
+        self.assertEqual(asked, [["a.mp3", "b.mp4"], ["c.mp3"]])
+
+    def test_other_chat_is_a_separate_pack(self):
+        import time
+
+        from whisperfast.telegram.learn import schedule_learn_batch, take_batch_snapshot
+
+        asked = []
+
+        def flush(batch):
+            asked.append((batch["chat_id"], [item["material"] for item in take_batch_snapshot(batch)]))
+
+        schedule_learn_batch(88002, {"material": "one.mp3"}, flush, silence=0.15, cap=1)
+        schedule_learn_batch(88003, {"material": "two.mp3"}, flush, silence=0.15, cap=1)
+        time.sleep(0.5)
+        self.assertEqual(sorted(asked), [(88002, ["one.mp3"]), (88003, ["two.mp3"])])
+
+
 class TestLearnQuestionReopen(unittest.TestCase):
     def test_log_line_asks_again_after_answer(self):
         from whisperfast.ui.gui import WhisperGUI
@@ -1009,6 +1058,32 @@ class TestLearnQuestionReopen(unittest.TestCase):
             opened[2]("always")
             self.assertEqual(replayed, [1])
             self.assertEqual(settled, ["no"])
+
+    def test_unanswered_skip_does_not_take_the_file(self):
+        from whisperfast.ui.gui import WhisperGUI
+
+        opened = []
+        app = SimpleNamespace(
+            root=SimpleNamespace(after=lambda _delay, fn: fn(), grab_current=lambda: object()),
+            _add_telegram_auto_chat=Mock(),
+            _add_telegram_ignored_chat=Mock(),
+            _drop_telegram_ignored_chat=Mock(),
+        )
+        app.log_action = lambda _msg, callback: setattr(app, "callback", callback)
+        settled = []
+
+        def show_prompt(_app, _chat, _material, finish, outgoing=False):
+            opened.append(finish)
+
+        with patch("whisperfast.ui.gui.ui_dialogs.show_telegram_learn_prompt", show_prompt), patch(
+            "whisperfast.telegram.learn.remember_learn_chat"
+        ):
+            WhisperGUI.ask_telegram_learn(app, "Riogo", "clip.mp3", settled.append, 5)
+            app.callback()
+            opened[0]("skip")
+        self.assertEqual(settled, ["skip"])
+        app._add_telegram_ignored_chat.assert_not_called()
+        app._add_telegram_auto_chat.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -473,6 +473,7 @@ def _defer_learn(message, log: LogFunc, ask: Optional[Callable]) -> bool:
         chat_always_asks,
         chat_is_automatic,
         chat_is_ignored,
+        intake_allows,
         learn_enabled,
         material_label,
         push_ready,
@@ -488,28 +489,38 @@ def _defer_learn(message, log: LogFunc, ask: Optional[Callable]) -> bool:
     names = [chat_display_name(chat, chat_id)]
     if chat_is_ignored(chat_id, names, settings):
         return True
-    if not learn_enabled(settings):
-        return False
-    if chat_is_automatic(chat_id, names, settings) and not chat_always_asks(chat_id, names):
-        return False
     job = media_from_message(message)
     text = message.get("text") if isinstance(message.get("text"), str) else ""
     urls = [] if job else extract_video_urls(text)[:3]
     if not job and not urls:
         return False
+    if not intake_allows(settings, media=bool(job), links=bool(urls)):
+        return True
+    if not learn_enabled(settings):
+        return False
+    if chat_is_automatic(chat_id, names, settings) and not chat_always_asks(chat_id, names):
+        return False
     material = material_label(job.filename if job else "", urls)
     chat_name = chat_display_name(chat, chat_id)
     kind = "media" if job else "links"
     payload = job if job else message
+    from whisperfast.telegram.learn import batch_material, schedule_learn_batch, take_batch_snapshot
 
-    def settle(decision, kind=kind, payload=payload):
-        push_ready((decision, kind, payload))
+    def flush(batch, chat_name=chat_name):
+        labels = [item.get("material") or "" for item in take_batch_snapshot(batch)]
 
-    if ask is None:
-        log(t("telegram_learn_question", chat=chat_name, material=material))
-        settle("no")
-        return True
-    ask(chat_name, material, settle, chat_id)
+        def settle(decision, batch=batch):
+            for item in take_batch_snapshot(batch):
+                push_ready((decision, item["kind"], item["payload"]))
+
+        combined = batch_material(labels)
+        if ask is None:
+            log(t("telegram_learn_question", chat=chat_name, material=combined))
+            settle("no")
+            return
+        ask(chat_name, combined, settle, chat_id)
+
+    schedule_learn_batch(chat_id, {"kind": kind, "payload": payload, "material": material}, flush)
     return True
 
 

@@ -327,6 +327,12 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         from whisperfast.telegram.links import extract_video_urls
 
         urls = extract_video_urls(text)[:3]
+    from whisperfast.telegram.learn import intake_allows
+
+    if (filename or urls) and not intake_allows(
+        settings, media=bool(filename), links=bool(urls) and not filename,
+    ):
+        return
     async def deliver():
         await _deliver_learned(
             event, message, settings, submit, gui_running, log, chat, chat_id, filename, urls,
@@ -341,16 +347,46 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         material = material_label(filename or "", urls)
         import asyncio
 
-        loop = asyncio.get_running_loop()
+        from whisperfast.telegram.learn import batch_material, schedule_learn_batch, take_batch_snapshot
 
-        def replay():
+        loop = asyncio.get_running_loop()
+        decision_future = loop.create_future()
+        chat_name = chat_display_name(chat, chat_id)
+        outgoing = bool(getattr(event, "out", False))
+
+        def on_decision(decision, future=decision_future):
+            if not future.done():
+                loop.call_soon_threadsafe(future.set_result, decision)
+
+        def replay_one():
             asyncio.run_coroutine_threadsafe(deliver(), loop)
 
-        if not await _await_learn(
-            ask, log, chat_display_name(chat, chat_id), material, chat_id,
-            outgoing=bool(getattr(event, "out", False)),
-            replay=replay,
-        ):
+        def flush(batch, chat_name=chat_name):
+            labels = [item.get("material") or "" for item in take_batch_snapshot(batch)]
+            pack_outgoing = all(item.get("outgoing") for item in take_batch_snapshot(batch))
+
+            def settle(decision, batch=batch):
+                for item in take_batch_snapshot(batch):
+                    item["on_decision"](decision)
+
+            def replay(batch=batch):
+                for item in take_batch_snapshot(batch):
+                    item["replay"]()
+
+            if ask is None:
+                key = "telegram_learn_question_own" if pack_outgoing else "telegram_learn_question"
+                log(t(key, chat=chat_name, material=batch_material(labels)))
+                settle("no")
+                return
+            ask(chat_name, batch_material(labels), settle, chat_id, pack_outgoing, replay)
+
+        schedule_learn_batch(chat_id, {
+            "material": material,
+            "outgoing": outgoing,
+            "on_decision": on_decision,
+            "replay": replay_one,
+        }, flush)
+        if await decision_future not in ("once", "always"):
             return
     elif not accepted and not chat_is_automatic(chat_id, chat_name_keys(chat), settings):
         return
