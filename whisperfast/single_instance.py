@@ -13,6 +13,7 @@ from whisperfast.config import BASE_DIR
 
 LOCK_FILENAME = ".whisperfastgui.pid"
 _owned = False
+_mutex_handle = None
 
 
 def lock_path() -> str:
@@ -135,6 +136,38 @@ def find_other_instance_pid() -> Optional[int]:
     return pid
 
 
+def _mutex_name() -> str:
+    import hashlib
+
+    key = os.path.normcase(os.path.abspath(BASE_DIR)).encode("utf-8")
+    return "Local\\FTW-" + hashlib.sha256(key).hexdigest()[:16]
+
+
+def _try_acquire_mutex() -> Optional[bool]:
+    """True if this process owns the mutex, False if another process does, None without a mutex."""
+    global _mutex_handle
+    if _mutex_handle:
+        return True
+    if sys.platform != "win32":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    handle = kernel32.CreateMutexW(None, False, _mutex_name())
+    if not handle:
+        return None
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32.CloseHandle(handle)
+        return False
+    _mutex_handle = handle
+    return True
+
+
 def claim_lock() -> None:
     global _owned
     _write_lock(os.getpid())
@@ -233,18 +266,36 @@ def ensure_single_instance() -> str:
     """
     atexit.register(release_lock_if_owned)
 
-    other = find_other_instance_pid()
-    if other is None:
+    owned = _try_acquire_mutex()
+    if owned is True:
         claim_lock()
         return "primary"
+
+    other = find_other_instance_pid()
+    if owned is None and other is None:
+        claim_lock()
+        return "primary"
+    if other is None:
+        for _ in range(20):
+            time.sleep(0.05)
+            other = find_other_instance_pid()
+            if other:
+                break
+    if other is None:
+        if _try_acquire_mutex():
+            claim_lock()
+            return "primary"
+        sys.exit(0)
 
     choice = _ask_already_running(other)
     if choice == "abort":
         sys.exit(0)
     if choice == "another":
         return "secondary"
-    # kill previous
+    # kill previous; its process exit releases the mutex
     terminate_pid(other)
     _wait_until_dead(other)
+    if _try_acquire_mutex() is False:
+        sys.exit(0)
     claim_lock()
     return "primary"

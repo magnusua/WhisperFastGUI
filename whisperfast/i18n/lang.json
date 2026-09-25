@@ -1235,9 +1235,9 @@
     "RU": "Файл уже существует"
   },
   "file_exists_msg": {
-    "EN": "File already exists:\n{name}\n\nYes — overwrite\nNo — save as {alt}\nSkip — do not save",
-    "UK": "Файл уже існує:\n{name}\n\nТак — перезаписати\nНі — зберегти як {alt}\nПропустити — не зберігати",
-    "RU": "Файл уже существует:\n{name}\n\nДа — перезаписать\nНет — сохранить как {alt}\nПропустить — не сохранять"
+    "EN": "File already exists:\n{name}\n\nYes — overwrite\nNo — do not save\nSave under a new name — {alt}\n\nIf you do not choose, No is selected after 10 seconds and the existing file is left as it is.",
+    "UK": "Файл уже існує:\n{name}\n\nТак — перезаписати\nНі — не зберігати\nЗберегти під новим ім'ям — {alt}\n\nЯкщо не обрати, за 10 с буде «Ні»: наявний файл лишається.",
+    "RU": "Файл уже существует:\n{name}\n\nДа — перезаписать\nНет — не сохранять\nСохранить под новым именем — {alt}\n\nЕсли не выбрать, через 10 с будет «Нет»: существующий файл остаётся."
   },
   "file_exists_yes": {
     "EN": "Yes",
@@ -1253,6 +1253,11 @@
     "EN": "Skip",
     "UK": "Пропустити",
     "RU": "Пропустить"
+  },
+  "file_exists_save_as": {
+    "EN": "Save under a new name",
+    "UK": "Зберегти під новим ім'ям",
+    "RU": "Сохранить под новым именем"
   },
   "file_exists_skipped": {
     "EN": "⏭ Skipped writing (file already exists): {name}",
@@ -3961,6 +3966,11 @@
     "UK": "Отримано повідомлення від {chat} з {material}. Обробити?",
     "RU": "Получено сообщение от {chat} с {material}. Обработать?"
   },
+  "telegram_learn_question_own": {
+    "EN": "Saw a message you sent yourself in {chat}: {material}. Process it?",
+    "UK": "Побачив повідомлення, яке ви надіслали самі в чат {chat}: {material}. Обробити?",
+    "RU": "Увидел сообщение, которое вы отправили сами в чат {chat}: {material}. Обработать?"
+  },
   "telegram_learn_add": {
     "EN": "Add «{chat}» to the automatic processing list?",
     "UK": "Додати «{chat}» до списку автоматичної обробки?",
@@ -4025,6 +4035,11 @@
     "EN": "Could not download the video: {error}",
     "UK": "Не вдалося завантажити відео: {error}",
     "RU": "Не удалось скачать видео: {error}"
+  },
+  "telegram_link_retry": {
+    "EN": "▶ Restart download",
+    "UK": "▶ Перезапустити завантаження",
+    "RU": "▶ Перезапустить загрузку"
   },
   "telegram_same_queued": {
     "EN": "Already downloaded and still in the queue: {name}. It will not be downloaded again.",

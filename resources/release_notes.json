@@ -8,19 +8,31 @@
           "One No in Telegram learn mode puts that group or private chat on the skip list. The Chats button next to learn mode edits a file with three lists: always process, never process, and always ask.",
           "Turning autostart on or off leaves one Startup shortcut and one scheduled task for this install. Old Whisper Fast GUI shortcuts and extra copies are removed.",
           "The capture button stays green while recording.",
-          "A CPU build of PyTorch is named in the log. pip uninstall no longer receives a progress flag it does not accept."
+          "A CPU build of PyTorch is named in the log. pip uninstall no longer receives a progress flag it does not accept.",
+          "When a file already exists: Yes overwrites, No writes nothing, and Save under a new name adds the time. If you do not choose, No is used after 10 seconds.",
+          "A message you sent yourself gets its own learn question. A failed social download can be restarted from the log.",
+          "A second FTW window does not start while the first one is open.",
+          "The progress bar stays above the log."
         ],
         "UK": [
           "Один раз «Ні» в режимі навчання Telegram записує групу або особистий чат у список, який не обробляється. Кнопка «Чати» біля режиму навчання відкриває файл із трьома списками: завжди обробляти, ніколи не обробляти і завжди питати.",
           "Увімкнення й вимкнення автозапуску лишають один ярлик у Startup і одне завдання планувальника для цієї установки. Старі ярлики Whisper Fast GUI і зайві копії прибираються.",
           "Кнопка запису зелена, поки захоплення йде.",
-          "Якщо стоїть збірка PyTorch для CPU, лог прямо про це пише. pip uninstall більше не отримує прапор прогресу, якого ця команда не приймає."
+          "Якщо стоїть збірка PyTorch для CPU, лог прямо про це пише. pip uninstall більше не отримує прапор прогресу, якого ця команда не приймає.",
+          "Якщо файл уже існує: Так перезаписує, Ні нічого не пише, «Зберегти під новим ім'ям» додає час до назви. Якщо не обрати, за 10 секунд лишається Ні.",
+          "Власне повідомлення питає окремо. Невдале завантаження з соцмережі можна перезапустити з логу.",
+          "Друге вікно FTW не стартує, поки перше відкрите.",
+          "Смуга прогресу лишається над логом."
         ],
         "RU": [
           "Один раз «Нет» в режиме обучения Telegram записывает группу или личный чат в список, который не обрабатывается. Кнопка «Чаты» рядом с режимом обучения открывает файл с тремя списками: всегда обрабатывать, никогда не обрабатывать и всегда спрашивать.",
           "Включение и выключение автозапуска оставляют один ярлык в Startup и одну задачу планировщика для этой установки. Старые ярлыки Whisper Fast GUI и лишние копии убираются.",
           "Кнопка записи зелёная, пока идёт захват.",
-          "Если стоит сборка PyTorch для CPU, лог прямо об этом пишет. pip uninstall больше не получает флаг прогресса, который эта команда не принимает."
+          "Если стоит сборка PyTorch для CPU, лог прямо об этом пишет. pip uninstall больше не получает флаг прогресса, который эта команда не принимает.",
+          "Если файл уже существует: Да перезаписывает, Нет ничего не пишет, «Сохранить под новым именем» добавляет время к названию. Если не выбрать, через 10 секунд остаётся Нет.",
+          "Своё сообщение спрашивает отдельно. Неудачную загрузку из соцсети можно перезапустить из лога.",
+          "Второе окно FTW не стартует, пока первое открыто.",
+          "Полоса прогресса остаётся над логом."
         ]
       }
     },

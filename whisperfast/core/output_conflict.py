@@ -54,8 +54,8 @@ def resolve_output_paths(
 ) -> List[str]:
     """
     If any path already exists, ask once (first existing file).
-    Yes → keep paths (overwrite). No → append _HHMM to all paths in the group.
-    Skip → empty strings (caller must not write).
+    True keeps the paths (overwrite). False appends _HHMM to every path in the group.
+    None returns empty strings (caller must not write).
     """
     normalized = [os.path.abspath(p) if p else p for p in paths]
     existing = [p for p in normalized if p and os.path.isfile(p)]

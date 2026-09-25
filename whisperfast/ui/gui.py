@@ -904,7 +904,8 @@ class WhisperGUI:
         self._apply_gpu_hold()
         toolbar_icons.apply_static(self)
 
-        self.progress = ttk.Progressbar(main, length=900)
+        self.progress = ttk.Progressbar(main, length=900, maximum=100, mode="determinate")
+        self.progress.pack(fill="x", pady=(4, 2))
         self.log_box = scrolledtext.ScrolledText(main, height=18, state="disabled", wrap="word", font=("Consolas", 9))
         self.log_box.pack(fill="both", expand=True, pady=(2, 0))
         self.log_panel.bind_widget(self.log_box)
@@ -1525,28 +1526,34 @@ class WhisperGUI:
     def clear_log(self):
         self.log_panel.clear()
 
-    def _show_progress(self):
-        """Смуга з’являється над логом лише на час транскрибації."""
+    def _on_ui_thread(self, fn):
+        if threading.current_thread() is threading.main_thread():
+            fn()
+            return
         try:
-            if not self.progress.winfo_ismapped():
-                self.progress.pack(fill="x", pady=(4, 2), before=self.log_box)
+            self.root.after(0, fn)
         except tk.TclError:
             pass
 
-    def _hide_progress(self):
-        try:
-            self.progress.pack_forget()
-            self.progress["value"] = 0
-        except tk.TclError:
-            pass
+    def _show_progress(self):
+        """Смуга вже стоїть над логом. На старті обробки лише скидаємо значення."""
+        def apply():
+            try:
+                self.progress["value"] = 0
+            except tk.TclError:
+                pass
+
+        self._on_ui_thread(apply)
 
     def _set_progress_value(self, value):
-        """Установка значения прогресс-бара (вызывать из главного потока)."""
-        try:
-            self._show_progress()
-            self.progress["value"] = value
-        except Exception:
-            pass
+        """Установка значения прогресс-бара. С фонового потока уходит в главный."""
+        def apply(v=value):
+            try:
+                self.progress["value"] = v
+            except tk.TclError:
+                pass
+
+        self._on_ui_thread(apply)
 
     def ask_save_mp3_confirm(self, filename):
         """
@@ -1564,7 +1571,16 @@ class WhisperGUI:
         if ai_prompts_dialog_is_open(self):
             return False
 
+        key = os.path.basename(str(filename or "")).casefold()
+        declined = getattr(self, "_mp3_declined_names", None)
+        if declined is None:
+            declined = set()
+            self._mp3_declined_names = declined
+        if key and key in declined:
+            return False
+
         choice = [None]
+        answered = [False]
         done = threading.Event()
 
         def ask():
@@ -1576,6 +1592,7 @@ class WhisperGUI:
                     t("save_audio_mp3"),
                     t("save_mp3_confirm", filename=filename),
                 )
+                answered[0] = True
             except Exception:
                 choice[0] = False
             finally:
@@ -1591,12 +1608,13 @@ class WhisperGUI:
             if ai_prompts_dialog_is_open(self):
                 return False
             done.wait(timeout=0.05)
+        if answered[0] and choice[0] is False and key:
+            declined.add(key)
         return bool(choice[0])
 
     def reset_ui(self):
         self.start_btn.config(state="normal")
         self.cancel_btn.config(state="disabled")
-        self._hide_progress()
         capture_ui.sync_log_cancel_button(self)
 
     def cancel_action(self):
@@ -1647,6 +1665,13 @@ class WhisperGUI:
     def _telegram_log(self, msg, tag=None):
         """Forward a listener line, including a file path tagged as a document link."""
         self.root.after(0, lambda m=msg, tg=tag: self.log(m, tg))
+
+    def offer_link_retry(self, retry):
+        """Clickable log line that runs the same social download again."""
+        def go():
+            threading.Thread(target=retry, name="ftw-social-retry", daemon=True).start()
+
+        self.root.after(0, lambda: self.log_action(t("telegram_link_retry"), go))
 
     def _add_telegram_auto_chat(self, name, chat_id):
         """Remember a chat so the next message from it is processed without asking."""
@@ -1705,14 +1730,30 @@ class WhisperGUI:
                 self.telegram_allowed_chat_ids_text.set(format_chat_ids(allowed))
         self._persist_settings()
 
-    def ask_telegram_learn(self, chat, material, settle, chat_id):
-        """Show the question and keep a clickable log line if the window is closed."""
-        state = {"done": False}
+    def _drop_telegram_ignored_chat(self, name, chat_id):
+        """A later Yes takes the chat back out of the skip list."""
+        title = str(name or "").strip()
+        ignored = [
+            item for item in normalize_chat_names(self.telegram_ignored_chat_names_text.get())
+            if not title or item.casefold() != title.casefold()
+        ]
+        self.telegram_ignored_chat_names_text.set(", ".join(ignored))
+        try:
+            number = int(chat_id)
+        except (TypeError, ValueError):
+            number = 0
+        if number:
+            self.telegram_ignored_chat_ids = [
+                item for item in normalize_chat_ids(getattr(self, "telegram_ignored_chat_ids", []))
+                if item != number
+            ]
+        self._persist_settings()
+
+    def ask_telegram_learn(self, chat, material, settle, chat_id, outgoing=False, replay=None):
+        """Show the question. The log line opens it again after an answer or a closed window."""
+        state = {"settled": False, "ran": False}
 
         def finish(decision):
-            if state["done"]:
-                return
-            state["done"] = True
             from whisperfast.telegram.learn import remember_learn_chat
 
             if decision == "always":
@@ -1723,18 +1764,39 @@ class WhisperGUI:
                 remember_learn_chat("never", chat, chat_id)
             elif decision == "once":
                 remember_learn_chat("ask", chat, chat_id)
+                self._drop_telegram_ignored_chat(chat, chat_id)
+            process = decision in ("once", "always")
+            if not state["settled"]:
+                state["settled"] = True
+                state["ran"] = process
+                try:
+                    settle(decision)
+                except Exception:
+                    pass
+                return
+            if not process or state["ran"]:
+                return
+            state["ran"] = True
+            if callable(replay):
+                replay()
+                return
             try:
                 settle(decision)
             except Exception:
                 pass
 
         def reopen():
-            if state["done"]:
-                return
-            ui_dialogs.show_telegram_learn_prompt(self, chat, material, finish)
+            ui_dialogs.show_telegram_learn_prompt(self, chat, material, finish, outgoing=outgoing)
+
+        question_key = "telegram_learn_question_own" if outgoing else "telegram_learn_question"
 
         def show():
-            self.log_action(t("telegram_learn_question", chat=chat, material=material), reopen)
+            self.log_action(t(question_key, chat=chat, material=material), reopen)
+            try:
+                if self.root.grab_current():
+                    return
+            except tk.TclError:
+                return
             reopen()
 
         try:
@@ -2495,7 +2557,7 @@ class WhisperGUI:
             messagebox.showwarning(t("export_md_to_docx"), pandoc_missing_dialog_text())
 
     def resolve_output_paths(self, paths, force_ask=False):
-        """Якщо файл(и) вже існують — Yes/No/Skip: overwrite, _HHMM, або порожні шляхи."""
+        """Якщо файл уже існує: Так перезаписує, Ні не зберігає, окрема кнопка дає ім'я з _HHMM."""
         from whisperfast.core.output_conflict import resolve_output_paths
         from whisperfast.ui.dialogs import ask_overwrite_via_tk
 

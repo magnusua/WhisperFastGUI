@@ -12,6 +12,7 @@ from whisperfast.telegram.outbox import take_outgoing
 from whisperfast.telegram.worker import _extension_ok, chat_display_name, resolve_work_dir, safe_filename
 
 LogFunc = Callable[[str], None]
+_link_tasks = set()
 
 
 def normalize_mode(value: Any) -> str:
@@ -178,7 +179,18 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
             remember_link(url, path or str((known or {}).get("path") or ""))
         except Exception as exc:
             await event.reply(t("telegram_link_failed", error=str(exc)))
-            log(t("telegram_link_failed", error=str(exc)))
+            loop = asyncio.get_running_loop()
+
+            def retry(one=url):
+                fut = asyncio.run_coroutine_threadsafe(
+                    _take_video_links(event, [one], settings, submit, log, chat_id, message_id),
+                    loop,
+                )
+                fut.result()
+
+            from whisperfast.telegram.links import report_link_failure
+
+            report_link_failure(log, exc, retry)
             continue
         if action == "send":
             text = t("telegram_same_ai" if known.get("ai") else "telegram_same_done", name=os.path.basename(url))
@@ -226,14 +238,28 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
         log_downloaded_file(log, path)
 
 
-async def _await_learn(ask, log, chat_name: str, material: str, chat_id: int):
+async def _take_video_links_guarded(event, urls, settings, submit, log, chat_id: int, message_id: int) -> None:
+    """Download off the listener. A failure or a 10-minute hang is reported and does not stop the client."""
+    try:
+        await _take_video_links(event, urls, settings, submit, log, chat_id, message_id)
+    except Exception as exc:
+        text = t("telegram_link_failed", error=str(exc))
+        log(text)
+        try:
+            await event.reply(text)
+        except Exception:
+            pass
+
+
+async def _await_learn(ask, log, chat_name: str, material: str, chat_id: int, outgoing: bool = False, replay=None):
     """Wait until the window answers. Closed dialog stays pending."""
     import asyncio
 
     if not material:
         return False
     if ask is None:
-        log(t("telegram_learn_question", chat=chat_name, material=material))
+        key = "telegram_learn_question_own" if outgoing else "telegram_learn_question"
+        log(t(key, chat=chat_name, material=material))
         return False
     loop = asyncio.get_running_loop()
     future = loop.create_future()
@@ -242,7 +268,7 @@ async def _await_learn(ask, log, chat_name: str, material: str, chat_id: int):
         if not future.done():
             loop.call_soon_threadsafe(future.set_result, decision)
 
-    ask(chat_name, material, settle, chat_id)
+    ask(chat_name, material, settle, chat_id, outgoing, replay)
     return await future in ("once", "always")
 
 
@@ -301,6 +327,11 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         from whisperfast.telegram.links import extract_video_urls
 
         urls = extract_video_urls(text)[:3]
+    async def deliver():
+        await _deliver_learned(
+            event, message, settings, submit, gui_running, log, chat, chat_id, filename, urls,
+        )
+
     if learning and (
         chat_always_asks(chat_id, chat_name_keys(chat))
         or not chat_is_automatic(chat_id, chat_name_keys(chat), settings)
@@ -308,15 +339,34 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         if not filename and not urls:
             return
         material = material_label(filename or "", urls)
-        if not await _await_learn(ask, log, chat_display_name(chat, chat_id), material, chat_id):
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+
+        def replay():
+            asyncio.run_coroutine_threadsafe(deliver(), loop)
+
+        if not await _await_learn(
+            ask, log, chat_display_name(chat, chat_id), material, chat_id,
+            outgoing=bool(getattr(event, "out", False)),
+            replay=replay,
+        ):
             return
     elif not accepted and not chat_is_automatic(chat_id, chat_name_keys(chat), settings):
         return
+    await deliver()
+
+
+async def _deliver_learned(event, message, settings, submit, gui_running, log, chat, chat_id, filename, urls):
     if not filename:
         if urls:
-            await _take_video_links(
+            import asyncio
+
+            task = asyncio.create_task(_take_video_links_guarded(
                 event, urls, settings, submit, log, chat_id, int(message.id),
-            )
+            ))
+            _link_tasks.add(task)
+            task.add_done_callback(_link_tasks.discard)
         return
     log(t("telegram_found", name=filename, chat=chat_display_name(chat, chat_id)))
     from whisperfast.telegram.seen import add_target, classify, note_download, telethon_file_key

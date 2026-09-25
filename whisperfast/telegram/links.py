@@ -151,19 +151,25 @@ def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
         cmd.extend(["--cookies", cookies])
     cmd.append(url)
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=600,
             **win_no_window_kwargs(),
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+        stdout, stderr = proc.communicate(timeout=600)
+    except subprocess.TimeoutExpired as exc:
+        proc.kill()
+        proc.communicate()
+        raise RuntimeError("timed out after 10 minutes") from exc
+    except OSError as exc:
         raise RuntimeError(str(exc)) from exc
-    output = ((result.stderr or "") + "\n" + (result.stdout or "")).strip()
+    result_stdout, result_stderr = stdout or "", stderr or ""
+    output = (result_stderr + "\n" + result_stdout).strip()
     path = newest_media_file(dest_dir, not_before=started - 1)
     if not path:
-        for line in reversed((result.stdout or "").splitlines()):
+        for line in reversed(result_stdout.splitlines()):
             line = line.strip().strip('"')
             if line and os.path.isfile(line) and line.lower().endswith(_MEDIA_EXTS):
                 path = line
@@ -173,6 +179,17 @@ def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
     if "No module named" in output:
         raise RuntimeError(output[-400:])
     raise RuntimeError(output[-400:] or "yt-dlp produced no file")
+
+
+def report_link_failure(log, exc, retry) -> None:
+    """Log the download error and, in the GUI, a clickable Restart line."""
+    from whisperfast.i18n import t
+
+    log(t("telegram_link_failed", error=str(exc)))
+    owner = getattr(log, "__self__", None)
+    offer = getattr(owner, "offer_link_retry", None)
+    if callable(offer):
+        offer(retry)
 
 
 def claim_link(url: str, dest_dir: str):

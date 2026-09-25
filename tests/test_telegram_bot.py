@@ -973,5 +973,43 @@ class TestSameTelegramFile(unittest.TestCase):
                 self.assertTrue(row["ai"])
 
 
+class TestLearnQuestionReopen(unittest.TestCase):
+    def test_log_line_asks_again_after_answer(self):
+        from whisperfast.ui.gui import WhisperGUI
+
+        opened = []
+        app = SimpleNamespace(
+            root=SimpleNamespace(after=lambda _delay, fn: fn(), grab_current=lambda: object()),
+            _add_telegram_auto_chat=Mock(),
+            _add_telegram_ignored_chat=Mock(),
+            _drop_telegram_ignored_chat=Mock(),
+        )
+        app.log_action = lambda _msg, callback: setattr(app, "callback", callback)
+        settled = []
+        replayed = []
+
+        def show_prompt(_app, _chat, _material, finish, outgoing=False):
+            opened.append(finish)
+
+        with patch("whisperfast.ui.gui.ui_dialogs.show_telegram_learn_prompt", show_prompt), patch(
+            "whisperfast.telegram.learn.remember_learn_chat"
+        ):
+            WhisperGUI.ask_telegram_learn(
+                app, "Riogo", "clip.mp3", settled.append, 5, replay=lambda: replayed.append(1),
+            )
+            app.callback()
+            self.assertEqual(len(opened), 1)
+            opened[0]("no")
+            self.assertEqual(settled, ["no"])
+            app.callback()
+            self.assertEqual(len(opened), 2)
+            opened[1]("once")
+            self.assertEqual(replayed, [1])
+            app.callback()
+            opened[2]("always")
+            self.assertEqual(replayed, [1])
+            self.assertEqual(settled, ["no"])
+
+
 if __name__ == "__main__":
     unittest.main()

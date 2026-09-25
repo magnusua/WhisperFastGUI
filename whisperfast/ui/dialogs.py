@@ -338,9 +338,8 @@ def center_toplevel(app, win, parent=None):
     """Размещает Toplevel по центру родительского окна (или экрана). Не выносит за границы экрана."""
     fit_window_text(win)
     parent = parent or app.root
-    win.update_idletasks()
-    w = win.winfo_width()
-    h = win.winfo_height()
+    w = win.winfo_reqwidth()
+    h = win.winfo_reqheight()
     if w <= 1:
         w = 400
     if h <= 1:
@@ -365,7 +364,7 @@ def center_toplevel(app, win, parent=None):
 def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> Optional[bool]:
     """
     Blocking ask from a worker thread using Tk main loop.
-    Returns True (overwrite), False (use timed name), or None (skip write / closed).
+    Returns True (overwrite), False (save under a new name), or None (No, closed, Escape, or 10 seconds without a choice: do not save).
 
     Якщо відкрите вікно «Промты» і це не AI (force=False) — не питаємо,
     щоб діалог не ховався під ним і не стопорив Whisper; одразу суфікс часу.
@@ -409,7 +408,17 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> 
             bf = ttk.Frame(body)
             bf.pack(fill="x", pady=(16, 0))
 
+            clock = {"id": None, "closed": False}
+
             def finish(val: Optional[bool]):
+                if clock["closed"]:
+                    return
+                clock["closed"] = True
+                if clock["id"] is not None:
+                    try:
+                        dlg.after_cancel(clock["id"])
+                    except Exception:
+                        pass
                 choice[0] = val
                 try:
                     dlg.grab_release()
@@ -421,21 +430,33 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> 
                     pass
                 done.set()
 
-            # Right-aligned: Yes | No | Skip
-            ttk.Button(bf, text=t("file_exists_skip"), command=lambda: finish(None)).pack(
+            # Left to right: Yes (overwrite) | No (skip) | save under a new name
+            ttk.Button(bf, text=t("file_exists_save_as"), command=lambda: finish(False)).pack(
                 side="right"
             )
-            ttk.Button(bf, text=t("file_exists_no"), command=lambda: finish(False)).pack(
-                side="right", padx=(0, 8)
-            )
+            no_btn = ttk.Button(bf, text=t("file_exists_no"), command=lambda: finish(None))
+            no_btn.pack(side="right", padx=(0, 8))
             yes_btn = ttk.Button(bf, text=t("file_exists_yes"), command=lambda: finish(True))
             yes_btn.pack(side="right", padx=(0, 8))
+
+            def count_down(left: int):
+                if clock["closed"]:
+                    return
+                try:
+                    no_btn.configure(text=f"{t('file_exists_no')} ({left})")
+                except tk.TclError:
+                    return
+                if left <= 0:
+                    finish(None)
+                    return
+                clock["id"] = dlg.after(1000, lambda: count_down(left - 1))
+
+            count_down(10)
 
             dlg.protocol("WM_DELETE_WINDOW", lambda: finish(None))
             dlg.bind("<Escape>", lambda _e: finish(None))
             dlg.bind("<Return>", lambda _e: finish(True))
 
-            dlg.update_idletasks()
             if parent is not None:
                 try:
                     center_toplevel(app, dlg, parent=parent)
@@ -1956,14 +1977,18 @@ def show_telegram_learn_file(app):
     center_toplevel(app, dialog)
 
 
-def show_telegram_learn_prompt(app, chat, material, finish):
+def show_telegram_learn_prompt(app, chat, material, finish, outgoing=False):
     """Yes processes the message. Closing the window leaves the log line to answer later."""
     dialog = tk.Toplevel(app.root)
     dialog.title(t("telegram_settings_title"))
     dialog.transient(app.root)
     ttk.Label(
         dialog,
-        text=t("telegram_learn_question", chat=chat, material=material),
+                text=t(
+                    "telegram_learn_question_own" if outgoing else "telegram_learn_question",
+                    chat=chat,
+                    material=material,
+                ),
         wraplength=440,
     ).pack(padx=16, pady=(16, 8))
     buttons = ttk.Frame(dialog)

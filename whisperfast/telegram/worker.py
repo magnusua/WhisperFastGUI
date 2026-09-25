@@ -5,6 +5,7 @@ import os
 import shutil
 import socket
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, List, Mapping, Optional, Sequence
@@ -368,6 +369,18 @@ def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) 
     return False
 
 
+def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> None:
+    """Social download must not stall getUpdates. Failures stay inside the worker thread."""
+
+    def run():
+        try:
+            _ingest_bot_links(message, settings, client, submit, log)
+        except Exception as exc:
+            log(t("telegram_link_failed", error=str(exc)))
+
+    threading.Thread(target=run, name="ftw-social-download", daemon=True).start()
+
+
 def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
     from whisperfast.telegram.links import claim_link, extract_video_urls, remember_link, remember_wait
     from whisperfast.telegram.seen import classify
@@ -396,8 +409,15 @@ def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
             remember_link(url, path or str((known or {}).get("path") or ""))
         except Exception as exc:
             err = t("telegram_link_failed", error=str(exc))
-            log(err)
             client.send_message(chat_id, err, reply_to=message_id)
+            one = {"text": url, "chat": {"id": chat_id}, "message_id": message_id}
+
+            def retry(payload=one):
+                _ingest_bot_links(payload, settings, client, submit, log)
+
+            from whisperfast.telegram.links import report_link_failure
+
+            report_link_failure(log, exc, retry)
             continue
         if action == "send":
             text_out = t(
@@ -544,7 +564,7 @@ def accept_updates(
             if isinstance(message, Mapping):
                 if _defer_learn(message, log, ask):
                     continue
-                _ingest_bot_links(message, settings, client, submit, log)
+                _start_bot_link_ingest(message, settings, client, submit, log)
     return offset
 
 
@@ -597,7 +617,7 @@ def run_bot(
             if kind == "media":
                 pending.append(payload)
             elif kind == "links":
-                _ingest_bot_links(payload, settings, client, submit, log)
+                _start_bot_link_ingest(payload, settings, client, submit, log)
         if new_offset is not None:
             offset = new_offset
         if pending:
