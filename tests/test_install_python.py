@@ -111,6 +111,18 @@ class TestPipRetryAndTorchFallback(unittest.TestCase):
         self.assertIn("--index-url", cmds[1])
         self.assertIn("cu128", " ".join(cmds[1]))
 
+    def test_progress_bar_flag_is_install_only(self):
+        from whisperfast.setup import installer as inst
+
+        install = inst._pip_cmd_quiet_progress(
+            ["python", "-m", "pip", "install", "--upgrade", "torch"]
+        )
+        uninstall = inst._pip_cmd_quiet_progress(
+            ["python", "-m", "pip", "uninstall", "-y", "torch"]
+        )
+        self.assertEqual(install[-2:], ["--progress-bar", "off"])
+        self.assertNotIn("--progress-bar", uninstall)
+
     def test_cu128_wheel_is_not_removed(self):
         from whisperfast.setup import installer as inst
 
@@ -281,6 +293,7 @@ class TestPypiPythonFilter(unittest.TestCase):
         self.assertFalse(_torch_needs_update("2.14.0", "2.5.1+cu121"))
         self.assertTrue(_torch_needs_update("2.4.0", "2.5.1+cu121"))
         rtx50 = "NVIDIA GeForce RTX 5070 Laptop GPU"
+        self.assertTrue(_torch_needs_update("2.14.0+cpu", "2.14.0+cu128", gpu_name=rtx50))
         self.assertTrue(_torch_needs_update("2.14.0+cu121", "2.7.0+cu128", gpu_name=rtx50))
         self.assertFalse(_torch_needs_update("2.8.0+cu128", "2.7.0+cu128", gpu_name=rtx50))
         self.assertFalse(_torch_needs_update("2.14.0+cu121", "2.5.1+cu121", gpu_name=rtx50))

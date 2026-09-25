@@ -3,9 +3,11 @@ import unittest
 from unittest.mock import patch
 
 from whisperfast.setup.gpu_info import (
+    _cuda_tag_version,
     gpu_model_looks_nvidia,
     gpu_needs_cuda128,
     install_gpu_status_line,
+    log_cuda_fallback,
     nvidia_for_install,
     nvidia_from_settings,
     refresh_gpu_settings,
@@ -13,6 +15,21 @@ from whisperfast.setup.gpu_info import (
 
 
 class TestBlackwellCuda(unittest.TestCase):
+    def test_cpu_local_tag_is_not_cuda(self):
+        self.assertIsNone(_cuda_tag_version("2.14.0+cpu"))
+        self.assertEqual(_cuda_tag_version("2.8.0+cu128"), (12, 8))
+
+    def test_rtx50_cpu_wheel_message_names_the_gpu(self):
+        lines = []
+        with patch("torch.__version__", "2.14.0+cpu"):
+            with patch("torch.version.cuda", None):
+                log_cuda_fallback(lines.append, gpu_name="NVIDIA GeForce RTX 5070 Laptop GPU")
+        self.assertEqual(len(lines), 1)
+        self.assertIn("RTX 5070", lines[0])
+        self.assertIn("2.14.0+cpu", lines[0])
+        self.assertNotIn("не обнаружена", lines[0])
+        self.assertNotIn("not detected", lines[0].lower())
+
     def test_rtx50_needs_cu128(self):
         self.assertTrue(gpu_needs_cuda128("NVIDIA GeForce RTX 5070 Laptop GPU"))
         self.assertFalse(gpu_needs_cuda128("NVIDIA GeForce RTX 4090"))

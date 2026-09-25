@@ -119,10 +119,14 @@ class TestToolbarIcons(unittest.TestCase):
         toolbar_icons.apply_capture_state(app, running=False, paused=False)
         self.assertEqual(app.capture_btn._toolbar_icon_key, "capture_start")
         self.assertEqual(app.capture_pause_btn._toolbar_icon_key, "capture_pause")
+        self.assertEqual(app.capture_btn.cget("style"), "TButton")
         toolbar_icons.apply_capture_state(app, running=True, paused=True)
         self.assertEqual(app.capture_btn._toolbar_icon_key, "capture_stop")
         self.assertEqual(app.capture_pause_btn._toolbar_icon_key, "capture_resume")
         self.assertEqual(app.capture_btn.cget("text"), "")
+        self.assertEqual(app.capture_btn.cget("style"), toolbar_icons.CAPTURE_ON_STYLE)
+        toolbar_icons.apply_capture_state(app, running=False, paused=False)
+        self.assertEqual(app.capture_btn.cget("style"), "TButton")
 
     def test_refresh_capture_buttons_keeps_icons_not_labels(self):
         root = _make_root()

@@ -128,20 +128,9 @@ class WhisperModelSingleton:
 
 
 def _log_cuda_fallback(log_func):
-    from whisperfast.setup.gpu_info import nvidia_smi_name, poke_nvidia_gpu, torch_build_too_old_for
+    from whisperfast.setup.gpu_info import log_cuda_fallback
 
-    name = nvidia_smi_name() or poke_nvidia_gpu.last_name
-    try:
-        if name and torch_build_too_old_for(name):
-            cuda = getattr(torch.version, "cuda", None) or "cpu"
-            log_func(t("cuda_torch_too_old", name=name, cuda=cuda))
-            return
-        if name:
-            log_func(t("cuda_headless", name=name))
-            return
-        log_func(t("cuda_unavailable"))
-    except Exception:
-        log_func("⚠ CUDA is not available — running on CPU (including AMD Radeon GPUs).")
+    log_cuda_fallback(log_func)
 
 
 def _saved_keep_gpu_awake(mode) -> bool:

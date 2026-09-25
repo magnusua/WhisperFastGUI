@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
+from tkinter import ttk
 
 from whisperfast.config import RESOURCES_DIR
 
@@ -63,13 +64,21 @@ FILE_MAP = {
 }
 
 # Recolor a black Material glyph (RGB kept, alpha from the PNG).
+_ON_GREEN = (22, 163, 74)
 TINT_MAP = {
-    "autostart_on": (22, 163, 74),
-    "mp3_on": (22, 163, 74),
-    "prompts_on": (22, 163, 74),
-    "telegram_on": (22, 163, 74),
-    "docx_on": (22, 163, 74),
+    "autostart_on": _ON_GREEN,
+    "mp3_on": _ON_GREEN,
+    "prompts_on": _ON_GREEN,
+    "telegram_on": _ON_GREEN,
+    "docx_on": _ON_GREEN,
 }
+
+# Vista paints the focused toolbar button with the system accent (blue).
+# A clam-backed style is the one that actually fills the face on Windows.
+CAPTURE_ON_STYLE = "CaptureOn.TButton"
+_CAPTURE_ON_BG = "#16a34a"
+_CAPTURE_ON_HOVER = "#22c55e"
+_CAPTURE_ON_PRESSED = "#15803d"
 
 # Segoe MDL2 Assets (Windows) if a PNG is missing.
 # https://learn.microsoft.com/windows/apps/design/style/segoe-ui-symbol-font
@@ -294,13 +303,94 @@ def apply_autostart_state(app) -> None:
     set_icon(getattr(app, "autostart_btn", None), photos, "autostart_on" if on else "autostart_off")
 
 
+def _ensure_capture_on_style(master) -> None:
+    style = ttk.Style(master)
+    for element, source in (
+        ("CaptureOn.border", "Button.border"),
+        ("CaptureOn.focus", "Button.focus"),
+        ("CaptureOn.padding", "Button.padding"),
+        ("CaptureOn.label", "Button.label"),
+    ):
+        try:
+            style.element_create(element, "from", "clam", source)
+        except tk.TclError:
+            pass
+    style.layout(
+        CAPTURE_ON_STYLE,
+        [
+            (
+                "CaptureOn.border",
+                {
+                    "sticky": "nswe",
+                    "border": "1",
+                    "children": [
+                        (
+                            "CaptureOn.focus",
+                            {
+                                "sticky": "nswe",
+                                "children": [
+                                    (
+                                        "CaptureOn.padding",
+                                        {
+                                            "sticky": "nswe",
+                                            "children": [
+                                                ("CaptureOn.label", {"sticky": "nswe"})
+                                            ],
+                                        },
+                                    )
+                                ],
+                            },
+                        )
+                    ],
+                },
+            )
+        ],
+    )
+    style.configure(
+        CAPTURE_ON_STYLE,
+        background=_CAPTURE_ON_BG,
+        bordercolor=_CAPTURE_ON_PRESSED,
+        lightcolor=_CAPTURE_ON_HOVER,
+        darkcolor=_CAPTURE_ON_PRESSED,
+        focuscolor=_CAPTURE_ON_BG,
+        padding=(2, 2),
+        borderwidth=1,
+    )
+    style.map(
+        CAPTURE_ON_STYLE,
+        background=[
+            ("pressed", _CAPTURE_ON_PRESSED),
+            ("active", _CAPTURE_ON_HOVER),
+        ],
+        lightcolor=[("pressed", _CAPTURE_ON_PRESSED)],
+        darkcolor=[("pressed", _CAPTURE_ON_PRESSED)],
+        bordercolor=[("focus", _CAPTURE_ON_BG)],
+        focuscolor=[("focus", _CAPTURE_ON_BG)],
+    )
+
+
+def _apply_capture_button_color(btn, running: bool) -> None:
+    if btn is None:
+        return
+    try:
+        if running:
+            _ensure_capture_on_style(btn)
+            btn.configure(style=CAPTURE_ON_STYLE)
+        else:
+            btn.configure(style="TButton")
+    except tk.TclError:
+        pass
+
+
 def apply_capture_state(app, running: bool, paused: bool) -> None:
     photos = getattr(app, "_toolbar_photos", None) or {}
+    capture_btn = getattr(app, "capture_btn", None)
     set_icon(
-        getattr(app, "capture_btn", None),
+        capture_btn,
         photos,
         "capture_stop" if running else "capture_start",
     )
+    _apply_capture_button_color(capture_btn, running)
     set_icon(
         getattr(app, "capture_pause_btn", None),
         photos,

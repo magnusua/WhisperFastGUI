@@ -48,15 +48,52 @@ def torch_build_too_old_for(gpu_name) -> bool:
 
 
 def _cuda_tag_version(version_text):
-    """'2.5.1+cu121' -> (12, 1). Missing tag -> None."""
-    text = str(version_text or "")
-    if "+cu" not in text.lower():
+    """'2.5.1+cu121' -> (12, 1). '+cpu' and a missing tag -> None."""
+    text = str(version_text or "").lower()
+    marker = "+cu"
+    idx = text.find(marker)
+    if idx < 0:
         return None
-    tag = text.lower().split("+cu", 1)[1]
-    digits = "".join(ch for ch in tag if ch.isdigit())
+    rest = text[idx + len(marker):]
+    if not rest or not rest[0].isdigit():
+        return None
+    digits = []
+    for ch in rest:
+        if not ch.isdigit():
+            break
+        digits.append(ch)
+    digits = "".join(digits)
     if len(digits) < 2:
         return None
     return int(digits[:-1]), int(digits[-1])
+
+
+def log_cuda_fallback(log_func, gpu_name=""):
+    """Explain why CUDA is off: CPU wheel, old CUDA build, asleep GPU, or no NVIDIA."""
+    from whisperfast.i18n import t
+
+    name = (gpu_name or "").strip() or nvidia_smi_name() or poke_nvidia_gpu.last_name
+    version = ""
+    cuda = None
+    try:
+        import torch
+        version = getattr(torch, "__version__", "") or ""
+        cuda = getattr(torch.version, "cuda", None)
+    except Exception:
+        pass
+    try:
+        if name and not cuda and "+cpu" in version.lower():
+            log_func(t("cuda_torch_cpu", name=name, version=version or "cpu"))
+            return
+        if name and torch_build_too_old_for(name):
+            log_func(t("cuda_torch_too_old", name=name, cuda=cuda or "cpu"))
+            return
+        if name:
+            log_func(t("cuda_headless", name=name))
+            return
+        log_func(t("cuda_unavailable"))
+    except Exception:
+        log_func("⚠ CUDA is not available — running on CPU (including AMD Radeon GPUs).")
 
 
 def prefer_discrete_gpu() -> bool:

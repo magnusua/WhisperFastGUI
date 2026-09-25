@@ -446,11 +446,20 @@ def _cleanup_broken_pip_dists(log_func) -> None:
         log_func(t("install_cleaned_broken_dist", names=", ".join(sorted(set(cleaned)))))
 
 
+def _pip_cmd_quiet_progress(cmd):
+    """pip install accepts --progress-bar; pip uninstall on this pip does not."""
+    pip_cmd = list(cmd)
+    if len(pip_cmd) < 4 or pip_cmd[1:3] != ["-m", "pip"]:
+        return pip_cmd
+    if pip_cmd[3] != "install" or "--progress-bar" in pip_cmd:
+        return pip_cmd
+    pip_cmd.extend(["--progress-bar", "off"])
+    return pip_cmd
+
+
 def _run_install_cmd(cmd, log_func, timeout=600, summarize=True):
     """Run pip and log a short per-step result instead of the full pip dump."""
-    pip_cmd = list(cmd)
-    if len(pip_cmd) >= 3 and pip_cmd[1:3] == ["-m", "pip"] and "--progress-bar" not in pip_cmd:
-        pip_cmd.extend(["--progress-bar", "off"])
+    pip_cmd = _pip_cmd_quiet_progress(cmd)
     collected = []
 
     def _on_line(line):
@@ -736,7 +745,9 @@ def check_system(log_func):
         if torch.cuda.is_available():
             log_func(t("gpu_info", name=torch.cuda.get_device_name(0)))
         else:
-            log_func(t("cuda_unavailable"))
+            from whisperfast.setup.gpu_info import log_cuda_fallback
+
+            log_cuda_fallback(log_func, gpu_name=gpu_name or "")
     except ImportError:
         log_func(t("torch_not_installed"))
 
