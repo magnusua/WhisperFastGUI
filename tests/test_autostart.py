@@ -90,6 +90,52 @@ class TestAutostart(unittest.TestCase):
         self.assertEqual(deleted, ["FTW", "Old"])
         winreg.CloseKey.assert_called_once()
 
+    def test_dedupe_scheduled_tasks_leaves_one(self):
+        root = r"D:\Apps\FTW"
+        tasks = [
+            {"name": "FTW", "path": "\\", "execute": r"D:\Apps\FTW\start_delayed.vbs", "arguments": ""},
+            {"name": "FTW copy", "path": "\\", "execute": r"wscript.exe", "arguments": r"D:\Apps\FTW\start_delayed.vbs"},
+            {"name": "OneDrive", "path": "\\", "execute": r"C:\OneDrive.exe", "arguments": ""},
+        ]
+        dropped = []
+        removed = autostart.dedupe_scheduled_tasks(
+            root, tasks=tasks, unregister=lambda task: dropped.append(task["name"]) or True
+        )
+        self.assertEqual(removed, ["FTW copy"])
+        self.assertEqual(dropped, ["FTW copy"])
+
+    def test_dedupe_scheduled_tasks_can_remove_the_last_one(self):
+        root = r"D:\Apps\FTW"
+        tasks = [{"name": "FTW", "path": "\\", "execute": r"D:\Apps\FTW\start_delayed.vbs", "arguments": ""}]
+        removed = autostart.dedupe_scheduled_tasks(
+            root, tasks=tasks, unregister=lambda _task: True, keep_one=False
+        )
+        self.assertEqual(removed, ["FTW"])
+
+    def test_dedupe_keeps_canonical_shortcut(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            keep = os.path.join(tmp, autostart.LNK_NAME)
+            old = os.path.join(tmp, "Whisper Fast GUI (delayed).lnk")
+            other = os.path.join(tmp, "Telegram.lnk")
+            for path in (keep, old, other):
+                with open(path, "w", encoding="utf-8") as handle:
+                    handle.write("stub")
+            removed = autostart.dedupe_shortcuts(startup_dir=tmp, base_dir=tmp)
+            self.assertEqual(removed, ["Whisper Fast GUI (delayed).lnk"])
+            self.assertTrue(os.path.isfile(keep))
+            self.assertTrue(os.path.isfile(other))
+            self.assertTrue(autostart.is_enabled(startup_dir=tmp, base_dir=tmp))
+
+    def test_disable_removes_legacy_shortcut(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old = os.path.join(tmp, "Whisper Fast GUI (delayed).lnk")
+            with open(old, "w", encoding="utf-8") as handle:
+                handle.write("stub")
+            with patch.object(autostart, "clear_registry_run_entries", return_value=[]):
+                autostart.disable(startup_dir=tmp, base_dir=tmp)
+            self.assertFalse(os.path.isfile(old))
+            self.assertFalse(autostart.is_enabled(startup_dir=tmp, base_dir=tmp))
+
 
 if __name__ == "__main__":
     unittest.main()

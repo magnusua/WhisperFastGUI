@@ -1619,9 +1619,18 @@ def show_telegram_settings_dialog(app):
     social_check = ttk.Checkbutton(frame, text=t("telegram_social_queue_label"), variable=social_queue)
     social_check.pack(anchor="w", pady=(8, 0))
     tip(social_check, "telegram_tip_social_queue")
-    learn_check = ttk.Checkbutton(frame, text=t("telegram_learn_label"), variable=learn_mode)
-    learn_check.pack(anchor="w", pady=(8, 0))
+    learn_row = ttk.Frame(frame)
+    learn_row.pack(fill="x", pady=(8, 0))
+    learn_check = ttk.Checkbutton(learn_row, text=t("telegram_learn_label"), variable=learn_mode)
+    learn_check.pack(side="left")
     tip(learn_check, "telegram_tip_learn")
+    learn_file_btn = ttk.Button(
+        learn_row,
+        text=t("telegram_learn_file_btn"),
+        command=lambda: show_telegram_learn_file(app),
+    )
+    learn_file_btn.pack(side="right")
+    tip(learn_file_btn, "telegram_tip_learn_file")
 
     from whisperfast.telegram.links import normalize_social_quality
 
@@ -1876,6 +1885,74 @@ def show_telegram_settings_dialog(app):
     ttk.Button(buttons, text=t("save"), command=save_telegram).pack(side="right")
     dialog.protocol("WM_DELETE_WINDOW", close_without_saving)
     dialog.bind("<Escape>", lambda event: close_without_saving())
+    center_toplevel(app, dialog)
+
+
+def show_telegram_learn_file(app):
+    """Edit the learning file: always process, never process, or always ask."""
+    from whisperfast.settings import normalize_chat_names
+    from whisperfast.telegram.learn import load_learn_chats, save_learn_chats
+
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("telegram_learn_file_title"))
+    dialog.transient(app.root)
+    dialog.resizable(True, True)
+    dialog.minsize(420, 360)
+    dialog.grab_set()
+    frame = ttk.Frame(dialog, padding=12)
+    frame.pack(fill="both", expand=True)
+    chats = load_learn_chats()
+    ignored_holder = getattr(app, "telegram_ignored_chat_names_text", None)
+    extra = normalize_chat_names(ignored_holder.get()) if ignored_holder is not None else []
+    known = {row["name"].casefold() for row in chats["never"] if row.get("name")}
+    for name in extra:
+        if name.casefold() not in known:
+            chats["never"].append({"name": name, "id": 0})
+    boxes = {}
+    for bucket, label_key in (
+        ("always", "telegram_learn_always"),
+        ("never", "telegram_learn_never"),
+        ("ask", "telegram_learn_ask"),
+    ):
+        ttk.Label(frame, text=t(label_key)).pack(anchor="w", pady=(6, 0))
+        box = tk.Text(frame, height=4, wrap="none")
+        box.pack(fill="both", expand=True)
+        box.insert("1.0", "\n".join(row["name"] for row in chats[bucket] if row.get("name")))
+        boxes[bucket] = box
+
+    def save():
+        previous = {bucket: {row["name"].casefold(): row.get("id") or 0 for row in rows if row.get("name")} for bucket, rows in chats.items()}
+        stored = {}
+        for bucket, box in boxes.items():
+            rows = []
+            seen = set()
+            for line in box.get("1.0", "end").splitlines():
+                name = line.strip().strip(",")
+                if not name or name.casefold() in seen:
+                    continue
+                seen.add(name.casefold())
+                number = 0
+                for older in previous.values():
+                    if name.casefold() in older:
+                        number = older[name.casefold()]
+                        break
+                rows.append({"name": name, "id": number})
+            stored[bucket] = rows
+        save_learn_chats(stored)
+        holder = getattr(app, "telegram_ignored_chat_names_text", None)
+        if holder is not None:
+            holder.set(", ".join(row["name"] for row in stored["never"]))
+        app.telegram_ignored_chat_ids = [row["id"] for row in stored["never"] if row["id"]]
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
+        dialog.destroy()
+
+    buttons = ttk.Frame(frame)
+    buttons.pack(fill="x", pady=(10, 0))
+    ttk.Button(buttons, text=t("cancel_btn"), command=dialog.destroy).pack(side="right")
+    ttk.Button(buttons, text=t("save"), command=save).pack(side="right", padx=(0, 6))
+    dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
     center_toplevel(app, dialog)
 
 

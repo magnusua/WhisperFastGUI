@@ -2039,6 +2039,11 @@
     "UK": "⚠ CUDA недоступна — робота на CPU (NVIDIA GPU не виявлено; AMD Radeon та інші GPU працюють у режимі CPU).",
     "RU": "⚠ CUDA недоступна — работаем на CPU (NVIDIA GPU не обнаружена; AMD Radeon и другие GPU работают в режиме CPU)."
   },
+  "cuda_torch_cpu": {
+    "EN": "⚠ {name} is present, but PyTorch is the CPU build ({version}). CUDA stays off. Use Update to install PyTorch CUDA 12.8 (cu128), then restart.",
+    "UK": "⚠ {name} є, але PyTorch — збірка CPU ({version}). CUDA вимкнена. Запустіть Оновлення, поставте PyTorch CUDA 12.8 (cu128) і перезапустіть.",
+    "RU": "⚠ {name} обнаружена, но PyTorch — сборка CPU ({version}). CUDA выключена. Запустите Обновление, поставьте PyTorch CUDA 12.8 (cu128) и перезапустите программу."
+  },
   "cuda_torch_too_old": {
     "EN": "⚠ {name} needs PyTorch CUDA 12.8 (cu128). Installed build is CUDA {cuda}, so this run stays on CPU. Use Update, then restart.",
     "UK": "⚠ {name} потребує PyTorch CUDA 12.8 (cu128). Зараз стоїть CUDA {cuda}, тож цей запуск іде на CPU. Запустіть Оновлення і перезапустіть.",
@@ -2753,6 +2758,11 @@
     "EN": "Autostart disabled (Startup shortcut removed).",
     "UK": "Автозапуск вимкнено (ярлик зі Startup прибрано).",
     "RU": "Автозапуск выключен (ярлык из Startup убран)."
+  },
+  "autostart_shortcuts_removed": {
+    "EN": "Removed extra autostart entries and left one: {names}",
+    "UK": "Зайві автозапуски прибрано, лишився один. Видалено: {names}",
+    "RU": "Лишние автозапуски убраны, оставлен один. Удалено: {names}"
   },
   "autostart_registry_cleared": {
     "EN": "Removed duplicate startup entries from the registry: {names}",
@@ -3891,15 +3901,60 @@
     "UK": "У черзі ({position}).",
     "RU": "В очереди ({position})."
   },
+  "telegram_learn_file_btn": {
+    "EN": "Chats",
+    "UK": "Чати",
+    "RU": "Чаты"
+  },
+  "telegram_tip_learn_file": {
+    "EN": "Edit the learning file: chats that are always processed, never processed, or asked about every time.",
+    "UK": "Редагувати файл навчання: чати, які обробляються завжди, ніколи, або про які завжди питати.",
+    "RU": "Редактировать файл обучения: чаты, которые обрабатываются всегда, никогда, или о которых всегда спрашивать."
+  },
+  "telegram_learn_file_title": {
+    "EN": "Chats from learning",
+    "UK": "Чати з навчання",
+    "RU": "Чаты из обучения"
+  },
+  "telegram_learn_always": {
+    "EN": "Always process",
+    "UK": "Завжди обробляти",
+    "RU": "Всегда обрабатывать"
+  },
+  "telegram_learn_never": {
+    "EN": "Never process",
+    "UK": "Ніколи не обробляти",
+    "RU": "Никогда не обрабатывать"
+  },
+  "telegram_learn_ask": {
+    "EN": "Always ask",
+    "UK": "Завжди питати",
+    "RU": "Всегда спрашивать"
+  },
   "telegram_learn_label": {
     "EN": "Learning mode: ask before processing a new chat",
     "UK": "Режим навчання: питати перед обробкою нового чату",
     "RU": "Режим обучения: спрашивать перед обработкой нового чата"
   },
   "telegram_tip_learn": {
-    "EN": "Chats are not processed until you agree. A video, audio file, or social-network link asks whether to process it and whether to add that chat to the automatic list. Closing the question leaves it in the log.",
-    "UK": "Чати не обробляються, доки ви не погодитесь. Відео, аудіо або посилання з соцмережі питає, чи обробляти, і чи додати чат до списку автоматичної обробки. Якщо закрити питання, воно лишається в логу.",
-    "RU": "Чаты не обрабатываются, пока вы не согласитесь. Видео, аудио или ссылка из соцсети спрашивает, обрабатывать ли, и добавить ли чат в список автоматической обработки. Если закрыть вопрос, он остаётся в логе."
+    "EN": "Chats are not processed until you agree. A video, audio file, or social-network link asks whether to process it and whether to add that chat to the automatic list. No puts that group or private chat on the skip list. Closing the question leaves it in the log.",
+    "UK": "Чати не обробляються, доки ви не погодитесь. Відео, аудіо або посилання з соцмережі питає, чи обробляти, і чи додати чат до списку автоматичної обробки. Ні додає цю групу або особистий чат до списку, який не обробляється. Якщо закрити питання, воно лишається в логу.",
+    "RU": "Чаты не обрабатываются, пока вы не согласитесь. Видео, аудио или ссылка из соцсети спрашивает, обрабатывать ли, и добавить ли чат в список автоматической обработки. Нет добавляет эту группу или личный чат в список, который не обрабатывается. Если закрыть вопрос, он остаётся в логе."
+  },
+  "telegram_ignored_chats_label": {
+    "EN": "Groups and private chats that are not processed",
+    "UK": "Групи та особисті чати, які не обробляються",
+    "RU": "Группы и личные чаты, которые не обрабатываются"
+  },
+  "telegram_ph_ignored_chats": {
+    "EN": "Chat name, Contact",
+    "UK": "Назва чату, Контакт",
+    "RU": "Название чата, Контакт"
+  },
+  "telegram_tip_ignored_chats": {
+    "EN": "Filled when you answer No once. Messages from these groups and private chats are skipped. Delete a name here to ask about that chat again.",
+    "UK": "Заповнюється, коли один раз відповісти Ні. Повідомлення з цих груп і особистих чатів пропускаються. Видаліть назву, щоб знову питати про цей чат.",
+    "RU": "Заполняется, когда один раз ответить Нет. Сообщения из этих групп и личных чатов пропускаются. Удалите название, чтобы снова спрашивать об этом чате."
   },
   "telegram_learn_question": {
     "EN": "Message from {chat} with {material}. Process it?",

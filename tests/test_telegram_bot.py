@@ -71,6 +71,20 @@ class TestMediaFilter(unittest.TestCase):
         self.assertIsNone(media_from_message(_message(5, text="hello")))
         self.assertIsNone(media_from_message(_message(5, photo=[{"file_id": "ph"}])))
 
+    def test_sticker_is_not_media(self):
+        sticker = media_from_message(
+            _message(5, sticker={"file_id": "s", "is_video": True, "mime_type": "video/webm"})
+        )
+        self.assertIsNone(sticker)
+        both = media_from_message(
+            _message(
+                5,
+                sticker={"file_id": "s", "is_video": True},
+                document={"file_id": "d", "file_name": "sticker.webm", "mime_type": "video/webm"},
+            )
+        )
+        self.assertIsNone(both)
+
 
 class TestAllowlist(unittest.TestCase):
     def test_empty_allowlist_answers_start_and_ignores_media(self):
@@ -657,6 +671,29 @@ class TestAccountMode(unittest.TestCase):
         self.assertTrue(media_filename("", "audio/ogg").endswith(".ogg"))
         self.assertIsNone(media_filename("note.txt", "text/plain"))
 
+    def test_sticker_is_not_downloaded(self):
+        import asyncio
+
+        from whisperfast.telegram.account import _handle_message, is_telegram_sticker
+
+        self.assertTrue(is_telegram_sticker(SimpleNamespace(sticker=object())))
+        self.assertFalse(is_telegram_sticker(SimpleNamespace(sticker=None)))
+        event = SimpleNamespace(
+            message=SimpleNamespace(
+                sticker=object(),
+                file=SimpleNamespace(name="sticker.webm", mime_type="video/webm"),
+            ),
+            chat_id=5,
+            get_sender=Mock(),
+            get_chat=Mock(),
+        )
+        submit = Mock()
+        log = Mock()
+        asyncio.run(_handle_message(None, event, {}, submit, lambda: True, 1, log))
+        event.get_sender.assert_not_called()
+        submit.assert_not_called()
+        log.assert_not_called()
+
     def test_outbox_round_trip(self):
         from whisperfast.telegram.outbox import enqueue_outgoing, take_outgoing
 
@@ -820,6 +857,29 @@ class TestVideoLinks(unittest.TestCase):
         self.assertFalse(learn_enabled({}))
         self.assertTrue(chat_is_automatic(1, ["Архів"], settings))
         self.assertFalse(chat_is_automatic(2, ["Інший"], settings))
+        from whisperfast.telegram.learn import chat_is_ignored
+
+        refused = {"telegram_ignored_chat_names": ["ЧАТ БЕРЕГ"], "telegram_ignored_chat_ids": [9]}
+        self.assertTrue(chat_is_ignored(3, ["чат берег"], refused))
+        self.assertTrue(chat_is_ignored(9, ["інша назва"], refused))
+        self.assertFalse(chat_is_ignored(4, ["Інший"], refused))
+        import os
+        import tempfile
+        from whisperfast.telegram import learn as learn_mod
+
+        folder = tempfile.mkdtemp()
+        previous = learn_mod._FILE
+        learn_mod._FILE = os.path.join(folder, "learn.json")
+        try:
+            learn_mod.remember_learn_chat("never", "ЧАТ БЕРЕГ", 9)
+            learn_mod.remember_learn_chat("ask", "ЧАТ БЕРЕГ", 9)
+            self.assertTrue(learn_mod.chat_always_asks(9, ["інше"]))
+            self.assertFalse(learn_mod.chat_is_ignored(9, ["ЧАТ БЕРЕГ"], {}))
+            learn_mod.remember_learn_chat("always", "ЧАТ БЕРЕГ", 9)
+            self.assertTrue(learn_mod.chat_is_automatic(9, ["інше"], {}))
+            self.assertFalse(learn_mod.chat_always_asks(9, ["ЧАТ БЕРЕГ"]))
+        finally:
+            learn_mod._FILE = previous
         self.assertEqual(material_label("clip.mp4"), "clip.mp4")
         self.assertEqual(
             material_label("", ["https://www.facebook.com/reel/XYZ"]),

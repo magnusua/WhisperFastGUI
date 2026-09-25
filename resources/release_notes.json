@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.6",
+      "date": "25.09.2026",
+      "notes": {
+        "EN": [
+          "One No in Telegram learn mode puts that group or private chat on the skip list. The Chats button next to learn mode edits a file with three lists: always process, never process, and always ask.",
+          "Turning autostart on or off leaves one Startup shortcut and one scheduled task for this install. Old Whisper Fast GUI shortcuts and extra copies are removed."
+        ],
+        "UK": [
+          "Один раз «Ні» в режимі навчання Telegram записує групу або особистий чат у список, який не обробляється. Кнопка «Чати» біля режиму навчання відкриває файл із трьома списками: завжди обробляти, ніколи не обробляти і завжди питати.",
+          "Увімкнення й вимкнення автозапуску лишають один ярлик у Startup і одне завдання планувальника для цієї установки. Старі ярлики Whisper Fast GUI і зайві копії прибираються."
+        ],
+        "RU": [
+          "Один раз «Нет» в режиме обучения Telegram записывает группу или личный чат в список, который не обрабатывается. Кнопка «Чаты» рядом с режимом обучения открывает файл с тремя списками: всегда обрабатывать, никогда не обрабатывать и всегда спрашивать.",
+          "Включение и выключение автозапуска оставляют один ярлык в Startup и одну задачу планировщика для этой установки. Старые ярлыки Whisper Fast GUI и лишние копии убираются."
+        ]
+      }
+    },
+    {
       "version": "2.1.5",
       "date": "24.09.2026",
       "notes": {

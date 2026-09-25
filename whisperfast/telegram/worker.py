@@ -110,6 +110,8 @@ def is_start_command(text: str) -> bool:
 def media_from_message(message: Mapping[str, Any]) -> Optional[IncomingMedia]:
     if not isinstance(message, Mapping):
         return None
+    if isinstance(message.get("sticker"), Mapping):
+        return None
     chat = message.get("chat") or {}
     if not isinstance(chat, Mapping) or chat.get("id") is None:
         return None
@@ -448,7 +450,9 @@ def _defer_learn(message, log: LogFunc, ask: Optional[Callable]) -> bool:
     """Ask about media from a chat that is not automatic. True when this update is held."""
     from whisperfast.settings import load_app_settings
     from whisperfast.telegram.learn import (
+        chat_always_asks,
         chat_is_automatic,
+        chat_is_ignored,
         learn_enabled,
         material_label,
         push_ready,
@@ -456,15 +460,17 @@ def _defer_learn(message, log: LogFunc, ask: Optional[Callable]) -> bool:
     from whisperfast.telegram.links import extract_video_urls
 
     settings = load_app_settings()
-    if not learn_enabled(settings):
-        return False
     chat = message.get("chat") if isinstance(message.get("chat"), Mapping) else {}
     try:
         chat_id = int(chat.get("id"))
     except (TypeError, ValueError):
         return False
     names = [chat_display_name(chat, chat_id)]
-    if chat_is_automatic(chat_id, names, settings):
+    if chat_is_ignored(chat_id, names, settings):
+        return True
+    if not learn_enabled(settings):
+        return False
+    if chat_is_automatic(chat_id, names, settings) and not chat_always_asks(chat_id, names):
         return False
     job = media_from_message(message)
     text = message.get("text") if isinstance(message.get("text"), str) else ""
@@ -516,6 +522,8 @@ def accept_updates(
             client.send_message(decision.reply_chat_id, decision.reply_text)
         if decision.job:
             message = update.get("message") if isinstance(update, Mapping) else None
+            if isinstance(message, Mapping) and _defer_learn(message, log, ask):
+                continue
             chat = message.get("chat") if isinstance(message, Mapping) else None
             log(t(
                 "telegram_found",
@@ -534,6 +542,8 @@ def accept_updates(
         if settings is not None and not decision.log and not decision.reply_text:
             message = update.get("message") if isinstance(update, Mapping) else None
             if isinstance(message, Mapping):
+                if _defer_learn(message, log, ask):
+                    continue
                 _ingest_bot_links(message, settings, client, submit, log)
     return offset
 
@@ -568,7 +578,12 @@ def run_bot(
             break
         cycles += 1
         fresh = load_app_settings()
+        from whisperfast.telegram.learn import load_learn_chats
+
         allowlist = normalize_chat_ids(fresh.get("telegram_allowed_chat_ids"))
+        allowlist = list(allowlist) + [
+            int(row["id"]) for row in load_learn_chats().get("always") or [] if row.get("id")
+        ]
         updates = client.get_updates(offset=offset, timeout=poll_timeout)
         pending: List[IncomingMedia] = []
         new_offset = accept_updates(

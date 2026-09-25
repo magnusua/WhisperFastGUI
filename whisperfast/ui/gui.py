@@ -84,6 +84,7 @@ from whisperfast.settings import (
     format_chat_ids,
     format_chat_names,
     load_app_settings,
+    normalize_chat_ids,
     normalize_chat_names,
     normalize_default_prompt_nums,
     parse_chat_id_text,
@@ -227,6 +228,8 @@ class WhisperGUI:
         self.telegram_mode = tk.StringVar(value="bot")
         self.telegram_phone = tk.StringVar(value="")
         self.telegram_self_chat_names_text = tk.StringVar(value="")
+        self.telegram_ignored_chat_names_text = tk.StringVar(value="")
+        self.telegram_ignored_chat_ids = []
         self.export_json = tk.BooleanVar(value=False)
         self.export_vtt = tk.BooleanVar(value=False)
         self.word_timestamps = tk.BooleanVar(value=False)
@@ -314,6 +317,10 @@ class WhisperGUI:
         self.telegram_mode.set(mode if mode in ("bot", "account") else "bot")
         self.telegram_phone.set((saved.get("telegram_phone") or "").strip())
         self.telegram_self_chat_names_text.set(format_chat_names(saved.get("telegram_self_chat_names")))
+        self.telegram_ignored_chat_names_text.set(
+            format_chat_names(saved.get("telegram_ignored_chat_names"))
+        )
+        self.telegram_ignored_chat_ids = normalize_chat_ids(saved.get("telegram_ignored_chat_ids"))
         self.export_json.set(bool(saved.get("export_json", False)))
         self.export_vtt.set(bool(saved.get("export_vtt", False)))
         self.word_timestamps.set(bool(saved.get("word_timestamps", False)))
@@ -393,6 +400,9 @@ class WhisperGUI:
 
         if not DND_OK:
             self.log(t("warning_dnd"))
+        removed_shortcuts = win_autostart.cleanup_extra_autostart()
+        if removed_shortcuts:
+            self.log(t("autostart_shortcuts_removed", names=", ".join(removed_shortcuts)))
 
         # Иконка в системном трее (зависит от переключателя Панель / Трей / Панель + Трей)
         self._apply_tray_mode()
@@ -1647,14 +1657,52 @@ class WhisperGUI:
             self.telegram_self_chat_names_text.set(", ".join(names))
         ids = parse_chat_id_text(self.telegram_allowed_chat_ids_text.get())
         mode = (self.telegram_mode.get() or "bot").strip().lower()
+        try:
+            number = int(chat_id)
+        except (TypeError, ValueError):
+            number = 0
         if mode == "bot" or ids:
-            try:
-                number = int(chat_id)
-            except (TypeError, ValueError):
-                number = 0
             if number and number not in ids:
                 ids.append(number)
                 self.telegram_allowed_chat_ids_text.set(format_chat_ids(ids))
+        ignored = [
+            item for item in normalize_chat_names(self.telegram_ignored_chat_names_text.get())
+            if not title or item.casefold() != title.casefold()
+        ]
+        self.telegram_ignored_chat_names_text.set(", ".join(ignored))
+        if number:
+            self.telegram_ignored_chat_ids = [
+                item for item in normalize_chat_ids(getattr(self, "telegram_ignored_chat_ids", []))
+                if item != number
+            ]
+        self._persist_settings()
+
+    def _add_telegram_ignored_chat(self, name, chat_id):
+        """One refusal keeps this group or private chat out of processing."""
+        title = str(name or "").strip()
+        names = normalize_chat_names(self.telegram_ignored_chat_names_text.get())
+        if title and title.casefold() not in {item.casefold() for item in names}:
+            names.append(title)
+            self.telegram_ignored_chat_names_text.set(", ".join(names))
+        kept = [
+            item for item in normalize_chat_names(self.telegram_self_chat_names_text.get())
+            if not title or item.casefold() != title.casefold()
+        ]
+        if len(kept) != len(normalize_chat_names(self.telegram_self_chat_names_text.get())):
+            self.telegram_self_chat_names_text.set(", ".join(kept))
+        ids = list(getattr(self, "telegram_ignored_chat_ids", []) or [])
+        try:
+            number = int(chat_id)
+        except (TypeError, ValueError):
+            number = 0
+        if number and number not in ids:
+            ids.append(number)
+            self.telegram_ignored_chat_ids = ids
+        if number:
+            allowed = parse_chat_id_text(self.telegram_allowed_chat_ids_text.get())
+            if number in allowed:
+                allowed.remove(number)
+                self.telegram_allowed_chat_ids_text.set(format_chat_ids(allowed))
         self._persist_settings()
 
     def ask_telegram_learn(self, chat, material, settle, chat_id):
@@ -1665,8 +1713,16 @@ class WhisperGUI:
             if state["done"]:
                 return
             state["done"] = True
+            from whisperfast.telegram.learn import remember_learn_chat
+
             if decision == "always":
                 self._add_telegram_auto_chat(chat, chat_id)
+                remember_learn_chat("always", chat, chat_id)
+            elif decision == "no":
+                self._add_telegram_ignored_chat(chat, chat_id)
+                remember_learn_chat("never", chat, chat_id)
+            elif decision == "once":
+                remember_learn_chat("ask", chat, chat_id)
             try:
                 settle(decision)
             except Exception:
@@ -2342,6 +2398,12 @@ class WhisperGUI:
             "telegram_mode": (self.telegram_mode.get() or "bot").strip().lower(),
             "telegram_phone": (self.telegram_phone.get() or "").strip(),
             "telegram_self_chat_names": normalize_chat_names(self.telegram_self_chat_names_text.get()),
+            "telegram_ignored_chat_names": normalize_chat_names(
+                self.telegram_ignored_chat_names_text.get()
+            ),
+            "telegram_ignored_chat_ids": normalize_chat_ids(
+                getattr(self, "telegram_ignored_chat_ids", [])
+            ),
             "ai_month_budget": float(self.ai_month_budget.get() or 0.0),
             "ai_prompt_rules": normalize_prompt_rules(
                 getattr(self, "ai_prompt_rules", None)

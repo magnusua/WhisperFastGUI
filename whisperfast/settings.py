@@ -102,6 +102,8 @@ _DEFAULTS = {
     "telegram_mode": "bot",
     "telegram_phone": "",
     "telegram_self_chat_names": [],
+    "telegram_ignored_chat_names": [],
+    "telegram_ignored_chat_ids": [],
 }
 _DEFAULTS.update(CAPTURE_DEFAULTS)
 
@@ -118,6 +120,8 @@ def default_settings():
     data["ai_prompt_rules"] = [dict(r) for r in _DEFAULTS["ai_prompt_rules"]]
     data["telegram_allowed_chat_ids"] = list(_DEFAULTS["telegram_allowed_chat_ids"])
     data["telegram_self_chat_names"] = list(_DEFAULTS["telegram_self_chat_names"])
+    data["telegram_ignored_chat_names"] = list(_DEFAULTS["telegram_ignored_chat_names"])
+    data["telegram_ignored_chat_ids"] = list(_DEFAULTS["telegram_ignored_chat_ids"])
     return data
 
 
@@ -233,14 +237,19 @@ def _sanitize_loaded_settings(data, defaults):
                 if data[key] != normalized:
                     changed = True
             continue
-        if key in ("telegram_allowed_chat_ids", "telegram_self_chat_names"):
+        if key in (
+            "telegram_allowed_chat_ids",
+            "telegram_ignored_chat_ids",
+            "telegram_self_chat_names",
+            "telegram_ignored_chat_names",
+        ):
             if key not in data:
                 sanitized[key] = []
                 changed = True
             else:
                 normalized = (
                     normalize_chat_ids(data[key])
-                    if key == "telegram_allowed_chat_ids"
+                    if key in ("telegram_allowed_chat_ids", "telegram_ignored_chat_ids")
                     else normalize_chat_names(data[key])
                 )
                 sanitized[key] = normalized

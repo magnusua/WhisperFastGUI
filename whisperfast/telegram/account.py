@@ -74,6 +74,11 @@ def accept_private_chat(
     return True
 
 
+def is_telegram_sticker(message) -> bool:
+    """Static, animated, and video stickers. Video stickers are silent webm."""
+    return getattr(message, "sticker", None) is not None
+
+
 def media_filename(name: str, mime: str) -> Optional[str]:
     mime_l = (mime or "").lower()
     filename = name or ""
@@ -246,11 +251,19 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
 
     settings = load_app_settings()
     message = event.message
+    if is_telegram_sticker(message):
+        return
     chat_id = int(getattr(event, "chat_id", 0) or 0)
     sender = await event.get_sender()
     sender_is_bot = bool(getattr(sender, "bot", False))
     from whisperfast.settings import normalize_chat_names
-    from whisperfast.telegram.learn import chat_is_automatic, learn_enabled, material_label
+    from whisperfast.telegram.learn import (
+        chat_always_asks,
+        chat_is_automatic,
+        chat_is_ignored,
+        learn_enabled,
+        material_label,
+    )
 
     allowlist = normalize_chat_ids(settings.get("telegram_allowed_chat_ids"))
     self_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
@@ -266,6 +279,8 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         self_names=self_names,
         chat_names=chat_name_keys(chat),
     )
+    if chat_is_ignored(chat_id, chat_name_keys(chat), settings):
+        return
     learning = learn_enabled(settings)
     if not accepted and not learning:
         return
@@ -286,13 +301,16 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         from whisperfast.telegram.links import extract_video_urls
 
         urls = extract_video_urls(text)[:3]
-    if learning and not chat_is_automatic(chat_id, chat_name_keys(chat), settings):
+    if learning and (
+        chat_always_asks(chat_id, chat_name_keys(chat))
+        or not chat_is_automatic(chat_id, chat_name_keys(chat), settings)
+    ):
         if not filename and not urls:
             return
         material = material_label(filename or "", urls)
         if not await _await_learn(ask, log, chat_display_name(chat, chat_id), material, chat_id):
             return
-    elif not accepted:
+    elif not accepted and not chat_is_automatic(chat_id, chat_name_keys(chat), settings):
         return
     if not filename:
         if urls:
