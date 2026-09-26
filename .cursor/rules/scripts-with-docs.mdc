@@ -1,0 +1,22 @@
+---
+description: Save reusable scripts with documentation for later reuse
+alwaysApply: true
+---
+
+# Scripts and documentation
+
+When you create a one-off or automation script that may be reused:
+
+1. **Save it under `scripts/`** (not only in chat or a temp folder). Prefer clear names: `scripts/<verb>_<object>.py` / `.ps1` / `.bat`.
+2. **Ship docs with the script** — do not leave "how to run it" only in the conversation.
+3. **Minimum documentation** (match existing style, e.g. `scripts/make_release_checksums.py`):
+   - Purpose in one short paragraph
+   - Usage examples (commands with typical flags)
+   - Inputs / outputs and important side effects
+   - Dependencies or prerequisites (Python version, FFmpeg, env vars, etc.)
+4. **Where to put docs**:
+   - Python: module docstring at the top (`"""... Usage: ..."""`)
+   - PowerShell / BAT: header comment block with the same sections
+   - Longer runbooks: `scripts/README.md` or a `docs/` entry that links to the script
+5. **Do not** put throwaway helpers in the repo root; keep reusable tooling in `scripts/`.
+6. If the script is project-specific and reusable, commit it on branch **`F1`** with its docs in the same change when the user asks to commit.

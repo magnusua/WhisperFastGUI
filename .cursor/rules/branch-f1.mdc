@@ -1,0 +1,13 @@
+---
+description: Always do project work on the F1 branch
+alwaysApply: true
+---
+
+# Branch: F1
+
+- All work for this project happens on branch **`F1`**.
+- Before editing or committing, ensure the current branch is `F1`.
+- If `F1` does not exist locally: create it from the current tip (`git checkout -B F1`).
+- If on another branch (`main`, feature, or detached HEAD): switch to `F1` first (`git checkout F1`).
+- Do **not** commit project changes directly on `main` unless the user explicitly asks.
+- Push target for routine work: `origin F1` (`git push -u origin F1` when first publishing the branch).
