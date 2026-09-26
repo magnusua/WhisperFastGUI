@@ -54,6 +54,7 @@
 | `pystray`, `Pillow` | Іконка й меню в системному треї. |
 | `cursor-sdk` | Постпроцесинг через Cursor SDK. |
 | `telethon` | Прийом аудіо й відео з особистих чатів Telegram (режим акаунта). |
+| `yt-dlp[default]` | Завантаження відео з посилань YouTube / Instagram / Facebook у Telegram (`telegram/links.py`). |
 | `markitdown` | Конвертація PDF/DOC/DOCX у Markdown (`[pdf,docx,pptx,xlsx,xls]` extras). |
 | `packaging` | Порівняння версій пакетів при перевірці оновлень. |
 | `audioop-lts` | Заміна видаленого в Python 3.13+ модуля `audioop` (потрібен для `pydub`). |
@@ -70,7 +71,7 @@
 
 ## GPU / CUDA
 
-`setup/gpu_info.py` виявляє наявність відеокарти NVIDIA і зберігає результат (`has_nvidia`, `gpu_model`) у `settings.json`. Ім’я карти показується користувачу; сам індекс PyTorch один для будь-якої NVIDIA — `cu128` (`config.CUDA_INDEX`). Вибір пристрою під час транскрипції — [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md). Перед транскрипцією FTW утримує дискретну карту увімкненою (клієнт D3D11 на адаптері NVIDIA і `cuInit`), навіть якщо кришка ноутбука закрита і монітор не підключений, і лише потім падає на CPU.
+`setup/gpu_info.py` виявляє наявність відеокарти NVIDIA і зберігає результат (`has_nvidia`, `gpu_model`) у `settings.json`. Ім’я карти показується користувачу; сам індекс PyTorch один для будь-якої NVIDIA — `cu128` (`config.CUDA_INDEX`). Вибір пристрою під час транскрипції — [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md). Перед транскрипцією FTW утримує дискретну карту увімкненою (клієнт D3D11 на адаптері NVIDIA і `cuInit`), навіть якщо кришка ноутбука закрита і монітор не підключений, і лише потім падає на CPU. На новій машині або коли транскрипція лишається на CPU: `python scripts/diagnose_nvidia_torch.py`.
 
 ## Автозапуск з затримкою (Windows)
 

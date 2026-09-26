@@ -326,8 +326,18 @@ class TestPypiPythonFilter(unittest.TestCase):
 
         self.assertFalse(_version_is_newer("2.4.6", "2.4.6"))
         self.assertTrue(_version_is_newer("2.5.3", "2.4.6"))
-        self.assertFalse(_torch_needs_update("2.14.0", "2.5.1+cu121"))
+        # Same CUDA family: a higher local version is not an update.
+        self.assertFalse(_torch_needs_update("2.14.0+cu121", "2.5.1+cu121"))
         self.assertTrue(_torch_needs_update("2.4.0", "2.5.1+cu121"))
+        # CPU wheel → CUDA index for any NVIDIA, even when the CPU number is higher.
+        self.assertTrue(_torch_needs_update("2.14.0+cpu", "2.11.0+cu128"))
+        self.assertTrue(
+            _torch_needs_update(
+                "2.14.0+cpu",
+                "2.11.0+cu128",
+                gpu_name="NVIDIA GeForce RTX 3060",
+            )
+        )
         rtx50 = "NVIDIA GeForce RTX 5070 Laptop GPU"
         self.assertTrue(_torch_needs_update("2.14.0+cpu", "2.14.0+cu128", gpu_name=rtx50))
         self.assertTrue(_torch_needs_update("2.14.0+cu121", "2.7.0+cu128", gpu_name=rtx50))
@@ -344,6 +354,14 @@ class TestPypiPythonFilter(unittest.TestCase):
         )
         self.assertTrue(
             _torch_needs_update("2.14.0+cpu", "2.11.0+cu128", gpu_name=rtx50, cuda_level=(13, 0))
+        )
+        # Older CUDA tag on the machine vs cu128 index (non-Blackwell).
+        self.assertTrue(
+            _torch_needs_update(
+                "2.5.1+cu121",
+                "2.11.0+cu128",
+                gpu_name="NVIDIA GeForce RTX 3060",
+            )
         )
 
 

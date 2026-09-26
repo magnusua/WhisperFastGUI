@@ -82,6 +82,7 @@ UPDATE_PACKAGES = [
     "numpy",
     "torch", "faster-whisper", "ctranslate2",
     "audioop-lts",  # Python 3.13+: stdlib audioop removed; pyaudioop wheels often missing
+    "yt-dlp",  # Telegram social links (YouTube / Instagram / Facebook)
 ]
 
 # Языки интерфейса и значение «авто» для языка транскрипции

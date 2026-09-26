@@ -268,10 +268,67 @@ def nvidia_smi_name() -> str:
     return line[0].strip() if line else ""
 
 
+def dxgi_nvidia_name() -> str:
+    """NVIDIA adapter description from DXGI (works even when nvidia-smi is not on PATH)."""
+    if sys.platform != "win32":
+        return ""
+    try:
+        dxgi = ctypes.WinDLL("dxgi.dll")
+        factory = ctypes.c_void_p()
+        iid = _guid("770aae78-f26f-4dba-a829-253c83d1b387")
+        dxgi.CreateDXGIFactory1.argtypes = [ctypes.POINTER(type(iid)), ctypes.POINTER(ctypes.c_void_p)]
+        dxgi.CreateDXGIFactory1.restype = ctypes.c_long
+        if dxgi.CreateDXGIFactory1(ctypes.byref(iid), ctypes.byref(factory)) < 0 or not factory:
+            return ""
+
+        class DXGI_ADAPTER_DESC(ctypes.Structure):
+            _fields_ = [
+                ("Description", ctypes.c_wchar * 128),
+                ("VendorId", ctypes.c_uint),
+                ("DeviceId", ctypes.c_uint),
+                ("SubSysId", ctypes.c_uint),
+                ("Revision", ctypes.c_uint),
+                ("DedicatedVideoMemory", ctypes.c_size_t),
+                ("DedicatedSystemMemory", ctypes.c_size_t),
+                ("SharedSystemMemory", ctypes.c_size_t),
+                ("AdapterLuidLow", ctypes.c_ulong),
+                ("AdapterLuidHigh", ctypes.c_long),
+            ]
+
+        enum_adapters = _com_method(
+            factory, 7, ctypes.c_long, ctypes.c_uint, ctypes.POINTER(ctypes.c_void_p)
+        )
+        name = ""
+        for index in range(8):
+            adapter = ctypes.c_void_p()
+            if enum_adapters(factory, index, ctypes.byref(adapter)) < 0 or not adapter:
+                break
+            try:
+                desc = DXGI_ADAPTER_DESC()
+                get_desc = _com_method(adapter, 8, ctypes.c_long, ctypes.POINTER(DXGI_ADAPTER_DESC))
+                if get_desc(adapter, ctypes.byref(desc)) >= 0 and desc.VendorId == NVIDIA_VENDOR_ID:
+                    name = (desc.Description or "").strip()
+                    break
+            finally:
+                try:
+                    release = _com_method(adapter, 2, ctypes.c_ulong)
+                    release(adapter)
+                except (OSError, AttributeError, ValueError):
+                    pass
+        try:
+            release = _com_method(factory, 2, ctypes.c_ulong)
+            release(factory)
+        except (OSError, AttributeError, ValueError):
+            pass
+        return name
+    except (OSError, AttributeError, ValueError):
+        return ""
+
+
 def poke_nvidia_gpu(hold=False) -> bool:
     """Wake a powered-down discrete GPU, then ask the driver to list it."""
     prepare_nvidia_gpu(hold=hold)
-    name = nvidia_smi_name()
+    name = nvidia_smi_name() or dxgi_nvidia_name()
     poke_nvidia_gpu.last_name = name
     return bool(name)
 
@@ -281,8 +338,9 @@ poke_nvidia_gpu.last_name = ""
 
 def detect_nvidia_gpu():
     """
-    Повертає (has_nvidia, gpu_name).
-    gpu_name — рядок з nvidia-smi / torch або None.
+    Return (has_nvidia, gpu_name).
+    gpu_name comes from torch / nvidia-smi / DXGI / WMI, or None.
+    Wakes a laptop dGPU first so first-run install.bat sees the card.
     """
     try:
         import torch
@@ -291,8 +349,17 @@ def detect_nvidia_gpu():
     except Exception:
         pass
 
+    # Lid-closed / hybrid laptops often need a poke before nvidia-smi answers.
+    prepare_nvidia_gpu(hold=False)
+
     name = nvidia_smi_name()
     if name:
+        poke_nvidia_gpu.last_name = name
+        return True, name
+
+    name = dxgi_nvidia_name()
+    if name:
+        poke_nvidia_gpu.last_name = name
         return True, name
 
     if sys.platform == "win32":
@@ -302,7 +369,7 @@ def detect_nvidia_gpu():
                     "powershell",
                     "-NoProfile",
                     "-Command",
-                    "(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'NVIDIA' } | Select-Object -First 1 -ExpandProperty Name)",
+                    "(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'NVIDIA|GeForce|RTX|GTX|Quadro' } | Select-Object -First 1 -ExpandProperty Name)",
                 ],
                 capture_output=True,
                 text=True,
@@ -312,6 +379,7 @@ def detect_nvidia_gpu():
             if result.returncode == 0:
                 wmi_name = (result.stdout or "").strip()
                 if wmi_name:
+                    poke_nvidia_gpu.last_name = wmi_name
                     return True, wmi_name
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             pass
@@ -321,12 +389,19 @@ def detect_nvidia_gpu():
 
 def gpu_model_looks_nvidia(name):
     """True if settings.gpu_model already names an NVIDIA card (no hardware probe)."""
-    return "nvidia" in (name or "").strip().lower()
+    text = (name or "").strip().lower()
+    if not text:
+        return False
+    if "nvidia" in text:
+        return True
+    # Drivers / WMI sometimes omit the vendor word.
+    markers = ("geforce", "rtx", "gtx", "quadro", "tesla", "titan")
+    return any(m in text for m in markers)
 
 
 def nvidia_from_settings():
     """
-    Trust settings.json when gpu_model contains 'NVIDIA'.
+    Trust settings.json when gpu_model names an NVIDIA card.
     Returns (True, name) or (False, name_or_empty). Does not probe hardware.
     """
     name = (load_app_settings().get("gpu_model") or "").strip()
@@ -357,7 +432,7 @@ def nvidia_for_install():
 
 def refresh_gpu_settings():
     """
-    Оновлює has_nvidia та gpu_model у settings.json. Повертає (has_nvidia, gpu_name).
+    Update has_nvidia and gpu_model in settings.json. Returns (has_nvidia, gpu_name).
     If gpu_model already names NVIDIA, a failed probe does not clear it.
     """
     saved, saved_name = nvidia_from_settings()

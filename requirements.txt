@@ -38,6 +38,8 @@ audioop-lts; python_version >= "3.13"
 # Без нього детектор спирається лише на вікна. Не обов'язково на Linux/macOS.
 pycaw>=20230407; sys_platform == "win32"
 telethon>=1.36.0
+# Telegram social links (YouTube / Instagram / Facebook) via whisperfast.telegram.links.
+yt-dlp[default]>=2024.8.0
 
 # nvidia-cublas-cu12 / nvidia-cudnn-cu12 навмисно НЕ включені сюди: вони
 # ставляться лише за потреби через GUI ([Оновлення] / [Залежності]), не

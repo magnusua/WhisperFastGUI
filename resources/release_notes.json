@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "2.1.8",
+      "date": "26.09.2026",
+      "notes": {
+        "EN": [
+          "yt-dlp is now a declared dependency (requirements, installer, and Updates). Without it, YouTube / Instagram / Facebook links failed with No module named yt_dlp.",
+          "NVIDIA detection also uses DXGI when nvidia-smi is missing, wakes the discrete GPU before probing, and treats GeForce / RTX / GTX / Quadro names without the word NVIDIA as NVIDIA.",
+          "A CPU PyTorch build is replaced by the install CUDA index even when the CPU version number is higher.",
+          "scripts/diagnose_nvidia_torch.py checks GPU / PyTorch / Whisper CUDA on a new machine."
+        ],
+        "UK": [
+          "yt-dlp тепер у залежностях (requirements, установщик і «Оновлення»). Без нього посилання YouTube / Instagram / Facebook падали з No module named yt_dlp.",
+          "Виявлення NVIDIA також через DXGI, якщо немає nvidia-smi; перед перевіркою дискретна карта будиться. Імена GeForce / RTX / GTX / Quadro без слова NVIDIA теж вважаються NVIDIA.",
+          "Збірка PyTorch для CPU замінюється на CUDA з індексу встановлення навіть тоді, коли номер версії CPU вищий.",
+          "scripts/diagnose_nvidia_torch.py перевіряє GPU / PyTorch / Whisper CUDA на новій машині."
+        ],
+        "RU": [
+          "yt-dlp теперь в зависимостях (requirements, установщик и «Обновления»). Без него ссылки YouTube / Instagram / Facebook падали с No module named yt_dlp.",
+          "Обнаружение NVIDIA также через DXGI, если нет nvidia-smi; перед проверкой дискретная карта будится. Имена GeForce / RTX / GTX / Quadro без слова NVIDIA тоже считаются NVIDIA.",
+          "Сборка PyTorch для CPU заменяется на CUDA из индекса установки даже когда номер версии CPU выше.",
+          "scripts/diagnose_nvidia_torch.py проверяет GPU / PyTorch / Whisper CUDA на новой машине."
+        ]
+      }
+    },
+    {
       "version": "2.1.7",
       "date": "26.09.2026",
       "notes": {

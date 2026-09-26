@@ -40,6 +40,8 @@ class TestGpuModelLooksNvidia(unittest.TestCase):
     def test_nvidia_prefix(self):
         self.assertTrue(gpu_model_looks_nvidia("NVIDIA GeForce RTX 4090"))
         self.assertTrue(gpu_model_looks_nvidia("nvidia tesla t4"))
+        self.assertTrue(gpu_model_looks_nvidia("GeForce RTX 5070 Laptop GPU"))
+        self.assertTrue(gpu_model_looks_nvidia("RTX 4090"))
 
     def test_rejects_empty_and_other_vendors(self):
         self.assertFalse(gpu_model_looks_nvidia(""))

@@ -269,27 +269,38 @@ def _cuda_level_from_requires(requires):
 
 
 def _torch_needs_update(current, latest, gpu_name="", cuda_level=_CUDA_LEVEL_UNSET):
-    """Новіша збірка torch, або той самий номер з іншим локальним тегом (+cu128).
+    """Newer torch build, or a switch from CPU / older CUDA onto a CUDA 12.8+ index.
 
-    RTX 50 stays on CPU until the wheel is CUDA 12.8+, even when that wheel's
-    version number is lower than a CPU or cu121 build already installed.
+    A CPU wheel must still be replaced by a CUDA index wheel for NVIDIA even when
+    the CPU version number is higher. An older CUDA tag (cu121) can move to cu128.
     A PyPI wheel such as 2.14.0 has no +cu tag; cuda_level is torch.version.cuda
     (13.0 is already enough, so an older 2.11.0+cu128 build is not an update).
+    RTX 50 / Blackwell still need CUDA 12.8+ when the installed level is unknown
+    or below that floor.
     """
     if not latest or not current or current == latest:
         return False
     from whisperfast.setup.gpu_info import _cuda_tag_version, gpu_needs_cuda128
 
-    if gpu_needs_cuda128(gpu_name):
-        if "+cpu" in str(current).lower():
-            have = None
-        else:
-            have = _cuda_tag_version(current)
-            if have is None and cuda_level is not _CUDA_LEVEL_UNSET:
-                have = cuda_level
-        offer = _cuda_tag_version(latest)
-        if (have is None or have < (12, 8)) and offer is not None and offer >= (12, 8):
+    cur_l = str(current).lower()
+    if "+cpu" in cur_l:
+        have = None
+    else:
+        have = _cuda_tag_version(current)
+        if have is None and cuda_level is not _CUDA_LEVEL_UNSET:
+            have = cuda_level
+    offer = _cuda_tag_version(latest)
+
+    if offer is not None:
+        # CPU wheel → CUDA index, even when the CPU version number is higher.
+        if "+cpu" in cur_l:
             return True
+        # e.g. cu121 / cu126 → cu128 from our install index.
+        if have is not None and have < offer:
+            return True
+        if gpu_needs_cuda128(gpu_name) and (have is None or have < (12, 8)) and offer >= (12, 8):
+            return True
+
     if _version_is_newer(latest, current):
         return True
     if Version is None:
@@ -393,11 +404,13 @@ MULTIMEDIA_REQUIRED = (
     "sounddevice",
     "numpy",
 )
+YT_DLP_PIP_SPEC = "yt-dlp[default]"
 MULTIMEDIA_OPTIONAL = (
     "cursor-sdk",
     MARKITDOWN_PIP_SPEC,
     "pycaw",
     "telethon",
+    YT_DLP_PIP_SPEC,
 )
 
 _PIP_NOISE = (
@@ -749,6 +762,9 @@ def install_dependencies(force=False, log_func=print, packages_to_update=None, i
             elif pkg == "markitdown":
                 cmd = [py, "-m", "pip", "install", "--upgrade", MARKITDOWN_PIP_SPEC]
                 commands.append([t("updating_package", package=pkg), cmd])
+            elif pkg == "yt-dlp":
+                cmd = [py, "-m", "pip", "install", "--upgrade", YT_DLP_PIP_SPEC]
+                commands.append([t("updating_package", package=pkg), cmd])
             elif pkg == "faster-whisper":
                 # Точечное обновление тоже должно уважать пиннинг совместимости с
                 # ctranslate2 (см. FASTER_WHISPER_PIP_SPEC/CTRANSLATE2_PIP_SPEC выше и
@@ -897,6 +913,7 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("numpy")
     _check_package_verbose("pycaw")
     _check_package_verbose("telethon")
+    _check_package_verbose("yt-dlp", "yt_dlp")
     if needs_pyaudioop() and not audioop_available():
         print(t("pyaudioop_not_installed"))
     print()
@@ -964,6 +981,7 @@ def run_full_installation(use_cuda_arg=None):
     _check_package_verbose("numpy")
     _check_package_verbose("pycaw")
     _check_package_verbose("telethon")
+    _check_package_verbose("yt-dlp", "yt_dlp")
     try:
         import tkinter
         print(t("install_tkinter_ok"))
