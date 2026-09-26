@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "2.1.7",
+      "date": "26.09.2026",
+      "notes": {
+        "EN": [
+          "A PyPI PyTorch build without a +cu128 suffix, such as 2.14.0 with CUDA 13, is no longer replaced by an older CUDA 12.8 wheel. On RTX 50 the replacement still happens only for a CPU build or for CUDA older than 12.8."
+        ],
+        "UK": [
+          "Збірка PyTorch з PyPI без суфікса +cu128, наприклад 2.14.0 із CUDA 13, більше не замінюється старішою збіркою CUDA 12.8. Для RTX 50 заміна лишається лише для збірки CPU або для CUDA старішої за 12.8."
+        ],
+        "RU": [
+          "Сборка PyTorch с PyPI без суффикса +cu128, например 2.14.0 с CUDA 13, больше не заменяется более старой сборкой CUDA 12.8. Для RTX 50 замена остаётся только для сборки CPU или для CUDA старее 12.8."
+        ]
+      }
+    },
+    {
       "version": "2.1.6",
       "date": "26.09.2026",
       "notes": {

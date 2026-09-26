@@ -238,18 +238,55 @@ def _version_is_newer(latest, current) -> bool:
     return str(latest) != str(current)
 
 
-def _torch_needs_update(current, latest, gpu_name=""):
+_CUDA_LEVEL_UNSET = object()
+_CUDA_TOOLKIT_REQ = re.compile(r"cuda-toolkit\s*==\s*(\d+)\.(\d+)", re.IGNORECASE)
+_CUDA_PKG_REQ = re.compile(r"-cu(\d{2,})(?:\b|[^0-9])", re.IGNORECASE)
+
+
+def _cuda_level_from_requires(requires):
+    """Highest CUDA hinted by Requires-Dist.
+
+    Package suffixes: cu13 -> (13, 0), cu128 -> (12, 8).
+    cuda-toolkit==13.0.3 -> (13, 0).
+    """
+    best = None
+    for req in requires or []:
+        text = str(req).split(";", 1)[0]
+        levels = []
+        toolkit = _CUDA_TOOLKIT_REQ.search(text)
+        if toolkit:
+            levels.append((int(toolkit.group(1)), int(toolkit.group(2))))
+        for match in _CUDA_PKG_REQ.finditer(text):
+            digits = match.group(1)
+            if len(digits) >= 3:
+                levels.append((int(digits[:-1]), int(digits[-1])))
+            else:
+                levels.append((int(digits), 0))
+        for level in levels:
+            if best is None or level > best:
+                best = level
+    return best
+
+
+def _torch_needs_update(current, latest, gpu_name="", cuda_level=_CUDA_LEVEL_UNSET):
     """Новіша збірка torch, або той самий номер з іншим локальним тегом (+cu128).
 
     RTX 50 stays on CPU until the wheel is CUDA 12.8+, even when that wheel's
     version number is lower than a CPU or cu121 build already installed.
+    A PyPI wheel such as 2.14.0 has no +cu tag; cuda_level is torch.version.cuda
+    (13.0 is already enough, so an older 2.11.0+cu128 build is not an update).
     """
     if not latest or not current or current == latest:
         return False
     from whisperfast.setup.gpu_info import _cuda_tag_version, gpu_needs_cuda128
 
     if gpu_needs_cuda128(gpu_name):
-        have = _cuda_tag_version(current)
+        if "+cpu" in str(current).lower():
+            have = None
+        else:
+            have = _cuda_tag_version(current)
+            if have is None and cuda_level is not _CUDA_LEVEL_UNSET:
+                have = cuda_level
         offer = _cuda_tag_version(latest)
         if (have is None or have < (12, 8)) and offer is not None and offer >= (12, 8):
             return True
@@ -297,7 +334,10 @@ def check_updates(log_func):
                     latest = get_latest_pip_index_version(pkg, CUDA_INDEX)
                 else:
                     latest = get_latest_pypi_version(pkg)
-                needs = _torch_needs_update(current, latest, gpu_name=gpu_name or "")
+                _, cuda_level = _installed_torch_cuda_level()
+                needs = _torch_needs_update(
+                    current, latest, gpu_name=gpu_name or "", cuda_level=cuda_level
+                )
             else:
                 latest = get_latest_pypi_version(pkg)
                 needs = _version_is_newer(latest, current)
@@ -542,11 +582,41 @@ def _installed_torch_cuda_tag():
     return ver, _cuda_tag_version(ver)
 
 
+def _installed_torch_cuda_level():
+    """(version, CUDA (major, minor) or None).
+
+    Index wheels encode CUDA in the version (+cu128). PyPI wheels since the
+    default build became CUDA do not: '2.14.0' with torch.version.cuda 13.0.
+    """
+    ver, tag = _installed_torch_cuda_tag()
+    if not ver:
+        return None, None
+    if "+cpu" in ver.lower():
+        return ver, None
+    if tag is not None:
+        return ver, tag
+    from whisperfast.setup.gpu_info import installed_torch_cuda
+
+    runtime = installed_torch_cuda()
+    if runtime is not None:
+        return ver, runtime
+    try:
+        reqs = importlib.metadata.requires("torch")
+    except Exception:
+        reqs = None
+    return ver, _cuda_level_from_requires(reqs)
+
+
 def _run_torch_install(log_func, use_cuda, force=False, summarize=True):
     specs = ["torch", "torchvision", "torchaudio"]
+    pin_cu128 = use_cuda
     if use_cuda:
-        ver, tag = _installed_torch_cuda_tag()
-        if ver and (tag is None or tag < (12, 8)):
+        ver, level = _installed_torch_cuda_level()
+        tag = None
+        if ver:
+            from whisperfast.setup.gpu_info import _cuda_tag_version
+            tag = _cuda_tag_version(ver)
+        if ver and (level is None or level < (12, 8)):
             log_func(t("torch_replace_old_cuda", version=ver))
             _run_install_cmd(
                 [_pip_python(), "-m", "pip", "uninstall", "-y", *specs],
@@ -554,7 +624,11 @@ def _run_torch_install(log_func, use_cuda, force=False, summarize=True):
                 summarize=summarize,
             )
             force = True
-    extra = ["--index-url", CUDA_INDEX] if use_cuda else None
+        elif ver and level is not None and level >= (12, 8) and tag is None:
+            # Plain PyPI version (2.14.0) is already CUDA 12.8+. The cu128
+            # index is older and --force-reinstall from it would downgrade.
+            pin_cu128 = False
+    extra = ["--index-url", CUDA_INDEX] if pin_cu128 else None
     code = _run_pip_specs(
         specs,
         log_func,
@@ -564,7 +638,7 @@ def _run_torch_install(log_func, use_cuda, force=False, summarize=True):
         timeout=_TORCH_INSTALL_TIMEOUT,
         retry_each=False,
     )
-    if code != 0 and use_cuda:
+    if code != 0 and pin_cu128:
         log_func(t("install_torch_cuda_fallback"))
         code = _run_pip_specs(
             specs,
