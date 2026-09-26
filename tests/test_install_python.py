@@ -138,6 +138,42 @@ class TestPipRetryAndTorchFallback(unittest.TestCase):
                     inst._run_torch_install(lambda _line: None, use_cuda=True, summarize=True)
         self.assertNotIn("uninstall", cmds[0])
 
+    def test_pypi_cuda13_wheel_is_not_downgraded_to_cu128(self):
+        from whisperfast.setup import installer as inst
+
+        cmds = []
+
+        def fake_run(cmd, log_func, timeout=600, summarize=True):
+            cmds.append(list(cmd))
+            return 0
+
+        with patch.object(inst.importlib.metadata, "version", return_value="2.14.0"):
+            with patch("whisperfast.setup.gpu_info.installed_torch_cuda", return_value=(13, 0)):
+                with patch.object(inst, "_run_install_cmd", side_effect=fake_run):
+                    with patch.object(inst, "_pip_python", return_value="python"):
+                        code = inst._run_torch_install(
+                            lambda _line: None, use_cuda=True, force=True, summarize=True
+                        )
+        self.assertEqual(code, 0)
+        self.assertEqual(len(cmds), 1)
+        self.assertNotIn("uninstall", cmds[0])
+        self.assertNotIn("cu128", " ".join(cmds[0]))
+        self.assertIn("--force-reinstall", cmds[0])
+
+    def test_cuda_level_from_pypi_requires(self):
+        from whisperfast.setup.installer import _cuda_level_from_requires
+
+        reqs = [
+            "cuda-toolkit==13.0.3",
+            "nvidia-cudnn-cu13==9.24.0.43",
+            'nvidia-cuda-nvrtc-cu12==12.4.127; platform_system == "Linux"',
+        ]
+        self.assertEqual(_cuda_level_from_requires(reqs), (13, 0))
+        self.assertEqual(
+            _cuda_level_from_requires(["nvidia-cublas-cu128==12.8.0"]),
+            (12, 8),
+        )
+
 
 class TestCudaCliOverride(unittest.TestCase):
     def test_parse_cuda_cpu_auto(self):
@@ -297,6 +333,18 @@ class TestPypiPythonFilter(unittest.TestCase):
         self.assertTrue(_torch_needs_update("2.14.0+cu121", "2.7.0+cu128", gpu_name=rtx50))
         self.assertFalse(_torch_needs_update("2.8.0+cu128", "2.7.0+cu128", gpu_name=rtx50))
         self.assertFalse(_torch_needs_update("2.14.0+cu121", "2.5.1+cu121", gpu_name=rtx50))
+        self.assertFalse(
+            _torch_needs_update("2.14.0", "2.11.0+cu128", gpu_name=rtx50, cuda_level=(13, 0))
+        )
+        self.assertTrue(
+            _torch_needs_update("2.14.0", "2.15.0+cu128", gpu_name=rtx50, cuda_level=(13, 0))
+        )
+        self.assertTrue(
+            _torch_needs_update("2.14.0", "2.11.0+cu128", gpu_name=rtx50, cuda_level=None)
+        )
+        self.assertTrue(
+            _torch_needs_update("2.14.0+cpu", "2.11.0+cu128", gpu_name=rtx50, cuda_level=(13, 0))
+        )
 
 
 class TestCudaWake(unittest.TestCase):
