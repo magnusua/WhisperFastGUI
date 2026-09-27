@@ -4056,15 +4056,10 @@
     "UK": "За замовчуванням — найвища доступна. 720 і 360 беруть найкращу картинку, не вищу за цю межу.",
     "RU": "По умолчанию — наивысшее доступное. 720 и 360 берут лучшую картинку не выше этой границы."
   },
-  "telegram_link_saved": {
-    "EN": "Video downloaded and sent back. It was not added to the Whisper queue.",
-    "UK": "Відео скачано і надіслано в чат. У чергу Whisper не ставив.",
-    "RU": "Видео скачано и отправлено в чат. В очередь Whisper не ставил."
-  },
   "telegram_link_downloading": {
-    "EN": "Downloading the video: {url}",
-    "UK": "Завантажую відео: {url}",
-    "RU": "Скачиваю видео: {url}"
+    "EN": "Downloading",
+    "UK": "Завантажую",
+    "RU": "Скачиваю"
   },
   "telegram_link_failed": {
     "EN": "Could not download the video: {error}",

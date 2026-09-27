@@ -169,11 +169,9 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
     for url in urls:
         dest = os.path.join(work, f"{chat_id}_{message_id}")
         remember_link(url)
+        log(url)
         if classify("url:" + url)[0] == "download":
-            log(t("telegram_link_downloading", url=url))
-            await event.reply(t("telegram_link_downloading", url=url))
-        else:
-            log(url)
+            await event.reply(t("telegram_link_downloading"))
         try:
             action, path, known = await asyncio.to_thread(claim_link, url, dest)
             remember_link(url, path or str((known or {}).get("path") or ""))
@@ -222,11 +220,9 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
                 chat_id,
                 message_id,
                 text="",
-                files=[{"path": path, "caption": t("telegram_link_saved")}],
+                files=[{"path": path, "caption": ""}],
             )
-            log(t("telegram_link_saved"))
             log_downloaded_file(log, path)
-            await event.reply(t("telegram_link_saved"))
             continue
         try:
             submit(path, chat_id, message_id)

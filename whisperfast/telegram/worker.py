@@ -398,12 +398,9 @@ def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
     for url in urls:
         dest = os.path.join(work, f"{chat_id}_{message_id}")
         remember_link(url)
+        log(url)
         if classify("url:" + url)[0] == "download":
-            notice = t("telegram_link_downloading", url=url)
-            log(notice)
-            client.send_message(chat_id, notice, reply_to=message_id)
-        else:
-            log(url)
+            client.send_message(chat_id, t("telegram_link_downloading"), reply_to=message_id)
         try:
             action, path, known = claim_link(url, dest)
             remember_link(url, path or str((known or {}).get("path") or ""))
@@ -446,10 +443,8 @@ def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
 
         if not social_videos_go_to_queue(load_app_settings()):
             mark_own_upload(chat_id, path)
-            notice = t("telegram_link_saved")
-            log(notice)
             log_downloaded_file(log, path)
-            client.send_document(chat_id, path, caption=notice, reply_to=message_id)
+            client.send_document(chat_id, path, reply_to=message_id)
             continue
         if submit is None:
             from whisperfast.telegram.gui_bridge import submit_to_running_gui
