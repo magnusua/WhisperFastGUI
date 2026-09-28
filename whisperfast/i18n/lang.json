@@ -114,6 +114,16 @@
     "UK": "Надіслано {name} у Telegram.",
     "RU": "Отправлено {name} в Telegram."
   },
+  "telegram_sent_files": {
+    "EN": "Sent to Telegram → {chat}: {names}",
+    "UK": "Надіслано в Telegram → {chat}: {names}",
+    "RU": "Отправлено в Telegram → {chat}: {names}"
+  },
+  "telegram_already_sent_all": {
+    "EN": "All materials for {name} were already sent to Telegram.",
+    "UK": "Усі матеріали для {name} вже було відправлено в Telegram.",
+    "RU": "Все материалы для {name} уже были отправлены в Telegram."
+  },
   "process_again": {
     "EN": "Process all files again?",
     "UK": "Обробити всі файли заново?",
@@ -1235,9 +1245,9 @@
     "RU": "Файл уже существует"
   },
   "file_exists_msg": {
-    "EN": "File already exists:\n{name}\n\nYes — overwrite\nNo — do not save\nSave under a new name — {alt}\n\nIf you do not choose, No is selected after 10 seconds and the existing file is left as it is.",
-    "UK": "Файл уже існує:\n{name}\n\nТак — перезаписати\nНі — не зберігати\nЗберегти під новим ім'ям — {alt}\n\nЯкщо не обрати, за 10 с буде «Ні»: наявний файл лишається.",
-    "RU": "Файл уже существует:\n{name}\n\nДа — перезаписать\nНет — не сохранять\nСохранить под новым именем — {alt}\n\nЕсли не выбрать, через 10 с будет «Нет»: существующий файл остаётся."
+    "EN": "File already exists:\n{name}\nSize: {size}\nCreated: {created}\n\nYes — overwrite\nNo — do not save\nSave under a new name — {alt}\n\nIf you do not choose, No is selected after 10 seconds and the existing file is left as it is.",
+    "UK": "Файл уже існує:\n{name}\nРозмір: {size}\nСтворено: {created}\n\nТак — перезаписати\nНі — не зберігати\nЗберегти під новим ім'ям — {alt}\n\nЯкщо не обрати, за 10 с буде «Ні»: наявний файл лишається.",
+    "RU": "Файл уже существует:\n{name}\nРазмер: {size}\nСоздан: {created}\n\nДа — перезаписать\nНет — не сохранять\nСохранить под новым именем — {alt}\n\nЕсли не выбрать, через 10 с будет «Нет»: существующий файл остаётся."
   },
   "file_exists_yes": {
     "EN": "Yes",
@@ -3068,6 +3078,11 @@
     "EN": "Cursor agent run failed: {run_id}",
     "UK": "Помилка запуску Cursor agent: {run_id}",
     "RU": "Ошибка запуска Cursor agent: {run_id}"
+  },
+  "cursor_orphan_bridges_cleared": {
+    "EN": "🧹 Cleared {count} stuck Cursor SDK bridge process(es).",
+    "UK": "🧹 Прибрано завислих Cursor SDK bridge: {count}.",
+    "RU": "🧹 Убрано зависших Cursor SDK bridge: {count}."
   },
   "archive_button": {
     "EN": "Archive",

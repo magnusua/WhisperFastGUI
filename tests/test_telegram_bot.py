@@ -307,7 +307,7 @@ class TestGuiHandoff(unittest.TestCase):
         self.assertEqual(restored.queue[0]["telegram_chat_id"], 5)
         self.assertEqual(restored.queue[0]["telegram_message_id"], 9)
 
-    def test_deliver_waits_for_ai_then_sends_to_the_same_chat(self):
+    def test_deliver_sends_txt_while_ai_runs_then_ai_later(self):
         with tempfile.TemporaryDirectory() as tmp:
             media = os.path.join(tmp, "clip.mp3")
             txt = os.path.join(tmp, "clip.txt")
@@ -347,18 +347,50 @@ class TestGuiHandoff(unittest.TestCase):
                 ),
             )
             sent = []
-            maybe_deliver_telegram(app, file_id="f1", sender=lambda meta, files, error: sent.append(1))
-            self.assertEqual(sent, [])
+            maybe_deliver_telegram(
+                app,
+                file_id="f1",
+                sender=lambda meta, files, error: sent.append(
+                    [os.path.basename(f["path"]) for f in files]
+                ),
+            )
+            self.assertEqual(sent, [["clip.txt"]])
             app.ai_jobs._jobs["j"]["status"] = "done"
             maybe_deliver_telegram(
                 app,
                 file_id="f1",
-                sender=lambda meta, files, error: sent.append((meta, [os.path.basename(f["path"]) for f in files], error)),
+                sender=lambda meta, files, error: sent.append(
+                    (meta, [os.path.basename(f["path"]) for f in files], error)
+                ),
             )
-            self.assertEqual(sent[0][0]["chat_id"], 42)
-            self.assertEqual(sent[0][0]["message_id"], 3)
-            self.assertEqual(sent[0][1], ["clip.txt", "clip_note.md"])
-            self.assertNotIn("clip.srt", sent[0][1])
+            self.assertEqual(sent[1][0]["chat_id"], 42)
+            self.assertEqual(sent[1][0]["message_id"], 3)
+            self.assertEqual(sent[1][1], ["clip_note.md"])
+            self.assertNotIn("clip.srt", sent[1][1])
+
+    def test_disk_ai_sidecar_is_picked_for_telegram(self):
+        from whisperfast.telegram.gui_bridge import (
+            collect_unsent_telegram_files,
+            merge_disk_ai_outputs,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            video = os.path.join(tmp, "talk.mp4")
+            txt = os.path.join(tmp, "talk.txt")
+            md = os.path.join(tmp, "talk_redactor.md")
+            for path in (video, txt, md):
+                open(path, "wb").close()
+            outputs = merge_disk_ai_outputs(video, [{"role": "txt", "path": txt}])
+            roles = {(o.get("role"), os.path.basename(o.get("path") or "")) for o in outputs}
+            self.assertIn(("ai", "talk_redactor.md"), roles)
+            app = SimpleNamespace(_telegram_sent_paths=set(), _telegram_deliver_lock=threading.Lock())
+            first = collect_unsent_telegram_files(app, video, outputs, mark=True)
+            self.assertEqual(
+                [os.path.basename(x["path"]) for x in first],
+                ["talk.txt", "talk_redactor.md"],
+            )
+            second = collect_unsent_telegram_files(app, video, outputs, mark=True)
+            self.assertEqual(second, [])
 
     def test_video_audio_is_sent_and_a_later_clip_returns_to_the_chat(self):
         from whisperfast.telegram.gui_bridge import select_telegram_files

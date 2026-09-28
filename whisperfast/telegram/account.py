@@ -119,8 +119,8 @@ async def _flush_outbox(client, log=None) -> None:
     for item in take_outgoing():
         raw_id = item.get("chat_id")
         chat_id = int(raw_id) if raw_id is not None else None
+        wanted = str(item.get("chat_name") or "").strip()
         if chat_id is None:
-            wanted = str(item.get("chat_name") or "").strip()
             chat_id = await _find_chat_id(client, wanted) if wanted else None
             if chat_id is None:
                 if log:
@@ -131,7 +131,7 @@ async def _flush_outbox(client, log=None) -> None:
         text = str(item.get("text") or "")
         if text:
             await client.send_message(chat_id, text, reply_to=reply)
-        sent_file = False
+        sent_names: list[str] = []
         for entry in item.get("files") or []:
             path = str(entry.get("path") or "")
             if path and os.path.isfile(path):
@@ -141,110 +141,76 @@ async def _flush_outbox(client, log=None) -> None:
                     caption=str(entry.get("caption") or ""),
                     reply_to=reply,
                 )
-                sent_file = True
-        if sent_file:
-            label = str(item.get("chat_name") or "").strip()
-            if not label:
-                try:
-                    from whisperfast.telegram.worker import chat_display_name
+                sent_names.append(os.path.basename(path))
+        if not sent_names:
+            continue
+        label = wanted
+        if not label:
+            try:
+                from whisperfast.telegram.worker import chat_display_name
 
-                    entity = await client.get_entity(chat_id)
-                    label = chat_display_name(entity, chat_id)
-                except Exception:
-                    label = ""
-            if label:
-                from whisperfast.telegram.recent import remember_name
+                entity = await client.get_entity(chat_id)
+                label = chat_display_name(entity, chat_id)
+            except Exception:
+                label = str(chat_id)
+        if label:
+            from whisperfast.telegram.recent import remember_name
 
-                remember_name(label)
+            remember_name(label)
+        # Лог відправки робить GUI / maybe_deliver (UI-потік), щоб не чіпати Tk з Telethon.
 
 
 async def _take_video_links(event, urls, settings, submit, log, chat_id: int, message_id: int) -> None:
-    import asyncio
-
-    from whisperfast.telegram.links import claim_link, remember_link, remember_wait
+    """Поставити соц-посилання в окрему чергу (не Whisper/AI, не блокує Telethon loop)."""
     from whisperfast.telegram.outbox import enqueue_outgoing
-    from whisperfast.telegram.seen import classify
+    from whisperfast.telegram.social_queue import enqueue_social_urls
 
-    work = resolve_work_dir(settings)
-    for url in urls:
-        dest = os.path.join(work, f"{chat_id}_{message_id}")
-        remember_link(url)
-        log(url)
-        if classify("url:" + url)[0] == "download":
-            await event.reply(t("telegram_link_downloading"))
-        try:
-            action, path, known = await asyncio.to_thread(claim_link, url, dest)
-            remember_link(url, path or str((known or {}).get("path") or ""))
-        except Exception as exc:
-            await event.reply(t("telegram_link_failed", error=str(exc)))
-            loop = asyncio.get_running_loop()
+    def reply(text: str) -> None:
+        enqueue_outgoing(chat_id, message_id, text=text)
 
-            def retry(one=url):
-                fut = asyncio.run_coroutine_threadsafe(
-                    _take_video_links(event, [one], settings, submit, log, chat_id, message_id),
-                    loop,
-                )
-                fut.result()
-
-            from whisperfast.telegram.links import report_link_failure
-
-            report_link_failure(log, exc, retry)
-            continue
-        if action == "send":
-            text = t("telegram_same_ai" if known.get("ai") else "telegram_same_done", name=os.path.basename(url))
-            log(text)
-            await event.reply(text)
-            enqueue_outgoing(
-                chat_id,
-                message_id,
-                text="",
-                files=[{"path": item["path"], "caption": item["caption"]} for item in known.get("outputs") or []],
-            )
-            continue
-        if action == "wait":
-            remember_wait(url, chat_id, message_id)
-            text = t("telegram_same_queued", name=os.path.basename(url))
-            log(text)
-            await event.reply(text)
-            continue
-        from whisperfast.settings import load_app_settings
-        from whisperfast.telegram.links import (
-            log_downloaded_file,
-            mark_own_upload,
-            social_videos_go_to_queue,
+    def send_files(files) -> None:
+        enqueue_outgoing(
+            chat_id,
+            message_id,
+            text="",
+            files=[
+                {"path": str(item.get("path") or ""), "caption": str(item.get("caption") or "")}
+                for item in (files or [])
+                if isinstance(item, dict) and item.get("path")
+            ],
         )
 
-        if not social_videos_go_to_queue(load_app_settings()):
-            mark_own_upload(chat_id, path)
-            enqueue_outgoing(
-                chat_id,
-                message_id,
-                text="",
-                files=[{"path": path, "caption": ""}],
-            )
-            log_downloaded_file(log, path)
-            continue
-        try:
-            submit(path, chat_id, message_id)
-        except Exception as exc:
-            await event.reply(t("telegram_failed", error=str(exc)))
-            continue
-        await event.reply(t("telegram_gui_added", name=os.path.basename(path)))
-        log(t("telegram_gui_added", name=os.path.basename(path)))
-        log_downloaded_file(log, path)
+    def submit_whisper(path: str, cid: int, mid: int) -> None:
+        submit(path, cid, mid)
+
+    enqueue_social_urls(
+        list(urls),
+        chat_id=chat_id,
+        message_id=message_id,
+        settings=settings,
+        log=log,
+        reply=reply,
+        send_files=send_files,
+        submit_whisper=submit_whisper,
+    )
 
 
 async def _take_video_links_guarded(event, urls, settings, submit, log, chat_id: int, message_id: int) -> None:
-    """Download off the listener. A failure or a 10-minute hang is reported and does not stop the client."""
+    """Fire-and-forget у соц-чергу; збій не валить account listener."""
     try:
         await _take_video_links(event, urls, settings, submit, log, chat_id, message_id)
     except Exception as exc:
         text = t("telegram_link_failed", error=str(exc))
         log(text)
         try:
-            await event.reply(text)
+            from whisperfast.telegram.outbox import enqueue_outgoing
+
+            enqueue_outgoing(chat_id, message_id, text=text)
         except Exception:
-            pass
+            try:
+                await event.reply(text)
+            except Exception:
+                pass
 
 
 async def _await_learn(ask, log, chat_name: str, material: str, chat_id: int, outgoing: bool = False, replay=None):

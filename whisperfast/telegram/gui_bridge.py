@@ -54,7 +54,7 @@ def _stamp(queue_ctrl, path: str, chat_id: int, message_id: int) -> None:
 
 
 def kick_gui_queue(app) -> None:
-    """Start unprocessed rows, or leave a flag so the current run continues into them."""
+    """Підштовхнути Whisper, якщо він простоює. Не чекає кінця і не чіпає AI/соц-чергу."""
     ctrl = getattr(app, "queue_ctrl", None)
     if ctrl is None:
         return
@@ -162,6 +162,70 @@ def _is_clip_audio(path: str) -> bool:
     return bool(_CLIP_AUDIO.search(os.path.basename(path)))
 
 
+def _norm_path(path: str) -> str:
+    try:
+        return os.path.normcase(os.path.abspath(path))
+    except OSError:
+        return (path or "").strip()
+
+
+def merge_disk_ai_outputs(
+    source: str, outputs: Sequence[Mapping[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Додає з диска `stem_*.md` біля TXT, якщо їх немає в outputs (AI міг не зареєструвати)."""
+    merged: List[Dict[str, Any]] = []
+    known: set[str] = set()
+    for out in outputs or []:
+        if not isinstance(out, Mapping):
+            continue
+        path = str(out.get("path") or "").strip()
+        row = dict(out)
+        if path:
+            known.add(_norm_path(path))
+        merged.append(row)
+
+    txt = ""
+    for out in merged:
+        if str(out.get("role") or "") == "txt" and out.get("path"):
+            txt = str(out["path"])
+            break
+    if not txt or not os.path.isfile(txt):
+        base = os.path.splitext(os.path.basename(source or ""))[0]
+        folder = os.path.dirname(os.path.abspath(source or "")) if source else ""
+        if base and folder:
+            candidate = os.path.join(folder, base + ".txt")
+            if os.path.isfile(candidate):
+                txt = candidate
+                key = _norm_path(txt)
+                if key not in known:
+                    merged.append({"role": "txt", "path": txt})
+                    known.add(key)
+    if not txt or not os.path.isfile(txt):
+        return merged
+
+    stem = os.path.splitext(os.path.basename(txt))[0]
+    folder = os.path.dirname(os.path.abspath(txt))
+    prefix = stem + "_"
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return merged
+    for name in sorted(names):
+        low = name.lower()
+        if not (low.endswith(".md") or low.endswith(".markdown")):
+            continue
+        if not name.startswith(prefix):
+            continue
+        path = os.path.join(folder, name)
+        key = _norm_path(path)
+        if key in known or not os.path.isfile(path):
+            continue
+        label = os.path.splitext(name[len(prefix) :])[0]
+        merged.append({"role": "ai", "path": path, "label": label})
+        known.add(key)
+    return merged
+
+
 def select_telegram_files(source: str, outputs: Sequence[Mapping[str, Any]]) -> List[Dict[str, str]]:
     """txt always; every AI file; mp3 of a video; a later clip's audio, with a clip caption.
 
@@ -191,13 +255,47 @@ def select_telegram_files(source: str, outputs: Sequence[Mapping[str, Any]]) -> 
     return fresh
 
 
+def collect_unsent_telegram_files(
+    app,
+    source: str,
+    outputs: Sequence[Mapping[str, Any]],
+    *,
+    include_ai: bool = True,
+    mark: bool = False,
+) -> List[Dict[str, str]]:
+    """Файли для TG, яких ще немає в `_sent_set`. optionally mark as reserved."""
+    merged = merge_disk_ai_outputs(source, outputs)
+    candidates = select_telegram_files(source, merged)
+    if not include_ai:
+        candidates = [row for row in candidates if str(row.get("role") or "") != "ai"]
+    fresh: List[Dict[str, str]] = []
+    with _lock(app):
+        sent = _sent_set(app)
+        for item in candidates:
+            key = _norm_path(item["path"])
+            if key in sent:
+                continue
+            if mark:
+                sent.add(key)
+            fresh.append(item)
+    return fresh
+
+
+def mark_telegram_paths_sent(app, paths: Sequence[str]) -> None:
+    with _lock(app):
+        sent = _sent_set(app)
+        for path in paths:
+            if path:
+                sent.add(_norm_path(path))
+
+
 def maybe_deliver_telegram(
     app,
     file_id: Optional[str] = None,
     source_path: Optional[str] = None,
     sender: Optional[Callable] = None,
 ) -> None:
-    """Send new Whisper/AI files for a Telegram-originated job. Waits while AI is still running."""
+    """Надіслати ще не відправлені Whisper/AI файли. TXT іде одразу; AI — коли промпт не running."""
     entry = _file_entry(app, file_id=file_id, source_path=source_path)
     if not isinstance(entry, Mapping):
         return
@@ -209,20 +307,19 @@ def maybe_deliver_telegram(
     if not meta:
         return
     outputs = [o for o in (entry.get("outputs") or []) if isinstance(o, Mapping)]
-    if _ai_busy_for_outputs(app, outputs):
-        return
-
-    fresh: List[Dict[str, str]] = []
+    ai_busy = _ai_busy_for_outputs(app, outputs)
+    fresh = collect_unsent_telegram_files(
+        app,
+        source,
+        outputs,
+        include_ai=not ai_busy,
+        mark=True,
+    )
+    error = str(entry.get("error") or "") if status == "failed" else ""
+    error_key = f"err:{meta['chat_id']}:{meta['message_id']}:{error}"
+    send_error = False
     with _lock(app):
         sent = _sent_set(app)
-        for item in select_telegram_files(source, outputs):
-            key = os.path.normcase(os.path.abspath(item["path"]))
-            if key in sent:
-                continue
-            sent.add(key)
-            fresh.append(item)
-        error = str(entry.get("error") or "") if status == "failed" else ""
-        error_key = f"err:{meta['chat_id']}:{meta['message_id']}:{error}"
         send_error = bool(error) and error_key not in sent
         if send_error:
             sent.add(error_key)
@@ -232,6 +329,40 @@ def maybe_deliver_telegram(
 
     note_outputs(source, fresh)
     extras = take_targets(source)
+
+    def _log_sent():
+        try:
+            if not fresh:
+                return
+            names = ", ".join(os.path.basename(item["path"]) for item in fresh)
+            chat_ids = [str(int(meta["chat_id"]))]
+            for extra in extras:
+                try:
+                    label = str(int(extra["chat_id"]))
+                except (KeyError, TypeError, ValueError):
+                    continue
+                if label not in chat_ids:
+                    chat_ids.append(label)
+            chat = ", ".join(chat_ids)
+            # Якщо в архіві вже є людська мітка «Кому» — покажемо її замість сирих id
+            try:
+                from whisperfast.library import get_library
+
+                job = get_library().find_by_source(source) or {}
+                stored = str(job.get("telegram_to") or "").strip()
+                if stored:
+                    chat = stored
+            except Exception:
+                pass
+            app.log(t("telegram_sent_files", chat=chat, names=names))
+        except Exception:
+            pass
+
+    try:
+        app.root.after(0, _log_sent)
+    except Exception:
+        _log_sent()
+
     if sender is not None:
         sender(meta, fresh, error if send_error else "")
         return

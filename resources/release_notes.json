@@ -1,6 +1,36 @@
 {
   "releases": [
     {
+      "version": "2.1.9",
+      "date": "28.09.2026",
+      "notes": {
+        "EN": [
+          "Whisper, AI post-processing, and social-network downloads run on separate serial queues. A stuck Cursor SDK no longer blocks transcription; social downloads do not wait for Whisper or AI.",
+          "Cursor SDK prompts time out and hung bridge processes are cleaned up so FTW does not freeze forever.",
+          "Telegram sends incrementally: TXT (and ready files) first, then AI when the prompt finishes. A later click sends only what was not sent yet; if everything already went, the log says so.",
+          "The Telegram send log names the exact files and the chat (→ {chat}: {files}), not only the source .mp4 name.",
+          "When asking to process only new queue items, Yes counts down 10 seconds and is chosen by default.",
+          "The file-already-exists dialog shows the existing file’s size and creation date."
+        ],
+        "UK": [
+          "Whisper, AI-постпроцесинг і скачування з соцмереж ідуть окремими серійними чергами. Завислий Cursor SDK більше не блокує транскрибацію; соцмережі не чекають Whisper/AI.",
+          "Промпти Cursor SDK мають таймаут, зависли bridge-процеси прибираються — FTW не зависає назавжди.",
+          "Telegram надсилає поступово: спочатку TXT (і готові файли), AI — коли промпт завершиться. Повторний клік надсилає лише ще не відправлене; якщо все вже пішло — окремий рядок у логу.",
+          "Лог відправки в Telegram називає конкретні файли і чат (→ {чат}: {файли}), а не лише назву вихідного .mp4.",
+          "Для «лише нові» в черзі кнопка Так має зворотний відлік 10 с і обирається за замовчуванням.",
+          "У діалозі «файл уже існує» показано розмір і дату створення наявного файлу."
+        ],
+        "RU": [
+          "Whisper, AI-постпроцессинг и скачивание из соцсетей идут отдельными серийными очередями. Зависший Cursor SDK больше не блокирует транскрипцию; соцсети не ждут Whisper/AI.",
+          "Промпты Cursor SDK имеют таймаут, зависшие bridge-процессы убираются — FTW не зависает навсегда.",
+          "Telegram отправляет постепенно: сначала TXT (и готовые файлы), AI — когда промпт завершится. Повторный клик шлёт только ещё не отправленное; если всё уже ушло — отдельная строка в логе.",
+          "Лог отправки в Telegram называет конкретные файлы и чат (→ {чат}: {файлы}), а не только имя исходного .mp4.",
+          "Для «только новые» в очереди кнопка Да имеет обратный отсчёт 10 с и выбирается по умолчанию.",
+          "В диалоге «файл уже существует» показаны размер и дата создания имеющегося файла."
+        ]
+      }
+    },
+    {
       "version": "2.1.8",
       "date": "26.09.2026",
       "notes": {

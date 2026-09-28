@@ -370,95 +370,105 @@ def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) 
 
 
 def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> None:
-    """Social download must not stall getUpdates. Failures stay inside the worker thread."""
+    """Соц-скачування в окремій черзі — не блокує getUpdates і не чекає Whisper/AI."""
 
-    def run():
-        try:
-            _ingest_bot_links(message, settings, client, submit, log)
-        except Exception as exc:
-            log(t("telegram_link_failed", error=str(exc)))
-
-    threading.Thread(target=run, name="ftw-social-download", daemon=True).start()
-
-
-def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
-    from whisperfast.telegram.links import claim_link, extract_video_urls, remember_link, remember_wait
-    from whisperfast.telegram.seen import classify
-
-    text = message.get("text") if isinstance(message.get("text"), str) else ""
-    urls = extract_video_urls(text)[:3]
-    if not urls:
-        return
     try:
         chat_id = int((message.get("chat") or {}).get("id"))
         message_id = int(message.get("message_id"))
     except (TypeError, ValueError):
         return
-    work = resolve_work_dir(settings)
-    for url in urls:
-        dest = os.path.join(work, f"{chat_id}_{message_id}")
-        remember_link(url)
-        log(url)
-        if classify("url:" + url)[0] == "download":
-            client.send_message(chat_id, t("telegram_link_downloading"), reply_to=message_id)
-        try:
-            action, path, known = claim_link(url, dest)
-            remember_link(url, path or str((known or {}).get("path") or ""))
-        except Exception as exc:
-            err = t("telegram_link_failed", error=str(exc))
-            client.send_message(chat_id, err, reply_to=message_id)
-            one = {"text": url, "chat": {"id": chat_id}, "message_id": message_id}
+    text = message.get("text") if isinstance(message.get("text"), str) else ""
+    from whisperfast.telegram.links import extract_video_urls
 
-            def retry(payload=one):
-                _ingest_bot_links(payload, settings, client, submit, log)
+    urls = extract_video_urls(text)[:3]
+    if not urls:
+        return
 
-            from whisperfast.telegram.links import report_link_failure
+    def reply(msg: str) -> None:
+        client.send_message(chat_id, msg, reply_to=message_id)
 
-            report_link_failure(log, exc, retry)
-            continue
-        if action == "send":
-            text_out = t(
-                "telegram_same_ai" if known.get("ai") else "telegram_same_done",
-                name=os.path.basename(url),
+    def send_files(files) -> None:
+        for item in files or []:
+            path = str((item or {}).get("path") or "")
+            if not path:
+                continue
+            client.send_document(
+                chat_id,
+                path,
+                caption=str((item or {}).get("caption") or ""),
+                reply_to=message_id,
             )
-            log(text_out)
-            client.send_message(chat_id, text_out, reply_to=message_id)
-            for item in (known.get("outputs") or []):
-                client.send_document(
-                    chat_id, item["path"], caption=str(item.get("caption") or ""), reply_to=message_id,
-                )
-            continue
-        if action == "wait":
-            remember_wait(url, chat_id, message_id)
-            text_out = t("telegram_same_queued", name=os.path.basename(url))
-            log(text_out)
-            client.send_message(chat_id, text_out, reply_to=message_id)
-            continue
-        from whisperfast.settings import load_app_settings
-        from whisperfast.telegram.links import (
-            log_downloaded_file,
-            mark_own_upload,
-            social_videos_go_to_queue,
-        )
 
-        if not social_videos_go_to_queue(load_app_settings()):
-            mark_own_upload(chat_id, path)
-            log_downloaded_file(log, path)
-            client.send_document(chat_id, path, reply_to=message_id)
-            continue
-        if submit is None:
+    def submit_whisper(path: str, cid: int, mid: int) -> None:
+        fn = submit
+        if fn is None:
             from whisperfast.telegram.gui_bridge import submit_to_running_gui
-            submit = submit_to_running_gui
-        try:
-            submit(path, chat_id, message_id)
-        except Exception as exc:
-            client.send_message(chat_id, t("telegram_failed", error=str(exc)), reply_to=message_id)
-            continue
-        client.send_message(
-            chat_id, t("telegram_gui_added", name=os.path.basename(path)), reply_to=message_id,
-        )
-        log(t("telegram_gui_added", name=os.path.basename(path)))
-        log_downloaded_file(log, path)
+
+            fn = submit_to_running_gui
+        fn(path, cid, mid)
+
+    from whisperfast.telegram.social_queue import enqueue_social_urls
+
+    enqueue_social_urls(
+        urls,
+        chat_id=chat_id,
+        message_id=message_id,
+        settings=settings,
+        log=log,
+        reply=reply,
+        send_files=send_files,
+        submit_whisper=submit_whisper,
+    )
+
+
+def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
+    """Sync-шлях для тестів / сумісності: та сама логіка, одразу в поточному потоці."""
+    try:
+        chat_id = int((message.get("chat") or {}).get("id"))
+        message_id = int(message.get("message_id"))
+    except (TypeError, ValueError):
+        return
+    text = message.get("text") if isinstance(message.get("text"), str) else ""
+    from whisperfast.telegram.links import extract_video_urls
+    from whisperfast.telegram.social_queue import process_social_urls
+
+    urls = extract_video_urls(text)[:3]
+    if not urls:
+        return
+
+    def reply(msg: str) -> None:
+        client.send_message(chat_id, msg, reply_to=message_id)
+
+    def send_files(files) -> None:
+        for item in files or []:
+            path = str((item or {}).get("path") or "")
+            if not path:
+                continue
+            client.send_document(
+                chat_id,
+                path,
+                caption=str((item or {}).get("caption") or ""),
+                reply_to=message_id,
+            )
+
+    def submit_whisper(path: str, cid: int, mid: int) -> None:
+        fn = submit
+        if fn is None:
+            from whisperfast.telegram.gui_bridge import submit_to_running_gui
+
+            fn = submit_to_running_gui
+        fn(path, cid, mid)
+
+    process_social_urls(
+        urls,
+        chat_id=chat_id,
+        message_id=message_id,
+        settings=settings,
+        log=log,
+        reply=reply,
+        send_files=send_files,
+        submit_whisper=submit_whisper,
+    )
 
 
 def _defer_learn(message, log: LogFunc, ask: Optional[Callable]) -> bool:

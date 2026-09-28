@@ -376,6 +376,7 @@ class WhisperGUI:
         self.queue_ctrl.bind_treeview(self.queue_list)
         capture_ui.bind_capture_hotkey(self)
         self.root.after(400, lambda: capture_ui.recover_interrupted_captures(self))
+        self.root.after(800, self._cleanup_orphan_cursor_bridges)
         capture_ui.start_background_polls(self)
 
         # Центрирование окна по экрану
@@ -1034,14 +1035,90 @@ class WhisperGUI:
             return
         if has_processed:
             unprocessed_count = sum(1 for q in self.queue if not q.get("processed"))
-            choice = messagebox.askquestion(
-                t("queue_dialog"),
-                t("process_only_new", count=unprocessed_count),
-            )
-            mode = "only_new" if choice == 'yes' else "all"
+            choice = self._ask_process_only_new(unprocessed_count)
+            mode = "only_new" if choice == "yes" else "all"
             self.start_thread(mode=mode)
         else:
             self.start_thread(mode="all")
+
+    def _ask_process_only_new(self, unprocessed_count, timeout_s=10):
+        """Yes з таймером 10 с за замовчуванням: лише нові файли; No — уся черга."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title(t("queue_dialog"))
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        result = {"choice": "yes"}
+        clock = {"id": None, "closed": False}
+
+        body = ttk.Frame(dialog, padding=16)
+        body.pack(fill="both", expand=True)
+        ttk.Label(
+            body,
+            text=t("process_only_new", count=unprocessed_count),
+            wraplength=420,
+            justify="left",
+        ).pack(anchor="w")
+
+        btn_frame = ttk.Frame(body)
+        btn_frame.pack(fill="x", pady=(16, 0))
+
+        def stop_clock():
+            if clock["id"] is not None:
+                try:
+                    dialog.after_cancel(clock["id"])
+                except Exception:
+                    pass
+                clock["id"] = None
+
+        def finish(choice):
+            if clock["closed"]:
+                return
+            clock["closed"] = True
+            stop_clock()
+            result["choice"] = choice
+            try:
+                dialog.grab_release()
+            except Exception:
+                pass
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+
+        no_btn = ttk.Button(
+            btn_frame,
+            text=t("file_exists_no"),
+            command=lambda: finish("no"),
+        )
+        no_btn.pack(side="right")
+        yes_btn = ttk.Button(
+            btn_frame,
+            text=t("file_exists_yes"),
+            command=lambda: finish("yes"),
+        )
+        yes_btn.pack(side="right", padx=(0, 8))
+
+        def count_down(left):
+            if clock["closed"]:
+                return
+            try:
+                yes_btn.configure(text=f"{t('file_exists_yes')} ({left})")
+            except tk.TclError:
+                return
+            if left <= 0:
+                finish("yes")
+                return
+            clock["id"] = dialog.after(1000, lambda: count_down(left - 1))
+
+        count_down(int(timeout_s))
+        dialog.protocol("WM_DELETE_WINDOW", lambda: finish("no"))
+        dialog.bind("<Escape>", lambda _e: finish("no"))
+        dialog.bind("<Return>", lambda _e: finish("yes"))
+        self._center_toplevel(dialog)
+        yes_btn.focus_set()
+        dialog.wait_window()
+        return result["choice"]
 
     def _show_file_selection_dialog(self, filename):
         """
@@ -1279,6 +1356,21 @@ class WhisperGUI:
             self.root.after(0, lambda i=info: self._show_startup_app_update_dialog(i))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _cleanup_orphan_cursor_bridges(self):
+        """При старті прибирає zombie cursor-sdk-bridge від попередніх зависань."""
+
+        def worker():
+            try:
+                from whisperfast.postprocess.cursor_postprocess import _kill_orphan_sdk_bridges
+
+                n = _kill_orphan_sdk_bridges()
+            except Exception:
+                return
+            if n:
+                self.root.after(0, lambda: self.log(t("cursor_orphan_bridges_cleared", count=n)))
+
+        threading.Thread(target=worker, name="ftw-bridge-cleanup", daemon=True).start()
 
     def _show_startup_app_update_dialog(self, info):
         current = info.get("current") or ""
@@ -2634,12 +2726,16 @@ class WhisperGUI:
     def _schedule_cursor_postprocess(
         self, txt_path, cursor_api_key="", export_md_to_docx=None, job_id=None, log_file_id=None
     ):
-        self.ai_jobs.schedule_postprocess(
-            txt_path,
-            cursor_api_key=cursor_api_key,
-            export_md_to_docx=export_md_to_docx,
-            job_id=job_id,
-            log_file_id=log_file_id,
+        """Після TXT — лише постановка в AI-чергу на UI-потоці; Whisper не чекає."""
+        self.root.after(
+            0,
+            lambda p=txt_path, k=cursor_api_key, e=export_md_to_docx, j=job_id, f=log_file_id: self.ai_jobs.schedule_postprocess(
+                p,
+                cursor_api_key=k,
+                export_md_to_docx=e,
+                job_id=j,
+                log_file_id=f,
+            ),
         )
 
     def _pump_cursor_prompt_queue(self):
@@ -2727,7 +2823,7 @@ class WhisperGUI:
         return chosen["value"]
 
     def _send_queue_row_to_telegram(self, event):
-        """Send this row's transcript and AI files back to its Telegram chat."""
+        """Send unsent transcript/AI files for this row (incremental)."""
         iid = self.queue_list.identify_row(event.y)
         if not iid:
             return
@@ -2741,21 +2837,43 @@ class WhisperGUI:
         if not item.get("processed"):
             return
         source = str(item.get("path") or "")
-        from whisperfast.telegram.gui_bridge import _file_entry, select_telegram_files
+        name = os.path.basename(source)
+        from whisperfast.telegram.gui_bridge import (
+            _ai_busy_for_outputs,
+            _file_entry,
+            collect_unsent_telegram_files,
+            mark_telegram_paths_sent,
+            merge_disk_ai_outputs,
+        )
         from whisperfast.telegram.outbox import enqueue_outgoing
 
         entry = _file_entry(self, source_path=source)
         outputs = [o for o in ((entry or {}).get("outputs") or []) if isinstance(o, dict)]
-        files = select_telegram_files(source, outputs)
+        outputs = merge_disk_ai_outputs(source, outputs)
+        ai_busy = _ai_busy_for_outputs(self, outputs)
+        files = collect_unsent_telegram_files(
+            self,
+            source,
+            outputs,
+            include_ai=not ai_busy,
+            mark=False,
+        )
         if not files:
-            self.log(t("telegram_send_nothing", name=os.path.basename(source)))
+            # Немає нових: або все вже пішло, або взагалі нічого немає
+            from whisperfast.telegram.gui_bridge import select_telegram_files
+
+            all_candidates = select_telegram_files(source, outputs)
+            if all_candidates:
+                self.log(t("telegram_already_sent_all", name=name))
+            else:
+                self.log(t("telegram_send_nothing", name=name))
             return
         chat_id = item.get("telegram_chat_id")
         chat_name = ""
         reply = None
         force_ask = bool(event is not None and (getattr(event, "state", 0) & 0x0001))
         if chat_id is None or force_ask:
-            chat_name = self._ask_telegram_recipient(os.path.basename(source))
+            chat_name = self._ask_telegram_recipient(name)
             if not chat_name:
                 return
             chat_id = None
@@ -2764,6 +2882,7 @@ class WhisperGUI:
                 reply = int(item.get("telegram_message_id") or 0)
             except (TypeError, ValueError):
                 reply = 0
+        mark_telegram_paths_sent(self, [row["path"] for row in files])
         enqueue_outgoing(
             None if chat_id is None else int(chat_id),
             reply,
@@ -2780,7 +2899,23 @@ class WhisperGUI:
             library=getattr(self, "library", None),
         )
         self._refresh_archive_window()
-        self.log(t("telegram_sent_manual", name=os.path.basename(source)))
+        names = ", ".join(os.path.basename(row["path"]) for row in files)
+        chat_label = (chat_name or "").strip()
+        if not chat_label and chat_id is not None:
+            chat_label = str(int(chat_id))
+            try:
+                lib = getattr(self, "library", None)
+                if lib is not None:
+                    job = lib.find_by_source(source) or {}
+                    stored = str(job.get("telegram_to") or "").strip()
+                    if stored:
+                        # Беремо останню мітку «Кому» (може бути кілька через кому)
+                        chat_label = stored.split(",")[-1].strip() or chat_label
+            except Exception:
+                pass
+        if not chat_label:
+            chat_label = "?"
+        self.log(t("telegram_sent_files", chat=chat_label, names=names))
 
     def send_archive_job_to_telegram(self, job, *, force_ask=False):
         """Same send as a processed queue row. Shift always asks who should receive it."""
@@ -2788,7 +2923,14 @@ class WhisperGUI:
             return
         source = str(job.get("source") or job.get("txt_path") or "")
         name = os.path.basename(str(job.get("name") or source))
-        from whisperfast.telegram.gui_bridge import _file_entry, select_telegram_files
+        from whisperfast.telegram.gui_bridge import (
+            _ai_busy_for_outputs,
+            _file_entry,
+            collect_unsent_telegram_files,
+            mark_telegram_paths_sent,
+            merge_disk_ai_outputs,
+            select_telegram_files,
+        )
         from whisperfast.telegram.origin import lookup
         from whisperfast.telegram.outbox import enqueue_outgoing
 
@@ -2802,9 +2944,20 @@ class WhisperGUI:
             for extra in job.get("extra_outputs") or []:
                 if isinstance(extra, dict):
                     outputs.append(extra)
-        files = select_telegram_files(source, outputs)
+        outputs = merge_disk_ai_outputs(source, outputs)
+        ai_busy = _ai_busy_for_outputs(self, outputs)
+        files = collect_unsent_telegram_files(
+            self,
+            source,
+            outputs,
+            include_ai=not ai_busy,
+            mark=False,
+        )
         if not files:
-            self.log(t("telegram_send_nothing", name=name))
+            if select_telegram_files(source, outputs):
+                self.log(t("telegram_already_sent_all", name=name))
+            else:
+                self.log(t("telegram_send_nothing", name=name))
             return
         origin = lookup(source) or {}
         chat_id = None if force_ask else origin.get("chat_id")
@@ -2819,6 +2972,7 @@ class WhisperGUI:
                 reply = int(origin.get("message_id") or 0)
             except (TypeError, ValueError):
                 reply = 0
+        mark_telegram_paths_sent(self, [row["path"] for row in files])
         enqueue_outgoing(
             None if chat_id is None else int(chat_id),
             reply,
@@ -2834,7 +2988,21 @@ class WhisperGUI:
             library=getattr(self, "library", None),
         )
         self._refresh_archive_window()
-        self.log(t("telegram_sent_manual", name=name))
+        names = ", ".join(os.path.basename(row["path"]) for row in files)
+        chat_label = (chat_name or "").strip()
+        if not chat_label and chat_id is not None:
+            chat_label = str(int(chat_id))
+            try:
+                lib = getattr(self, "library", None)
+                if lib is not None:
+                    stored = str((lib.find_by_source(source) or {}).get("telegram_to") or "").strip()
+                    if stored:
+                        chat_label = stored.split(",")[-1].strip() or chat_label
+            except Exception:
+                pass
+        if not chat_label:
+            chat_label = "?"
+        self.log(t("telegram_sent_files", chat=chat_label, names=names))
 
     def delete_selected_queue_items(self, event=None):
         """Удаляет выделенные строки из очереди и сохраняет изменения."""

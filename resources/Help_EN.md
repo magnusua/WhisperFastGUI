@@ -38,10 +38,10 @@ Supported documents: `.pdf`, `.doc`, `.docx` (converted to Markdown; Whisper is 
 ## Processing the queue
 
 - With one item, **Start** processes it immediately.
-- With several items, choose the selected item, new items only, or the whole queue.
+- With several items, choose the selected item, new items only, or the whole queue. For “new items only”, **Yes** counts down 10 seconds and is chosen if you do nothing.
 - **Cancel** stops the current task.
 - Processed items are marked in the queue.
-- Only one queue task runs at a time (transcription or document processing).
+- Only one **transcription** (or document) task runs at a time. AI prompts and social-network downloads use separate queues and do not block Whisper.
 
 ## Documents in the queue
 
@@ -121,7 +121,7 @@ A YouTube, Instagram, or Facebook link is downloaded and sent back to the chat. 
 - **Account** — private chats of this Telegram user. You need `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org) (API development tools, platform Desktop) and a phone number such as `+380501111111`. **Sign in** receives the code inside Telegram, not by SMS; a cloud password is asked for when the account has one. The listener can start only after you are signed in.
 - **Bot** — a bot from @BotFather: send `/newbot`, the username must end with `bot`, and the token looks like `123456789:AAH…`. You also need `api_id`, `api_hash`, and a local `telegram-bot-api.exe` (files up to about 2 GB) from [tdlib/telegram-bot-api](https://github.com/tdlib/telegram-bot-api/releases). The default address is `http://127.0.0.1:8081`. Before the first local start, call `logOut` on the cloud Bot API for this token.
 
-Audio and video go into the queue. As soon as a file is accepted, a line appears in the FTW log, before the download finishes. Results return to the same chat: the transcript (TXT), every AI file, an MP3 extracted from a video, and a later audio clip (caption “Clip of the audio”). An MP3 made from an audio file is not sent back. Stopping transcription in the middle of a file sends nothing for it; files that already finished, and their AI output, are sent on their own. The same Telegram file (a forward) is not downloaded again: if it is still in the queue, the new message receives the results when processing finishes; if the transcript or AI files already exist, those files are sent. After processing the originals stay on disk next to the transcript; the chat receives a copy.
+Audio and video go into the queue. As soon as a file is accepted, a line appears in the FTW log, before the download finishes. Results return to the same chat incrementally: the transcript (TXT) and ready files first, then AI files when each prompt finishes. The log shows **which files** were sent and **to which chat**. A later click on the Telegram column sends only what was not sent yet; if everything already went, the log says so. An MP3 made from an audio file is not sent back. Stopping transcription in the middle of a file sends nothing for it; files that already finished, and their AI output, are sent on their own. The same Telegram file (a forward) is not downloaded again: if it is still in the queue, the new message receives the results when processing finishes; if the transcript or AI files already exist, those files are sent. After processing the originals stay on disk next to the transcript; the chat receives a copy.
 
 In account mode, messages you send yourself are skipped, except **Saved Messages** and the chats named in “Also process your own audio and video in these chats” (first name, full name, or `@username`, ignoring case). A group with that title sends every audio and video. When the listener starts, the same notice is sent to Saved Messages. An empty chat-id list means every private chat. In bot mode, while the chat-id list is empty, the bot ignores media and answers `/start` with that chat’s id.
 

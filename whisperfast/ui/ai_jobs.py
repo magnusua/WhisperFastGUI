@@ -1,9 +1,16 @@
-"""AI-постпроцесинг: вибір промптів (кілька вікон одночасно), API/fallback, finish hooks."""
+"""AI-постпроцесинг: вибір промптів (кілька вікон одночасно), API/fallback, finish hooks.
+
+Черга промптів незалежна від черги Whisper (`_process_queue_lock`):
+транскрибація лише ставить AI-job і йде далі; виконання промптів іде
+в окремому серійному воркері. Збій/зависання Cursor не блокує Whisper.
+"""
 
 from __future__ import annotations
 
 import os
+import queue
 import threading
+import time
 import uuid
 import tkinter as tk
 from tkinter import messagebox
@@ -203,7 +210,11 @@ def apply_one_liner_brief(app, file_id, summary, source_path="") -> bool:
 
 
 class AiJobQueue:
-    """Оркестрація AI після TXT/MD: діалог промптів на кожен файл, finish hooks."""
+    """Оркестрація AI після TXT/MD: діалог промптів на кожен файл, finish hooks.
+
+    Виконання провайдера (Cursor SDK тощо) — лише через `_submit_ai_work`
+    (одна job за раз). Це окрема черга від `app._process_queue_lock` (Whisper).
+    """
 
     def __init__(self, app):
         self.app = app
@@ -216,6 +227,11 @@ class AiJobQueue:
         self._open_prompt_job_ids = set()
         # Сумісність зі старим кодом / overwrite-check
         self._prompt_dialog_job_id = None
+        # Окрема серійна черга виконання промптів (не Whisper)
+        self._run_q: queue.Queue = queue.Queue()
+        self._worker_started = False
+        self._worker_lock = threading.Lock()
+        self._ai_active = 0
 
     def edit_redactor_file(self):
         open_redactor_file(log_func=self.app.log)
@@ -250,6 +266,65 @@ class AiJobQueue:
     def has_open_prompt_dialog(self) -> bool:
         """True, якщо хоча б одне вікно «Промты» відкрите."""
         return bool(self._open_prompt_job_ids)
+
+    def whisper_queue_busy(self) -> bool:
+        """True, поки крутиться черга транскрибації (окремий lock від AI)."""
+        lock = getattr(self.app, "_process_queue_lock", None)
+        try:
+            return bool(lock is not None and lock.locked())
+        except Exception:
+            return False
+
+    def _ensure_ai_worker(self) -> None:
+        with self._worker_lock:
+            if self._worker_started:
+                return
+            self._worker_started = True
+            threading.Thread(
+                target=self._ai_worker_loop,
+                name="ftw-ai-queue",
+                daemon=True,
+            ).start()
+
+    def _ai_worker_loop(self) -> None:
+        while True:
+            work = self._run_q.get()
+            if work is None:
+                self._run_q.task_done()
+                break
+            try:
+                with self._lock:
+                    self._ai_active += 1
+                work()
+            except Exception:
+                pass
+            finally:
+                with self._lock:
+                    self._ai_active = max(0, self._ai_active - 1)
+                self._run_q.task_done()
+
+    def _submit_ai_work(self, work) -> None:
+        """Поставити виконання промптів у AI-чергу (або inline для тестів)."""
+        # Юніт-тести: FakeApp._ai_inline=True — без фонового воркера.
+        if getattr(self.app, "_ai_inline", False):
+            work()
+            return
+        self._ensure_ai_worker()
+        self._run_q.put(work)
+
+    def wait_ai_idle(self, timeout: float = 5.0) -> bool:
+        """Дочекатися порожньої AI-черги (для тестів)."""
+        if getattr(self.app, "_ai_inline", False):
+            return True
+        self._ensure_ai_worker()
+        deadline = time.monotonic() + max(0.05, float(timeout))
+        while time.monotonic() < deadline:
+            if self._run_q.unfinished_tasks == 0:
+                with self._lock:
+                    if self._ai_active == 0:
+                        return True
+            time.sleep(0.02)
+        return False
 
     def maybe_log_all_complete(self, send_txt_to_ai, will_continue):
         """Лог «всі завдання виконано» лише після черги і (за потреби) після AI."""
@@ -832,6 +907,13 @@ class AiJobQueue:
             self._job_end()
 
         def resolve_ai_output(path):
+            """Поки Whisper у черзі — без діалогів (суфікс часу), щоб AI не чіпав UI."""
+            if self.whisper_queue_busy():
+                if path and os.path.isfile(path):
+                    from whisperfast.core.output_conflict import make_timed_alt_path
+
+                    return make_timed_alt_path(path)
+                return path
             resolver = getattr(app, "resolve_output_path", None)
             if not callable(resolver):
                 return path
@@ -844,18 +926,32 @@ class AiJobQueue:
             kwargs = {}
             if delay_s is not None:
                 kwargs["delay_s"] = delay_s
-            start_ai_postprocess_async(
-                txt_path,
-                provider_id=provider_id,
-                credentials=credentials,
-                log_func=log_func,
-                on_file_created=on_created,
-                on_complete=on_complete,
-                resolve_output_path=resolve_ai_output,
-                prompts=prompts,
-                on_usage=on_usage,
-                **kwargs,
-            )
+
+            def work():
+                """Один AI-job; воркер чекає завершення → наступний у черзі промптів."""
+                done = threading.Event()
+
+                def _complete(created=None):
+                    try:
+                        on_complete(created)
+                    finally:
+                        done.set()
+
+                start_ai_postprocess_async(
+                    txt_path,
+                    provider_id=provider_id,
+                    credentials=credentials,
+                    log_func=log_func,
+                    on_file_created=on_created,
+                    on_complete=_complete,
+                    resolve_output_path=resolve_ai_output,
+                    prompts=prompts,
+                    on_usage=on_usage,
+                    **kwargs,
+                )
+                done.wait()
+
+            self._submit_ai_work(work)
 
         def maybe_install_then_start():
             if provider_id != PROVIDER_CURSOR:
@@ -882,6 +978,7 @@ class AiJobQueue:
                     except Exception:
                         on_complete()
                         raise
+                # Інсталяція — у фоні; Whisper при цьому вже не чекає.
                 threading.Thread(target=install_then, daemon=True).start()
             else:
                 log_func(t("cursor_sdk_missing"))

@@ -361,6 +361,38 @@ def center_toplevel(app, win, parent=None):
     win.geometry(f"+{x}+{y}")
 
 
+def _format_bytes(num_bytes: int) -> str:
+    size = float(max(0, int(num_bytes or 0)))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024.0 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            text = f"{size:.1f}".rstrip("0").rstrip(".")
+            return f"{text} {unit}"
+        size /= 1024.0
+    return f"{int(num_bytes)} B"
+
+
+def _existing_file_stats(path: str) -> tuple[str, str]:
+    """Розмір і дата створення наявного файлу для діалогу overwrite."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return "?", "?"
+    size = _format_bytes(st.st_size)
+    created_ts = getattr(st, "st_birthtime", None)
+    if created_ts is None:
+        # Windows: st_ctime = creation; Unix: metadata change — краще за нічого
+        created_ts = st.st_ctime
+    try:
+        from datetime import datetime
+
+        created = datetime.fromtimestamp(created_ts).strftime("%Y-%m-%d %H:%M")
+    except (OverflowError, OSError, ValueError):
+        created = "?"
+    return size, created
+
+
 def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> Optional[bool]:
     """
     Blocking ask from a worker thread using Tk main loop.
@@ -392,6 +424,7 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> 
                 dlg.transient(parent)
             dlg.grab_set()
 
+            size, created = _existing_file_stats(path)
             body = ttk.Frame(dlg, padding=16)
             body.pack(fill="both", expand=True)
             ttk.Label(
@@ -399,6 +432,8 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> 
                 text=t(
                     "file_exists_msg",
                     name=os.path.basename(path),
+                    size=size,
+                    created=created,
                     alt=alt_name,
                 ),
                 justify="left",

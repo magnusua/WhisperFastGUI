@@ -22,8 +22,15 @@ CURSOR_POSTPROCESS_DELAY_S = 5.0
 CURSOR_SDK_NETWORK_ATTEMPTS = 5
 CURSOR_SDK_NETWORK_RETRY_DELAY_S = 2.0
 CURSOR_SDK_BRIDGE_RETRY_DELAY_S = 0.5
+# Жорсткий ліміт на один Agent.prompt: без нього зависання bridge/API
+# тримає всю чергу Whisper/AI годинами (див. CLOSE_WAIT + zombie node).
+CURSOR_SDK_PROMPT_TIMEOUT_S = 600.0
 
 LogFunc = Callable[..., None]
+
+
+class CursorSdkPromptTimeout(TimeoutError):
+    """Agent.prompt не завершився за CURSOR_SDK_PROMPT_TIMEOUT_S."""
 
 
 def _ensure_os_blocking_compat() -> None:
@@ -162,6 +169,12 @@ def _is_network_request_failed(exc: BaseException) -> bool:
     return "network request failed" in _exception_text(exc)
 
 
+def _is_prompt_timeout(exc: BaseException) -> bool:
+    return isinstance(exc, CursorSdkPromptTimeout) or "cursor sdk prompt timed out" in _exception_text(
+        exc
+    )
+
+
 def _is_auth_error(exc: BaseException) -> bool:
     text = _exception_text(exc)
     markers = (
@@ -185,9 +198,110 @@ def _sdk_retry_plan(
     """attempt — 1-based номер невдалої спроби. None = більше не повторювати."""
     if _is_auth_error(exc) or attempt >= max_network_attempts:
         return None
+    if _is_prompt_timeout(exc):
+        return ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S)
     if _is_bridge_connection_error(exc) and not _is_network_request_failed(exc):
         return ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S)
     return ("network", CURSOR_SDK_NETWORK_RETRY_DELAY_S)
+
+
+def _kill_orphan_sdk_bridges(workspace: Optional[str] = None) -> int:
+    """Примусово завершує zombie cursor-sdk-bridge (node). Повертає кількість PID."""
+    killed = 0
+    needle = "cursor-sdk-bridge"
+    ws = os.path.normcase(os.path.abspath(workspace)) if workspace else ""
+    pids: List[int] = []
+    try:
+        if sys.platform == "win32":
+            ps = (
+                "Get-CimInstance Win32_Process -Filter \"Name = 'node.exe'\" | "
+                "Where-Object { $_.CommandLine -and $_.CommandLine -like '*"
+                + needle
+                + "*' } | "
+                "ForEach-Object { $_.ProcessId.ToString() + \"`t\" + $_.CommandLine }"
+            )
+            proc = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    ps,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                **win_no_window_kwargs(),
+            )
+            for line in (proc.stdout or "").splitlines():
+                line = line.strip()
+                if not line or "\t" not in line:
+                    continue
+                pid_s, cmdline = line.split("\t", 1)
+                try:
+                    pid = int(pid_s)
+                except ValueError:
+                    continue
+                if ws and os.path.normcase(ws) not in os.path.normcase(cmdline):
+                    # Якщо workspace заданий — чіпаємо лише bridge цього каталогу.
+                    # Без workspace — усі FTW bridges.
+                    continue
+                pids.append(pid)
+        else:
+            proc = subprocess.run(
+                ["pgrep", "-f", needle],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for pid_s in (proc.stdout or "").split():
+                try:
+                    pids.append(int(pid_s))
+                except ValueError:
+                    continue
+    except (OSError, subprocess.SubprocessError):
+        return 0
+
+    me = os.getpid()
+    for pid in pids:
+        if pid <= 0 or pid == me:
+            continue
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"],
+                    capture_output=True,
+                    timeout=10,
+                    **win_no_window_kwargs(),
+                )
+            else:
+                os.kill(pid, 9)
+            killed += 1
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return killed
+
+
+def _call_with_timeout(fn: Callable[[], object], timeout_s: float):
+    """Запускає fn у daemon-потоці; при таймауті кидає CursorSdkPromptTimeout."""
+    box: dict = {"result": None, "error": None}
+
+    def worker():
+        try:
+            box["result"] = fn()
+        except BaseException as err:  # noqa: BLE001 — пробрасуємо в caller
+            box["error"] = err
+
+    thread = threading.Thread(target=worker, name="ftw-cursor-sdk-prompt", daemon=True)
+    thread.start()
+    thread.join(timeout=max(0.05, float(timeout_s)))
+    if thread.is_alive():
+        raise CursorSdkPromptTimeout(
+            f"Cursor SDK prompt timed out after {int(timeout_s)}s"
+        )
+    if box["error"] is not None:
+        raise box["error"]
+    return box["result"]
 
 
 def _prepare_cursor_sdk() -> None:
@@ -607,6 +721,13 @@ def _log_sdk_retry(
         pass
 
 
+def _output_looks_written(path: str) -> bool:
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
 def _run_sdk_one(
     input_path: str,
     output_path: str,
@@ -620,6 +741,7 @@ def _run_sdk_one(
     from cursor_sdk._client import close_default_client
 
     cwd = os.path.dirname(os.path.abspath(input_path)) or BASE_DIR
+    output_path = os.path.abspath(output_path)
     full_prompt = _build_agent_prompt(input_path, output_path, prompt_text)
     local = LocalAgentOptions(cwd=cwd)
     options = AgentOptions(
@@ -633,9 +755,25 @@ def _run_sdk_one(
         # після «мертвого» default client у довгій GUI-сесії.
         client = Client.launch_bridge(workspace=cwd, local=local)
         try:
-            return Agent.prompt(full_prompt, options, client=client)
+            return _call_with_timeout(
+                lambda: Agent.prompt(full_prompt, options, client=client),
+                CURSOR_SDK_PROMPT_TIMEOUT_S,
+            )
+        except CursorSdkPromptTimeout:
+            # Агент міг уже записати файл і зависнути на статусі — не губимо роботу.
+            try:
+                client.close()
+            except Exception:
+                pass
+            _kill_orphan_sdk_bridges(workspace=cwd)
+            if _output_looks_written(output_path):
+                return type("Ok", (), {"status": "finished", "id": "timeout-accepted"})()
+            raise
         finally:
-            client.close()
+            try:
+                client.close()
+            except Exception:
+                pass
 
     result = None
     last_err: Optional[BaseException] = None
@@ -661,6 +799,7 @@ def _run_sdk_one(
                     close_default_client()
                 except Exception:
                     pass
+                _kill_orphan_sdk_bridges(workspace=cwd)
             _log_sdk_retry(
                 log_func,
                 prompt_num,

@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import sys
+import tempfile
+import threading
 import unittest
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
@@ -10,6 +13,7 @@ from whisperfast.postprocess.cursor_postprocess import (
     CURSOR_SDK_BRIDGE_RETRY_DELAY_S,
     CURSOR_SDK_NETWORK_ATTEMPTS,
     CURSOR_SDK_NETWORK_RETRY_DELAY_S,
+    CursorSdkPromptTimeout,
     _is_network_request_failed,
     _run_sdk_one,
     _sdk_retry_plan,
@@ -59,6 +63,11 @@ class TestSdkRetryPlan(unittest.TestCase):
         self.assertEqual(_sdk_retry_plan(err, 4), ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S))
         self.assertIsNone(_sdk_retry_plan(err, 5))
 
+    def test_timeout_uses_bridge_plan(self):
+        err = CursorSdkPromptTimeout("Cursor SDK prompt timed out after 600s")
+        self.assertEqual(_sdk_retry_plan(err, 1), ("bridge", CURSOR_SDK_BRIDGE_RETRY_DELAY_S))
+        self.assertIsNone(_sdk_retry_plan(err, 5))
+
     def test_other_errors_retry_until_auth(self):
         self.assertEqual(
             _sdk_retry_plan(RuntimeError("agent crashed"), 1),
@@ -90,6 +99,8 @@ class _FakeAgent:
         item = _FakeAgent.side_effects.pop(0)
         if isinstance(item, BaseException):
             raise item
+        if callable(item):
+            return item()
         return item
 
 
@@ -104,6 +115,12 @@ def _install_fake_cursor_sdk():
     sys.modules["cursor_sdk"] = sdk
     sys.modules["cursor_sdk._client"] = client_mod
     return sdk, client_mod
+
+
+def _hang_forever():
+    """Block Agent.prompt without using time.sleep (tests may mock it)."""
+    threading.Event().wait(timeout=60)
+    return SimpleNamespace(status="finished", id="late")
 
 
 class TestRunSdkOneNetworkRetry(unittest.TestCase):
@@ -170,6 +187,48 @@ class TestRunSdkOneNetworkRetry(unittest.TestCase):
         self.assertEqual(str(ctx.exception), "invalid api key")
         sleep.assert_not_called()
         self.assertEqual(_FakeClient.launched, 1)
+
+    def test_timeout_accepted_when_output_already_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out.md"
+            out.write_text("done", encoding="utf-8")
+            _FakeAgent.side_effects = [_hang_forever]
+            with patch("whisperfast.postprocess.cursor_postprocess._prepare_cursor_sdk"):
+                with patch(
+                    "whisperfast.postprocess.cursor_postprocess.CURSOR_SDK_PROMPT_TIMEOUT_S",
+                    0.2,
+                ):
+                    with patch(
+                        "whisperfast.postprocess.cursor_postprocess._kill_orphan_sdk_bridges",
+                        return_value=1,
+                    ) as kill:
+                        _run_sdk_one(str(Path(tmp) / "in.txt"), str(out), "clean", "key")
+            kill.assert_called()
+            self.assertEqual(_FakeClient.launched, 1)
+
+    def test_timeout_retries_then_raises_without_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "missing.md"
+            _FakeAgent.side_effects = [_hang_forever] * 5
+            with patch("whisperfast.postprocess.cursor_postprocess._prepare_cursor_sdk"):
+                with patch(
+                    "whisperfast.postprocess.cursor_postprocess.CURSOR_SDK_PROMPT_TIMEOUT_S",
+                    0.15,
+                ):
+                    with patch(
+                        "whisperfast.postprocess.cursor_postprocess._kill_orphan_sdk_bridges",
+                        return_value=0,
+                    ):
+                        with patch("whisperfast.postprocess.cursor_postprocess.time.sleep"):
+                            with self.assertRaises(CursorSdkPromptTimeout):
+                                _run_sdk_one(
+                                    str(Path(tmp) / "in.txt"),
+                                    str(out),
+                                    "clean",
+                                    "key",
+                                    prompt_num=2,
+                                )
+            self.assertEqual(_FakeClient.launched, 5)
 
 
 if __name__ == "__main__":
