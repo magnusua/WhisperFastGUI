@@ -1,4 +1,4 @@
-"""Інтерактивний лог з групуванням по днях (Text + app_log.json).
+"""Інтерактивний лог з групуванням по днях (Text + app_log_*.json канали).
 
 Ієрархія згортання:
   1. День — сьогодні розгорнутий за замовчуванням, минулі згорнуті.
@@ -12,14 +12,18 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import uuid
 import tkinter as tk
+from typing import Optional
 
 from whisperfast.i18n import t
 from whisperfast.log_store import (
+    CHANNEL_WHISPER,
+    ChannelLogHub,
     KIND_FILE,
     KIND_LINE,
-    LogStore,
+    normalize_channel,
     today_key,
 )
 from whisperfast.open_path import open_file, open_file_location
@@ -91,15 +95,16 @@ def _bound_callback_dict(d: dict, cap: int = _MAX_RETAINED_CALLBACKS) -> None:
 class LogPanel:
     """Керує ScrolledText-логом: store, дні, file-сесії, link/action, меню копіювання."""
 
-    def __init__(self, root):
+    def __init__(self, root, schedule_ui=None, base_dir=None):
         self.root = root
+        # Non-blocking UI marshal (prefer app.call_in_ui). Never use blocking
+        # root.after from worker threads — that deadlocks with LogStore.flush.
+        self._schedule_ui = schedule_ui
         self.log_box = None
         self.log_menu = None
-        self._store = LogStore(
-            on_schedule_flush=lambda delay: self.root.after(
-                int(delay * 1000), self._store.flush
-            )
-        )
+        # Three channel files merged for UI; filter via set_channel_filter.
+        self._store = ChannelLogHub(base_dir=base_dir)
+        self._filter_channel: Optional[str] = None  # None = all channels
         self._action_callbacks = {}
         self._day_expanded = {}
         self._day_body_loaded = {}
@@ -115,6 +120,60 @@ class LogPanel:
         self._note_edit_state = {}  # file_id -> in-progress edit across re-renders
         self.on_note_commit = None  # callback(file_id, note)
         self.on_select_prompts = None  # callback(file_id) — «Обрати промти» without a live job
+        self.on_channel_filter_change = None  # callback(channel|None)
+
+    def set_ui_scheduler(self, schedule_ui):
+        """Optional: ``schedule_ui(fn)`` runs ``fn`` on the Tk main thread without blocking."""
+        self._schedule_ui = schedule_ui
+
+    def channel_filter(self) -> Optional[str]:
+        """None = all channels; otherwise one of telegram/social/whisper."""
+        return self._filter_channel
+
+    def set_channel_filter(self, channel: Optional[str], *, reload: bool = True):
+        """Filter UI to one channel, or ``None`` for all. Persists writes to all files."""
+        if channel is None or str(channel).strip().lower() in ("", "all", "*"):
+            self._filter_channel = None
+        else:
+            self._filter_channel = normalize_channel(channel)
+        if callable(self.on_channel_filter_change):
+            try:
+                self.on_channel_filter_change(self._filter_channel)
+            except Exception:
+                pass
+        if reload and self.log_box is not None:
+            self.reload_from_store()
+
+    def _visible_channels(self):
+        if self._filter_channel:
+            return (self._filter_channel,)
+        return None  # all
+
+    def _channel_is_visible(self, channel: Optional[str]) -> bool:
+        if self._filter_channel is None:
+            return True
+        return normalize_channel(channel) == self._filter_channel
+
+    def _run_on_ui(self, fn):
+        """Run ``fn`` on the Tk thread. Never block a worker on ``root.after``."""
+        if threading.current_thread() is threading.main_thread():
+            try:
+                fn()
+            except tk.TclError:
+                pass
+            return
+        schedule = self._schedule_ui
+        if callable(schedule):
+            try:
+                schedule(fn)
+                return
+            except Exception:
+                pass
+        try:
+            # Last resort: may block briefly; prefer wiring set_ui_scheduler.
+            self.root.after(0, fn)
+        except Exception:
+            pass
 
     def bind_widget(self, log_box):
         self.log_box = log_box
@@ -124,21 +183,28 @@ class LogPanel:
 
     # --- Plain lines ---------------------------------------------------------
 
-    def log(self, msg, tag=None):
+    def log(self, msg, tag=None, channel=None):
         text = str(msg) + ("" if str(msg).endswith("\n") else "\n")
-        entry = self._store.append_line(text, tag=tag)
+        ch = normalize_channel(channel or CHANNEL_WHISPER)
+        entry = self._store.append_line(text, tag=tag, channel=ch)
+        if not self._channel_is_visible(ch):
+            return
 
         def _do_log():
             self._append_line_ui(entry.get("day") or today_key(), text, tag)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do_log)
+        self._run_on_ui(_do_log)
 
-    def log_action(self, msg, callback):
+    def log_action(self, msg, callback, channel=None):
         """Клікабельний рядок лога (синій, як link), викликає callback."""
         text = str(msg) + ("" if str(msg).endswith("\n") else "\n")
-        entry = self._store.append_line(text, tag="action")
+        ch = normalize_channel(channel or CHANNEL_WHISPER)
+        entry = self._store.append_line(text, tag="action", channel=ch)
         action_tag = f"action_{uuid.uuid4().hex}"
+        if not self._channel_is_visible(ch):
+            # Still keep callback if user switches filter later — skip for now
+            return
 
         def _do_log():
             self._action_callbacks[action_tag] = callback
@@ -151,21 +217,26 @@ class LogPanel:
             )
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do_log)
+        self._run_on_ui(_do_log)
 
     # --- File sessions -------------------------------------------------------
 
-    def begin_file(self, source, name=None, current=None, total=None, note=None):
-        entry = self._store.begin_file(source, name=name, current=current, total=total, note=note)
+    def begin_file(self, source, name=None, current=None, total=None, note=None, channel=None):
+        ch = normalize_channel(channel or CHANNEL_WHISPER)
+        entry = self._store.begin_file(
+            source, name=name, current=current, total=total, note=note, channel=ch
+        )
         file_id = entry["id"]
         self._active_file_id = file_id
+        if not self._channel_is_visible(ch):
+            return file_id
 
         def _do():
             self._render_file_entry(entry, insert_new=True)
             self._refresh_day_header(entry.get("day") or today_key())
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
         return file_id
 
     def attach_file(self, file_id):
@@ -200,7 +271,7 @@ class LogPanel:
             self._render_file_entry(fresh, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
         return entry
 
     def find_file_id_for_path(self, path):
@@ -227,7 +298,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def log_file_segment(self, t_str, text, count=None, file_id=None):
         fid = file_id or self._active_file_id
@@ -241,7 +312,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def add_file_output(self, role, path, label=None, file_id=None):
         fid = file_id or self._active_file_id
@@ -255,7 +326,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def set_file_source(self, path, file_id=None):
         """Оновити шлях исходника після переносу поруч із результатами."""
@@ -269,7 +340,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def end_file(self, status="done", error=None, file_id=None):
         fid = file_id or self._active_file_id
@@ -284,7 +355,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def set_file_prompt_callback(self, file_id, callback):
         """Прив'язати кнопку «Обрати промти» до file-сесії (без action-рядка в events)."""
@@ -300,7 +371,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def set_file_retry_callback(self, file_id, callback):
         """Кнопка «Перезапустити завдання» після помилки AI. callback=None — прибрати."""
@@ -319,7 +390,7 @@ class LogPanel:
                 self._render_file_entry(entry, insert_new=False)
             self._scroll_to_end_if_today()
 
-        self.root.after(0, _do)
+        self._run_on_ui(_do)
 
     def make_file_logger(self, file_id):
         """Callable сумісний з log_func(msg, tag=None) — пише в file-сесію."""
@@ -332,7 +403,8 @@ class LogPanel:
     # --- Clear / styles / reload ---------------------------------------------
 
     def clear(self):
-        self._store.clear()
+        # Clear only what the user currently sees (or all when filter is All).
+        self._store.clear(self._visible_channels())
         self._action_callbacks.clear()
         self._file_action_callbacks.clear()
         self._file_retry_callbacks.clear()
@@ -351,6 +423,8 @@ class LogPanel:
         self.log_box.config(state="normal")
         self.log_box.delete("1.0", "end")
         self.log_box.config(state="disabled")
+        # Rebuild empty today header for remaining / empty view
+        self.reload_from_store()
 
     def setup_styles(self):
         """Інтерактивні посилання та меню копіювання."""
@@ -502,9 +576,10 @@ class LogPanel:
     def _visible_day_keys(self):
         """Дні для UI: сьогодні завжди; інші — лише з ≥1 file-сесією."""
         today = today_key()
+        channels = self._visible_channels()
         keys = []
-        for key in self._store.day_keys():
-            if key == today or self._store.count_file_entries(key) > 0:
+        for key in self._store.day_keys(channels):
+            if key == today or self._store.count_file_entries(key, channels) > 0:
                 keys.append(key)
         if today not in keys:
             keys.append(today)
@@ -518,7 +593,7 @@ class LogPanel:
 
     def _day_header_text(self, day_key, expanded):
         mark = "▼" if expanded else "▶"
-        count = self._store.count_file_entries(day_key)
+        count = self._store.count_file_entries(day_key, self._visible_channels())
         if day_key == today_key():
             return (
                 t("log_day_header_today", mark=mark, date=day_key, count=count) + "\n"
@@ -551,7 +626,7 @@ class LogPanel:
             self._day_body_loaded[day_key] = False
             return
         body_tag = self._day_body_tag(day_key)
-        for entry in self._store.get_entries(day_key):
+        for entry in self._store.get_entries(day_key, self._visible_channels()):
             if entry.get("kind") == KIND_FILE:
                 fid = entry.get("id")
                 if fid:
@@ -610,7 +685,7 @@ class LogPanel:
 
         box.config(state="normal")
         cursor = insert_at
-        for entry in self._store.get_entries(day_key):
+        for entry in self._store.get_entries(day_key, self._visible_channels()):
             kind = entry.get("kind") or KIND_LINE
             if kind == KIND_FILE:
                 cursor = self._insert_file_block(entry, index=cursor, day_key=day_key)
@@ -830,6 +905,8 @@ class LogPanel:
 
     def _render_file_entry(self, entry, insert_new=False):
         if self.log_box is None or not entry:
+            return
+        if not self._channel_is_visible(entry.get("channel")):
             return
         day_key = entry.get("day") or today_key()
         self._ensure_day_ui(day_key)
@@ -1200,7 +1277,7 @@ class LogPanel:
                 except (tk.TclError, TypeError, ValueError):
                     pass
 
-            self.root.after(0, _restore)
+            self._run_on_ui(_restore)
         return box.index(f"{after}+{len(suffix)}c")
 
     def _trim_if_needed(self):

@@ -1,7 +1,7 @@
 """SQLite archive of processed conversations (transcripts, outputs, FTS search).
 
 Lives next to the app as `library.sqlite`. Does not replace settings.json or
-app_log.json — those stay as-is. Job ids match log file-session ids when the
+`app_log_*.json` — those stay as-is. Job ids match log file-session ids when the
 GUI records a transcription.
 """
 from __future__ import annotations

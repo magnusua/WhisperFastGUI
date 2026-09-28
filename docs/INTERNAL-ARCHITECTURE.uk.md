@@ -17,7 +17,7 @@
     ├── config.py            — BASE_DIR, APP_NAME="FTW", RELEASE_ZIP_PREFIX, версія з README.md
     ├── settings.py           — settings.json: дефолти, читання/запис, DPAPI-обгортка ключів
     ├── utils.py              — час, шляхи черги, тривалість аудіо, звук завершення
-    ├── log_store.py          — app_log.json: дні + file-сесії, batch flush
+    ├── log_store.py          — app_log_{telegram,social,whisper}.json + ChannelLogHub
     ├── library.py            — library.sqlite: архів розмов + FTS5; стовпець telegram_to — усі адресати Telegram
     ├── srt_parse.py / audio_player.py — клік по рядку субтитрів
     ├── secrets_store.py      — ключі API: DPAPI (Windows), login Keychain (macOS), chmod 0600 (Linux)
@@ -54,7 +54,7 @@
 Чисті функції без залежності від Tkinter: парсинг/форматування таймкодів (`parse_timestamp_to_seconds`, `format_timestamp`), нормалізація шляхів черги (`normalize_queue_path`, `make_queue_item`), тривалість аудіофайлу (через ffprobe/pydub), відтворення звуку завершення. Хороша відправна точка для перших unit-тестів проєкту.
 
 ### log_store.py
-`LogStore` — потокобезпечне (через `threading.Lock`) сховище логу, що персистить у `app_log.json` пакетним flush. Формат записів — [CONFIGURATION.uk.md](CONFIGURATION.uk.md#applogjson).
+`LogStore` / `ChannelLogHub` — потокобезпечне сховище логу: три JSON-файли за каналами (`telegram` / `social` / `whisper`), UI збирає їх через `ChannelLogHub` і фільтр у `LogPanel`. Формат записів — [CONFIGURATION.uk.md](CONFIGURATION.uk.md#applogjson).
 
 ### platform_util.py / open_path.py / single_instance.py
 Дрібні кросплатформні helper'и: запуск subprocess без вікна консолі на Windows (`win_no_window_kwargs`), відкриття файлу/каталогу в провіднику ОС, PID-лок з діалогом при повторному запуску.

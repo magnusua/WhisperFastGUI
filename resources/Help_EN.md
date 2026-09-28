@@ -130,10 +130,11 @@ In the queue, the trash column removes the row (the archive entry stays). The Te
 
 ## Log
 
-- The log is stored in `app_log.json` next to the program (batched writes).
+- The log is written to three files next to the program: `app_log_telegram.json` (Telegram listener), `app_log_social.json` (YouTube/Instagram/Facebook), `app_log_whisper.json` (Whisper queue and file processing). Writes are batched.
+- In the window, the **All / TG / Social / Whisper** filter merges those channels into one panel.
 - Entries are grouped by day; past days load when expanded; **today** stays expanded.
-- One input file → one log block (segments, TXT/SRT/AI paths, etc.).
-- **Clear log** clears the window and `app_log.json`. The word Log and the button sit on the left of the same row as Start.
+- One input file → one log block (segments, TXT/SRT/AI paths, etc.) in the Whisper channel.
+- **Clear log** clears the visible channel (or all when All is selected). The word Log and the button sit on the left of the same row as Start.
 - The progress bar appears above the log only while transcription is running.
 
 ## Buttons
@@ -146,7 +147,7 @@ In the queue, the trash column removes the row (the archive entry stays). The Te
 - **Clear queue** — remove all queue items.
 - **Environment** — one puzzle icon. The menu is **Check system** (Python, FFmpeg, Pandoc, GPU, CUDA), **Check updates** (the app, pip, Whisper models, FFmpeg/Pandoc; a package is offered only when the version is newer and matches this Python), and **Install or reinstall** pip packages (including `markitdown`) and system tools.
 - **Model** — a chip icon. The current model name is in the tooltip. The device icon to its left opens AUTO, GPU, or CPU. In GPU mode the video card stays awake while FTW is open.
-- **Clear log** — clear the log window and `app_log.json`.
+- **Clear log** — clear the visible log channel (or all when All is selected).
 - **Autostart** — the icon turns delayed Windows startup on or off.
 - **To AI** — click opens the Prompts window, Shift+click turns AI on or off. A green icon means AI is on. API keys are in the Prompts window.
 - **Telegram** — click opens account or bot settings. Shift+click starts or stops the listener. A green icon means the listener is on.

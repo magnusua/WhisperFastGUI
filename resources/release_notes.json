@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.11",
+      "date": "28.09.2026",
+      "notes": {
+        "EN": [
+          "Channel logs: separate app_log_telegram.json / app_log_social.json / app_log_whisper.json files; the UI merges them with an All / TG / Social / Whisper filter. Legacy app_log.json migrates into the whisper channel.",
+          "UI stability: background log writes no longer call Tk while holding the log lock (fixes window freezes / main thread is not in main loop under Whisper + Telegram + Cursor)."
+        ],
+        "UK": [
+          "Лог по каналах: окремі app_log_telegram.json / app_log_social.json / app_log_whisper.json; UI збирає їх з фільтром Усе / TG / Соцмережі / Whisper. Старий app_log.json мігрує в whisper-канал.",
+          "Стабільність UI: запис логу з фону більше не викликає Tk під lock (усуває зависання вікна / main thread is not in main loop під час Whisper + Telegram + Cursor)."
+        ],
+        "RU": [
+          "Лог по каналам: отдельные app_log_telegram.json / app_log_social.json / app_log_whisper.json; UI собирает их с фильтром Всё / TG / Соцсети / Whisper. Старый app_log.json мигрирует в whisper-канал.",
+          "Стабильность UI: запись лога из фона больше не вызывает Tk под lock (убирает зависание окна / main thread is not in main loop при Whisper + Telegram + Cursor)."
+        ]
+      }
+    },
+    {
       "version": "2.1.10",
       "date": "28.09.2026",
       "notes": {

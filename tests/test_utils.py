@@ -159,7 +159,6 @@ class TestLogFileNoteHeader(unittest.TestCase):
         import tkinter as tk
         import tempfile
 
-        from whisperfast.log_store import LogStore
         from whisperfast.ui.log_panel import LogPanel
 
         try:
@@ -169,8 +168,7 @@ class TestLogFileNoteHeader(unittest.TestCase):
         root.withdraw()
         self.addCleanup(root.destroy)
         with tempfile.TemporaryDirectory() as tmp:
-            panel = LogPanel(root)
-            panel._store = LogStore(path=os.path.join(tmp, "app_log.json"))
+            panel = LogPanel(root, base_dir=tmp)
             box = tk.Text(root)
             panel.bind_widget(box)
             panel.setup_styles()
@@ -197,7 +195,6 @@ class TestLogFileNoteHeader(unittest.TestCase):
         import tempfile
 
         from whisperfast.i18n import t
-        from whisperfast.log_store import LogStore
         from whisperfast.ui.log_panel import LogPanel
 
         try:
@@ -207,8 +204,7 @@ class TestLogFileNoteHeader(unittest.TestCase):
         root.withdraw()
         self.addCleanup(root.destroy)
         with tempfile.TemporaryDirectory() as tmp:
-            panel = LogPanel(root)
-            panel._store = LogStore(path=os.path.join(tmp, "app_log.json"))
+            panel = LogPanel(root, base_dir=tmp)
             box = tk.Text(root)
             panel.bind_widget(box)
             panel.setup_styles()

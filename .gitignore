@@ -13,6 +13,13 @@ settings.json
 request_queue.json
 app_log.json
 app_log.json.tmp
+app_log.json.migrated
+app_log_telegram.json
+app_log_telegram.json.tmp
+app_log_social.json
+app_log_social.json.tmp
+app_log_whisper.json
+app_log_whisper.json.tmp
 library.sqlite
 library.sqlite-wal
 library.sqlite-shm

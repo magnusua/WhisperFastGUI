@@ -1,6 +1,6 @@
 # FTW
 
-**Версія:** 2.1.10
+**Версія:** 2.1.11
 **Дата публікації:** 28.09.2026
 
 **FTW** (раніше *Whisper Fast GUI*) — графічний інтерфейс для транскрибації аудіо та відео на основі Faster-Whisper (OpenAI Whisper). Також обробляє текстові/офісні документи (конвертація в Markdown, опційно AI-постпроцесинг і Word).
@@ -45,7 +45,7 @@ FTW **повністю безкоштовний**: немає акаунта, п
 - `resources/` — іконка, звук завершення, довідка для кінцевого користувача (`Help_EN.md` / `Help_UK.md` / `Help_RU.md`).
 - `promts/` — бібліотека AI-промптів (окремий JSON на кожен промпт; поле `hint` лише для підказки в GUI).
 - `install.bat`, `run_whisper.vbs`, `start_delayed.vbs`, `autorun_delayed.bat` — запуск і автозапуск на Windows.
-- `settings.json`, `request_queue.json`, `app_log.json` — стан і налаштування користувача (створюються при першому запуску, у git не потрапляють).
+- `settings.json`, `request_queue.json`, `app_log_telegram.json` / `app_log_social.json` / `app_log_whisper.json` — стан і налаштування користувача (створюються при першому запуску, у git не потрапляють).
 
 Повне дерево файлів із коментарями по кожному модулю — у [INTERNAL-ARCHITECTURE.uk.md](docs/INTERNAL-ARCHITECTURE.uk.md).
 
@@ -54,7 +54,7 @@ FTW **повністю безкоштовний**: немає акаунта, п
 1. Загальна картина того, що робить застосунок і як влаштований потік обробки — [ARCHITECTURE.uk.md](docs/ARCHITECTURE.uk.md)
 2. Модуль-за-модулем карта коду — [INTERNAL-ARCHITECTURE.uk.md](docs/INTERNAL-ARCHITECTURE.uk.md)
 3. Встановлення, залежності, FFmpeg/Pandoc — [SETUP-AND-DEPENDENCIES.uk.md](docs/SETUP-AND-DEPENDENCIES.uk.md)
-4. Формати `settings.json`/`request_queue.json`/`app_log.json`, змінні середовища — [CONFIGURATION.uk.md](docs/CONFIGURATION.uk.md)
+4. Формати `settings.json`/`request_queue.json`/`app_log_*.json`, змінні середовища — [CONFIGURATION.uk.md](docs/CONFIGURATION.uk.md)
 
 Якщо потрібна саме **інструкція користувача** (кнопки, черга, гарячі клавіші, режими трею) — це `resources/Help_UK.md` (або `Help_EN.md`/`Help_RU.md`), а не документи вище: ті описують внутрішній устрій, а не як натискати кнопки.
 
@@ -68,7 +68,7 @@ Python 3.9–3.13 (рекомендовано 3.11/3.12), FFmpeg у PATH, опц
 |---|---|
 | [ARCHITECTURE.uk.md](docs/ARCHITECTURE.uk.md) | Концептуальна модель: черга, запис зустрічі, архів, «одна задача одночасно» |
 | [INTERNAL-ARCHITECTURE.uk.md](docs/INTERNAL-ARCHITECTURE.uk.md) | Карта модулів пакета `whisperfast/`, потоки виконання, «де що міняти» |
-| [CONFIGURATION.uk.md](docs/CONFIGURATION.uk.md) | `settings.json`, `request_queue.json`, `app_log.json`, змінні середовища |
+| [CONFIGURATION.uk.md](docs/CONFIGURATION.uk.md) | `settings.json`, `request_queue.json`, `app_log_*.json`, змінні середовища |
 | [POSTPROCESSING-PROVIDERS.uk.md](docs/POSTPROCESSING-PROVIDERS.uk.md) | Cursor / Gemini / Claude / Copilot / Ollama, каталог `promts/` |
 | [MODEL-AND-DEVICE-MANAGEMENT.uk.md](docs/MODEL-AND-DEVICE-MANAGEMENT.uk.md) | Вибір пристрою, singleton моделі Whisper, кеш Hugging Face Hub |
 | [SETUP-AND-DEPENDENCIES.uk.md](docs/SETUP-AND-DEPENDENCIES.uk.md) | Встановлення, pip-залежності, FFmpeg/Pandoc, автозапуск |

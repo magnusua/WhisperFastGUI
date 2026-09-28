@@ -333,7 +333,12 @@ def maybe_deliver_telegram(
     def _log_ui(msg: str):
         def _do():
             try:
-                app.log(msg)
+                app.log(msg, channel="telegram")
+            except TypeError:
+                try:
+                    app.log(msg)
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -391,11 +396,15 @@ def maybe_deliver_telegram(
                         pass
 
             try:
-                root = getattr(app, "root", None)
-                if root is not None:
-                    root.after(0, _mark_sent)
+                call = getattr(app, "call_in_ui", None)
+                if callable(call):
+                    call(_mark_sent)
                 else:
-                    _mark_sent()
+                    root = getattr(app, "root", None)
+                    if root is not None:
+                        root.after(0, _mark_sent)
+                    else:
+                        _mark_sent()
             except Exception:
                 try:
                     _mark_sent()

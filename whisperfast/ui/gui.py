@@ -77,6 +77,11 @@ from whisperfast.core.queue_manager import (
     serialize_watch_dirs,
     valid_watch_dirs,
 )
+from whisperfast.log_store import (
+    CHANNEL_SOCIAL,
+    CHANNEL_TELEGRAM,
+    CHANNEL_WHISPER,
+)
 from whisperfast.postprocess.cursor_postprocess import ensure_redactor_file
 from whisperfast.postprocess.providers import PROVIDER_CURSOR, normalize_provider_id
 from whisperfast.i18n import t, set_language
@@ -160,7 +165,7 @@ class WhisperGUI:
             except Exception:
                 pass
 
-        self.log_panel = LogPanel(self.root)
+        self.log_panel = LogPanel(self.root, schedule_ui=self.call_in_ui)
         self.ai_jobs = AiJobQueue(self)
         self.library = get_library()
         self._i18n_windows = []  # відкриті Toplevel з refresh при зміні мови
@@ -172,7 +177,7 @@ class WhisperGUI:
         self.queue_ctrl = QueueController(
             request_queue_file=os.path.join(BASE_DIR, "request_queue.json"),
             log_func=self.log,
-            root_after=lambda ms, fn: self.root.after(ms, fn),
+            root_after=self._tk_after_safe,
         )
         self.queue = self.queue_ctrl.queue  # сумісність: той самий list
         self.log_panel.on_note_commit = self._on_log_note_commit
@@ -375,7 +380,7 @@ class WhisperGUI:
             ),
             is_processing=lambda: self._process_queue_lock.locked(),
             log_func=self.log,
-            root_after=lambda ms, fn: self.root.after(ms, fn),
+            root_after=self._tk_after_safe,
         )
         self.queue_ctrl.bind_treeview(self.queue_list)
         capture_ui.bind_capture_hotkey(self)
@@ -866,6 +871,26 @@ class WhisperGUI:
         log_side.grid(row=0, column=0, sticky="w")
         self.log_header_label = ttk.Label(log_side, text=t("log_header"), font=("Segoe UI", 9, "bold"))
         self.log_header_label.pack(side="left")
+        self._log_channel_var = tk.StringVar(value="all")
+        self._log_filter_frame = ttk.Frame(log_side)
+        self._log_filter_frame.pack(side="left", padx=(8, 0))
+        self._log_filter_btns = {}
+        for value, key in (
+            ("all", "log_channel_all"),
+            (CHANNEL_TELEGRAM, "log_channel_telegram"),
+            (CHANNEL_SOCIAL, "log_channel_social"),
+            (CHANNEL_WHISPER, "log_channel_whisper"),
+        ):
+            btn = ttk.Radiobutton(
+                self._log_filter_frame,
+                text=t(key),
+                value=value,
+                variable=self._log_channel_var,
+                command=self._on_log_channel_filter,
+                style="Toolbutton",
+            )
+            btn.pack(side="left", padx=1)
+            self._log_filter_btns[value] = btn
         self.clear_log_btn = ttk.Button(log_side, command=self.log_panel.clear)
         self.clear_log_btn.pack(side="left", padx=(8, 2))
 
@@ -1536,11 +1561,28 @@ class WhisperGUI:
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def log(self, msg, tag=None):
-        self.log_panel.log(msg, tag)
+    def log(self, msg, tag=None, channel=None):
+        self.log_panel.log(msg, tag, channel=channel)
 
-    def log_action(self, msg, callback):
-        self.log_panel.log_action(msg, callback)
+    def log_action(self, msg, callback, channel=None):
+        self.log_panel.log_action(msg, callback, channel=channel)
+
+    def _on_log_channel_filter(self):
+        value = (self._log_channel_var.get() or "all").strip().lower()
+        self.log_panel.set_channel_filter(None if value == "all" else value)
+
+    def _telegram_log(self, msg, tag=None):
+        """Forward a listener line without touching Tk from the Telethon thread."""
+        self.call_in_ui(lambda m=msg, tg=tag: self.log(m, tg, channel=CHANNEL_TELEGRAM))
+
+    def offer_link_retry(self, retry):
+        """Clickable log line that runs the same social download again."""
+        def go():
+            threading.Thread(target=retry, name="ftw-social-retry", daemon=True).start()
+
+        self.call_in_ui(
+            lambda: self.log_action(t("telegram_link_retry"), go, channel=CHANNEL_SOCIAL)
+        )
 
     def begin_file_log(self, source, name=None, current=None, total=None):
         file_id = self.log_panel.begin_file(source, name=name, current=current, total=total)
@@ -1627,13 +1669,28 @@ class WhisperGUI:
         self.log_panel.clear()
 
     def _on_ui_thread(self, fn):
-        if threading.current_thread() is threading.main_thread():
-            fn()
-            return
-        try:
-            self.root.after(0, fn)
-        except tk.TclError:
-            pass
+        """Schedule ``fn`` on the Tk thread without blocking workers on ``root.after``."""
+        self.call_in_ui(fn)
+
+    def _tk_after_safe(self, ms, fn):
+        """Tk ``after`` from any thread via the non-blocking UI queue.
+
+        Watcher / Telethon / Whisper workers must not call ``root.after``
+        directly: cross-thread Tcl waits for the mainloop and deadlocks if
+        the main thread is in ``LogStore.flush`` or another lock.
+        """
+        delay = max(0, int(ms or 0))
+
+        def schedule():
+            try:
+                if delay <= 0:
+                    fn()
+                else:
+                    self.root.after(delay, fn)
+            except tk.TclError:
+                pass
+
+        self.call_in_ui(schedule)
 
     def _show_progress(self):
         """Смуга вже стоїть над логом. На старті обробки лише скидаємо значення."""
@@ -1787,17 +1844,6 @@ class WhisperGUI:
         except tk.TclError:
             pass
 
-    def _telegram_log(self, msg, tag=None):
-        """Forward a listener line without touching Tk from the Telethon thread."""
-        self.call_in_ui(lambda m=msg, tg=tag: self.log(m, tg))
-
-    def offer_link_retry(self, retry):
-        """Clickable log line that runs the same social download again."""
-        def go():
-            threading.Thread(target=retry, name="ftw-social-retry", daemon=True).start()
-
-        self.call_in_ui(lambda: self.log_action(t("telegram_link_retry"), go))
-
     def _add_telegram_auto_chat(self, name, chat_id):
         """Remember a chat so the next message from it is processed without asking."""
         names = normalize_chat_names(self.telegram_self_chat_names_text.get())
@@ -1916,7 +1962,11 @@ class WhisperGUI:
         question_key = "telegram_learn_question_own" if outgoing else "telegram_learn_question"
 
         def show():
-            self.log_action(t(question_key, chat=chat, material=material), reopen)
+            self.log_action(
+                t(question_key, chat=chat, material=material),
+                reopen,
+                channel=CHANNEL_TELEGRAM,
+            )
             try:
                 if self.root.grab_current():
                     return
@@ -1965,7 +2015,8 @@ class WhisperGUI:
             self.telegram_listener_on.set(True)
             toolbar_icons.apply_feature_states(self)
             self.log(
-                t("telegram_listener_started_account" if kind == "account" else "telegram_listener_started_bot")
+                t("telegram_listener_started_account" if kind == "account" else "telegram_listener_started_bot"),
+                channel=CHANNEL_TELEGRAM,
             )
 
     def _on_telegram_listener_toggled(self):
@@ -2893,9 +2944,9 @@ class WhisperGUI:
 
             all_candidates = select_telegram_files(source, outputs)
             if all_candidates:
-                self.log(t("telegram_already_sent_all", name=name))
+                self.log(t("telegram_already_sent_all", name=name), channel=CHANNEL_TELEGRAM)
             else:
-                self.log(t("telegram_send_nothing", name=name))
+                self.log(t("telegram_send_nothing", name=name), channel=CHANNEL_TELEGRAM)
             return
         chat_id = item.get("telegram_chat_id")
         chat_name = ""
@@ -2944,7 +2995,7 @@ class WhisperGUI:
                 pass
         if not chat_label:
             chat_label = "?"
-        self.log(t("telegram_outbox_queued", chat=chat_label, names=names))
+        self.log(t("telegram_outbox_queued", chat=chat_label, names=names), channel=CHANNEL_TELEGRAM)
 
     def send_archive_job_to_telegram(self, job, *, force_ask=False):
         """Same send as a processed queue row. Shift always asks who should receive it."""
@@ -2984,9 +3035,9 @@ class WhisperGUI:
         )
         if not files:
             if select_telegram_files(source, outputs):
-                self.log(t("telegram_already_sent_all", name=name))
+                self.log(t("telegram_already_sent_all", name=name), channel=CHANNEL_TELEGRAM)
             else:
-                self.log(t("telegram_send_nothing", name=name))
+                self.log(t("telegram_send_nothing", name=name), channel=CHANNEL_TELEGRAM)
             return
         origin = lookup(source) or {}
         chat_id = None if force_ask else origin.get("chat_id")
@@ -3031,7 +3082,7 @@ class WhisperGUI:
                 pass
         if not chat_label:
             chat_label = "?"
-        self.log(t("telegram_outbox_queued", chat=chat_label, names=names))
+        self.log(t("telegram_outbox_queued", chat=chat_label, names=names), channel=CHANNEL_TELEGRAM)
 
     def delete_selected_queue_items(self, event=None):
         """Удаляет выделенные строки из очереди и сохраняет изменения."""
@@ -3224,6 +3275,18 @@ class WhisperGUI:
         # Обновляем элементы интерфейса
         self.queue_header_label.config(text=t("queue_header"))
         self.log_header_label.config(text=t("log_header"))
+        for value, key in (
+            ("all", "log_channel_all"),
+            (CHANNEL_TELEGRAM, "log_channel_telegram"),
+            (CHANNEL_SOCIAL, "log_channel_social"),
+            (CHANNEL_WHISPER, "log_channel_whisper"),
+        ):
+            btn = getattr(self, "_log_filter_btns", {}).get(value)
+            if btn is not None:
+                try:
+                    btn.config(text=t(key))
+                except tk.TclError:
+                    pass
         toolbar_icons.apply_static(self)
         try:
             capture_ui.refresh_capture_buttons(self)

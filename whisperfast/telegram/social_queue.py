@@ -120,6 +120,7 @@ def process_social_urls(
     on_error_retry: Optional[RetryHook] = None,
 ) -> None:
     """Скачати URL і постобробити: назад у чат і/або в чергу Whisper (без очікування)."""
+    from whisperfast.log_store import CHANNEL_SOCIAL, bind_log_channel
     from whisperfast.settings import load_app_settings
     from whisperfast.telegram.links import (
         claim_link,
@@ -133,6 +134,7 @@ def process_social_urls(
     from whisperfast.telegram.seen import classify
     from whisperfast.telegram.worker import resolve_work_dir
 
+    log = bind_log_channel(log, CHANNEL_SOCIAL)
     work_dir = resolve_work_dir(settings)
     for url in list(urls)[:3]:
         dest = os.path.join(work_dir, f"{chat_id}_{message_id}")
@@ -225,6 +227,9 @@ def enqueue_social_urls(
     on_error_retry: Optional[RetryHook] = None,
 ) -> None:
     """Поставити обробку URL у соц-чергу (не Whisper, не AI)."""
+    from whisperfast.log_store import CHANNEL_SOCIAL, bind_log_channel
+
+    log = bind_log_channel(log, CHANNEL_SOCIAL)
 
     def work():
         try:

@@ -44,6 +44,26 @@ from whisperfast.utils import (
     parse_timestamp_to_seconds,
 )
 
+
+def _call_ui(app, fn):
+    """Marshal to Tk without blocking workers on cross-thread ``root.after``."""
+    call = getattr(app, "call_in_ui", None)
+    if callable(call):
+        call(fn)
+        return
+    root = getattr(app, "root", None)
+    if root is not None:
+        try:
+            root.after(0, fn)
+            return
+        except Exception:
+            pass
+    try:
+        fn()
+    except Exception:
+        pass
+
+
 class SegmentOffset:
     """Сегмент с полями start, end, text (для смещения времени при обработке куска файла)."""
     __slots__ = ("start", "end", "text", "speaker", "words")
@@ -175,7 +195,7 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
     dest_dir = os.path.dirname(os.path.abspath(md_path))
     finalize_source_after_processing(app, path, dest_dir, file_id=file_id)
 
-    app.root.after(0, lambda: app._set_progress_value(100))
+    _call_ui(app, lambda: app._set_progress_value(100))
     app.end_file_log("done", file_id=file_id)
 
 
@@ -314,7 +334,7 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                     now = time.time()
                     if now - last_progress_update[0] >= PROGRESS_UPDATE_INTERVAL_S:
                         val = min(100, (s.end / segment_duration) * 100) if (segment_duration and segment_duration > 0) else 100
-                        app.root.after(0, lambda v=val: app._set_progress_value(v))
+                        _call_ui(app, lambda v=val: app._set_progress_value(v))
                         last_progress_update[0] = now
                     if now - last_log_update[0] >= LOG_UPDATE_INTERVAL_S or segment_count[0] <= 2:
                         seg_text = (s.text or "").strip()
@@ -335,7 +355,7 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                             count=segment_count[0],
                             file_id=file_id,
                         )
-                    app.root.after(0, lambda: app._set_progress_value(100))
+                    _call_ui(app, lambda: app._set_progress_value(100))
                     if start_sec > 0 or end_sec < duration:
                         res = [
                             SegmentOffset(
@@ -388,13 +408,13 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
                 if is_document_file(path):
                     skipped_paths.append(path)
                 elif app.queue_ctrl.notify_decode_failed(path):
-                    app.root.after(0, lambda p=path: app.queue_ctrl.remove_paths([p]))
+                    _call_ui(app, lambda p=path: app.queue_ctrl.remove_paths([p]))
                 else:
                     skipped_paths.append(path)
 
         if skipped_paths:
             paths_copy = list(skipped_paths)
-            app.root.after(0, lambda: app._report_skipped_and_offer_remove(paths_copy))
+            _call_ui(app, lambda: app._report_skipped_and_offer_remove(paths_copy))
         if app.cancel_requested:
             app.log(f"\n{t('cancelled', count=to_do - done)}")
         else:
@@ -425,7 +445,7 @@ def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
             app.log(traceback.format_exc())
     finally:
         awake.__exit__(None, None, None)
-        app.root.after(0, app.reset_ui)
+        _call_ui(app, app.reset_ui)
 
 
 def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segment_start_sec=None, segment_end_sec=None, output_opts=None, send_txt_to_cursor=False, cursor_api_key="", log_file_id=None):

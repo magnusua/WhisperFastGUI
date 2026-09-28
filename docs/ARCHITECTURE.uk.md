@@ -2,7 +2,7 @@
 
 ## Навіщо існує цей документ
 
-Цей документ дає загальну (концептуальну) картину застосунку для людини, яка ще не бачила код: що робить програма, з яких кроків складається обробка одного файлу, і чому GUI влаштовано саме так (один процес, одна задача одночасно, трей/панель, один екземпляр програми). Деталі по конкретних модулях Python — у [INTERNAL-ARCHITECTURE.uk.md](INTERNAL-ARCHITECTURE.uk.md). Формат `settings.json` / `request_queue.json` / `app_log.json` — у [CONFIGURATION.uk.md](CONFIGURATION.uk.md).
+Цей документ дає загальну (концептуальну) картину застосунку для людини, яка ще не бачила код: що робить програма, з яких кроків складається обробка одного файлу, і чому GUI влаштовано саме так (один процес, одна задача одночасно, трей/панель, один екземпляр програми). Деталі по конкретних модулях Python — у [INTERNAL-ARCHITECTURE.uk.md](INTERNAL-ARCHITECTURE.uk.md). Формат `settings.json` / `request_queue.json` / `app_log_*.json` — у [CONFIGURATION.uk.md](CONFIGURATION.uk.md).
 
 ## Яку проблему вирішує застосунок
 
@@ -32,7 +32,7 @@ flowchart LR
     J --> K
 ```
 
-Дві гілки на вході з файлів (медіа → Whisper, документи → markitdown) плюс **запис зустрічі** (`core/capture.py`: мікрофон ліворуч, WASAPI loopback праворуч → стерео WAV → та сама черга). Опційний AI-постпроцесинг і Word застосовуються однаково до розшифровки й до конвертованого документа. Кожен крок пише лог (`log_store.py` → `app_log.json`) і файли на диск; успішні розмови ще потрапляють в архів (`library.sqlite`). Конфлікти імен — `core/output_conflict.py`.
+Дві гілки на вході з файлів (медіа → Whisper, документи → markitdown) плюс **запис зустрічі** (`core/capture.py`: мікрофон ліворуч, WASAPI loopback праворуч → стерео WAV → та сама черга). Опційний AI-постпроцесинг і Word застосовуються однаково до розшифровки й до конвертованого документа. Кожен крок пише лог (`log_store.py` → `app_log_{telegram,social,whisper}.json`, UI збирає з фільтром каналів) і файли на диск; успішні розмови ще потрапляють в архів (`library.sqlite`). Конфлікти імен — `core/output_conflict.py`.
 
 ## Інші джерела тієї самої черги
 
@@ -61,12 +61,12 @@ flowchart LR
 
 ## Взаємодія потоків (threading) і GUI
 
-Обробка черги виконується у фоновому потоці (щоб не блокувати Tkinter mainloop), а будь-яка зміна видимого стану GUI з цього потоку проходить через `app.root.after(0, …)`. Це послідовно застосовано в `core/transcription.py`, `core/output_conflict.py`, `core/source_relocate.py` і `ui/ai_jobs.py` — саме такий контракт очікує кожен виклик `run_queue(app, …)`. `core/` більше не імпортує `tkinter` напряму (`queue_manager.py`, `input_files.py`, `transcription.py` очищені від прямих Tkinter-викликів — діалоги перенесено в `ui/dialogs.py`, підтвердження MP3 іде через callback `app.ask_save_mp3_confirm`); сам механізм очікування відповіді з фонового потоку (`while ...: time.sleep(0.05)` у `output_conflict.py: ask_overwrite_via_tk` і в новому `ask_save_mp3_confirm`) поки не замінено на `threading.Event`.
+Обробка черги виконується у фоновому потоці (щоб не блокувати Tkinter mainloop), а будь-яка зміна видимого стану GUI з цього потоку проходить через `app.call_in_ui` / чергу UI (не блокуючий `root.after` з чужого потоку). Це послідовно застосовано в `core/transcription.py`, `core/output_conflict.py`, `core/source_relocate.py`, `ui/ai_jobs.py` і `log_panel.py` — саме такий контракт очікує кожен виклик `run_queue(app, …)`. `core/` більше не імпортує `tkinter` напряму (`queue_manager.py`, `input_files.py`, `transcription.py` очищені від прямих Tkinter-викликів — діалоги перенесено в `ui/dialogs.py`, підтвердження MP3 іде через callback `app.ask_save_mp3_confirm`); сам механізм очікування відповіді з фонового потоку (`while ...: time.sleep(0.05)` у `output_conflict.py: ask_overwrite_via_tk` і в новому `ask_save_mp3_confirm`) поки не замінено на `threading.Event`.
 
 ## Куди дивитися далі
 
 - Модуль-за-модулем, «що де лежить у коді» — [INTERNAL-ARCHITECTURE.uk.md](INTERNAL-ARCHITECTURE.uk.md)
-- Формати `settings.json` / `request_queue.json` / `app_log.json` і змінні середовища — [CONFIGURATION.uk.md](CONFIGURATION.uk.md)
+- Формати `settings.json` / `request_queue.json` / `app_log_*.json` і змінні середовища — [CONFIGURATION.uk.md](CONFIGURATION.uk.md)
 - Як влаштовані Cursor/Gemini/Claude/Copilot/Ollama і каталог `promts/` — [POSTPROCESSING-PROVIDERS.uk.md](POSTPROCESSING-PROVIDERS.uk.md)
 - Singleton моделі Whisper, вибір пристрою, кеш HF Hub — [MODEL-AND-DEVICE-MANAGEMENT.uk.md](MODEL-AND-DEVICE-MANAGEMENT.uk.md)
 - Встановлення, залежності, FFmpeg/Pandoc — [SETUP-AND-DEPENDENCIES.uk.md](SETUP-AND-DEPENDENCIES.uk.md)

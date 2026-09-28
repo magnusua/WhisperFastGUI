@@ -3,6 +3,9 @@
 Entries are either plain lines (`kind=line`) or one object per processed file
 (`kind=file`) that accumulates status, segment summary, outputs and events.
 Disk writes are batched (dirty + timer), not on every append.
+
+Channels (`telegram` / `social` / `whisper`) each have their own JSON file;
+`ChannelLogHub` merges them for the UI filter.
 """
 from __future__ import annotations
 
@@ -11,24 +14,62 @@ import os
 import threading
 import uuid
 from datetime import date, datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set
 
 from whisperfast.config import BASE_DIR
 
-LOG_FILENAME = "app_log.json"
+LOG_FILENAME = "app_log.json"  # legacy single-file name (migrated into whisper)
 MAX_DAYS = 60
 MAX_ENTRIES_PER_DAY = 2000
 FLUSH_DELAY_S = 1.0
 MAX_SEGMENT_PREVIEWS = 3
 MAX_FILE_EVENTS = 50
-LOG_VERSION = 2
+LOG_VERSION = 3
 
 KIND_LINE = "line"
 KIND_FILE = "file"
 
+CHANNEL_TELEGRAM = "telegram"
+CHANNEL_SOCIAL = "social"
+CHANNEL_WHISPER = "whisper"
+CHANNELS: tuple[str, ...] = (CHANNEL_TELEGRAM, CHANNEL_SOCIAL, CHANNEL_WHISPER)
+CHANNEL_FILENAMES = {
+    CHANNEL_TELEGRAM: "app_log_telegram.json",
+    CHANNEL_SOCIAL: "app_log_social.json",
+    CHANNEL_WHISPER: "app_log_whisper.json",
+}
+
 
 def log_path() -> str:
+    """Legacy path; prefer ``channel_log_path`` / ``ChannelLogHub``."""
     return os.path.join(BASE_DIR, LOG_FILENAME)
+
+
+def normalize_channel(channel: Optional[str]) -> str:
+    key = str(channel or CHANNEL_WHISPER).strip().lower()
+    return key if key in CHANNEL_FILENAMES else CHANNEL_WHISPER
+
+
+def channel_log_path(channel: str, base_dir: Optional[str] = None) -> str:
+    root = base_dir or BASE_DIR
+    return os.path.join(root, CHANNEL_FILENAMES[normalize_channel(channel)])
+
+
+def bind_log_channel(log: Callable[..., Any], channel: str) -> Callable[..., Any]:
+    """Wrap ``log(msg, tag=None)`` so calls carry ``channel=`` when supported."""
+    ch = normalize_channel(channel)
+
+    def wrapped(msg, tag=None, *args, **kwargs):
+        kwargs.setdefault("channel", ch)
+        try:
+            return log(msg, tag, *args, **kwargs)
+        except TypeError:
+            try:
+                return log(msg, tag)
+            except TypeError:
+                return log(msg)
+
+    return wrapped
 
 
 def today_key() -> str:
@@ -50,10 +91,16 @@ def _norm_path(path: Optional[str]) -> str:
 
 
 class LogStore:
-    """Thread-safe day-keyed log persisted next to the app (`app_log.json`)."""
+    """Thread-safe day-keyed log persisted next to the app (`app_log_*.json`)."""
 
-    def __init__(self, path: Optional[str] = None, on_schedule_flush: Optional[Callable[[float], None]] = None):
-        self.path = path or log_path()
+    def __init__(
+        self,
+        path: Optional[str] = None,
+        on_schedule_flush: Optional[Callable[[float], None]] = None,
+        channel: str = CHANNEL_WHISPER,
+    ):
+        self.channel = normalize_channel(channel)
+        self.path = path or channel_log_path(self.channel)
         self._lock = threading.Lock()
         self._data: Dict[str, Any] = {"version": LOG_VERSION, "days": {}}
         self._dirty = False
@@ -97,10 +144,10 @@ class LogStore:
                 self._data = {"version": LOG_VERSION, "days": {}}
                 self._dirty = False
 
-    @staticmethod
-    def _normalize_entry(e: Dict[str, Any]) -> Dict[str, Any]:
-        """Migrate legacy flat lines and ensure ids/kinds."""
+    def _normalize_entry(self, e: Dict[str, Any]) -> Dict[str, Any]:
+        """Migrate legacy flat lines and ensure ids/kinds/channel."""
         kind = e.get("kind")
+        channel = normalize_channel(e.get("channel") or self.channel)
         if kind == KIND_FILE:
             out = dict(e)
             out.setdefault("id", _new_id())
@@ -108,6 +155,7 @@ class LogStore:
             out.setdefault("events", [])
             out.setdefault("outputs", [])
             out.setdefault("note", "")
+            out["channel"] = channel
             segs = out.get("segments")
             if not isinstance(segs, dict):
                 out["segments"] = {"count": 0, "last": []}
@@ -124,6 +172,7 @@ class LogStore:
             "ts": e.get("ts") or _now_ts(),
             "text": e.get("text") or "",
             "tag": e.get("tag"),
+            "channel": channel,
         }
 
     def flush(self) -> None:
@@ -135,11 +184,22 @@ class LogStore:
             self._save_unlocked()
             self._dirty = False
 
-    def _mark_dirty_unlocked(self) -> None:
+    def _mark_dirty_unlocked(self) -> bool:
+        """Mark dirty. Returns True if the caller must schedule a flush *outside* the lock.
+
+        Never call Tk `after` (or any UI scheduler that may block on the main
+        thread) while holding ``_lock``: a concurrent ``flush()`` on the UI
+        thread waiting for the same lock deadlocks and freezes the window
+        (``Responding=False`` / \"main thread is not in main loop\").
+        """
         self._dirty = True
         if self._flush_scheduled:
-            return
+            return False
         self._flush_scheduled = True
+        return True
+
+    def _schedule_flush(self) -> None:
+        """Start delayed flush. Must not run while holding ``_lock``."""
         delay = FLUSH_DELAY_S
         if self._on_schedule_flush is not None:
             try:
@@ -147,9 +207,14 @@ class LogStore:
                 return
             except Exception:
                 pass
-        self._flush_timer = threading.Timer(delay, self.flush)
-        self._flush_timer.daemon = True
-        self._flush_timer.start()
+        timer = threading.Timer(delay, self.flush)
+        timer.daemon = True
+        with self._lock:
+            # Another writer may have flushed or started a timer already.
+            if not self._flush_scheduled or self._flush_timer is not None:
+                return
+            self._flush_timer = timer
+        timer.start()
 
     def _cancel_timer_unlocked(self) -> None:
         t = self._flush_timer
@@ -215,7 +280,10 @@ class LogStore:
                     days.pop(key, None)
                     removed += 1
             if removed:
-                self._mark_dirty_unlocked()
+                # Immediate flush below — only mark dirty, do not arm a timer.
+                self._dirty = True
+                self._flush_scheduled = False
+                self._cancel_timer_unlocked()
         if removed:
             self.flush()
         return removed
@@ -253,11 +321,15 @@ class LogStore:
             "ts": _now_ts(),
             "text": text if text.endswith("\n") else text + "\n",
             "tag": tag,
+            "channel": self.channel,
         }
+        need_flush = False
         with self._lock:
             self._day_bucket_unlocked(day_key).setdefault("entries", []).append(entry)
             self._prune_unlocked()
-            self._mark_dirty_unlocked()
+            need_flush = self._mark_dirty_unlocked()
+        if need_flush:
+            self._schedule_flush()
         out = dict(entry)
         out["day"] = day_key
         return out
@@ -290,25 +362,32 @@ class LogStore:
             "segments": {"count": 0, "last": []},
             "outputs": [],
             "error": None,
+            "channel": self.channel,
         }
         if current is not None and total is not None:
             entry["index"] = {"current": int(current), "total": int(total)}
+        need_flush = False
         with self._lock:
             self._day_bucket_unlocked(day_key).setdefault("entries", []).append(entry)
             self._prune_unlocked()
-            self._mark_dirty_unlocked()
+            need_flush = self._mark_dirty_unlocked()
+        if need_flush:
+            self._schedule_flush()
         out = dict(entry)
         out["day"] = day_key
         return out
 
     def update_file(self, file_id: str, mutator: Callable[[Dict[str, Any]], None]) -> Optional[Dict[str, Any]]:
+        need_flush = False
         with self._lock:
             entry = self._find_entry_unlocked(file_id)
             if entry is None or entry.get("kind") != KIND_FILE:
                 return None
             mutator(entry)
-            self._mark_dirty_unlocked()
+            need_flush = self._mark_dirty_unlocked()
             out = dict(entry)
+        if need_flush:
+            self._schedule_flush()
         out["day"] = today_key()
         # Prefer day of the entry if we can resolve it
         with self._lock:
@@ -473,3 +552,244 @@ class LogStore:
             self._dirty = True
             self._save_unlocked()
             self._dirty = False
+
+
+def _stamp_channel(entry: Optional[Dict[str, Any]], channel: str) -> Optional[Dict[str, Any]]:
+    if entry is None:
+        return None
+    out = dict(entry)
+    out["channel"] = normalize_channel(channel)
+    return out
+
+
+class ChannelLogHub:
+    """Three on-disk channel logs merged for the UI filter."""
+
+    def __init__(
+        self,
+        base_dir: Optional[str] = None,
+        on_schedule_flush: Optional[Callable[[float], None]] = None,
+    ):
+        self.base_dir = base_dir or BASE_DIR
+        self._stores: Dict[str, LogStore] = {
+            ch: LogStore(
+                path=channel_log_path(ch, self.base_dir),
+                on_schedule_flush=on_schedule_flush,
+                channel=ch,
+            )
+            for ch in CHANNELS
+        }
+        self._migrate_legacy_once()
+
+    def set_flush_scheduler(self, callback: Optional[Callable[[float], None]]) -> None:
+        for store in self._stores.values():
+            store.set_flush_scheduler(callback)
+
+    def _migrate_legacy_once(self) -> None:
+        """Move legacy ``app_log.json`` into the whisper channel file once."""
+        legacy = os.path.join(self.base_dir, LOG_FILENAME)
+        whisper = self._stores[CHANNEL_WHISPER]
+        if not os.path.isfile(legacy):
+            return
+        # Skip if whisper already has content or a dedicated file exists with data.
+        if whisper.day_keys() and any(whisper.get_entries(k) for k in whisper.day_keys()):
+            return
+        try:
+            with open(legacy, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except (OSError, json.JSONDecodeError, TypeError):
+            return
+        days = raw.get("days") if isinstance(raw, dict) else None
+        if not isinstance(days, dict) or not days:
+            return
+        whisper._data = {
+            "version": LOG_VERSION,
+            "days": {
+                str(key): {
+                    "entries": [
+                        whisper._normalize_entry(e)
+                        for e in (day.get("entries") or [])
+                        if isinstance(day, dict) and isinstance(e, dict)
+                    ]
+                }
+                for key, day in days.items()
+            },
+        }
+        whisper._dirty = True
+        whisper.flush()
+        try:
+            os.replace(legacy, legacy + ".migrated")
+        except OSError:
+            try:
+                os.remove(legacy)
+            except OSError:
+                pass
+
+    def _resolve_channels(self, channels: Optional[Iterable[str]] = None) -> List[str]:
+        if channels is None:
+            return list(CHANNELS)
+        wanted: Set[str] = {normalize_channel(c) for c in channels}
+        return [ch for ch in CHANNELS if ch in wanted]
+
+    def store(self, channel: str) -> LogStore:
+        return self._stores[normalize_channel(channel)]
+
+    def day_keys(self, channels: Optional[Iterable[str]] = None) -> List[str]:
+        keys: Set[str] = set()
+        for ch in self._resolve_channels(channels):
+            keys.update(self._stores[ch].day_keys())
+        return sorted(keys)
+
+    def count_file_entries(self, day_key: str, channels: Optional[Iterable[str]] = None) -> int:
+        return sum(
+            self._stores[ch].count_file_entries(day_key) for ch in self._resolve_channels(channels)
+        )
+
+    def get_entries(
+        self, day_key: str, channels: Optional[Iterable[str]] = None
+    ) -> List[Dict[str, Any]]:
+        merged: List[Dict[str, Any]] = []
+        for ch in self._resolve_channels(channels):
+            for entry in self._stores[ch].get_entries(day_key):
+                stamped = _stamp_channel(entry, ch)
+                if stamped is not None:
+                    merged.append(stamped)
+        merged.sort(key=lambda e: (str(e.get("ts") or ""), str(e.get("id") or "")))
+        return merged
+
+    def append_line(
+        self, text: str, tag: Optional[str] = None, channel: str = CHANNEL_WHISPER
+    ) -> Dict[str, Any]:
+        ch = normalize_channel(channel)
+        out = self._stores[ch].append_line(text, tag=tag)
+        out["channel"] = ch
+        return out
+
+    def append(self, text: str, tag: Optional[str] = None, channel: str = CHANNEL_WHISPER) -> Dict[str, Any]:
+        return self.append_line(text, tag=tag, channel=channel)
+
+    def begin_file(
+        self,
+        source: str,
+        name: Optional[str] = None,
+        current: Optional[int] = None,
+        total: Optional[int] = None,
+        note: Optional[str] = None,
+        channel: str = CHANNEL_WHISPER,
+    ) -> Dict[str, Any]:
+        ch = normalize_channel(channel)
+        out = self._stores[ch].begin_file(
+            source, name=name, current=current, total=total, note=note
+        )
+        out["channel"] = ch
+        return out
+
+    def _store_for_id(self, entry_id: str) -> Optional[LogStore]:
+        if not entry_id:
+            return None
+        for store in self._stores.values():
+            if store.get_entry(entry_id) is not None:
+                return store
+        return None
+
+    def update_file(
+        self, file_id: str, mutator: Callable[[Dict[str, Any]], None]
+    ) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(store.update_file(file_id, mutator), store.channel)
+
+    def add_file_event(
+        self, file_id: str, text: str, tag: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(store.add_file_event(file_id, text, tag=tag), store.channel)
+
+    def set_file_segment(
+        self, file_id: str, t: str, text: str, count: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(
+            store.set_file_segment(file_id, t, text, count=count), store.channel
+        )
+
+    def set_file_source(self, file_id: str, path: str) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(store.set_file_source(file_id, path), store.channel)
+
+    def add_file_output(
+        self,
+        file_id: str,
+        role: str,
+        path: str,
+        label: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(
+            store.add_file_output(file_id, role, path, label=label), store.channel
+        )
+
+    def end_file(
+        self, file_id: str, status: str = "done", error: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(store.end_file(file_id, status=status, error=error), store.channel)
+
+    def get_file(self, file_id: str) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(file_id)
+        if store is None:
+            return None
+        return _stamp_channel(store.get_file(file_id), store.channel)
+
+    def get_entry(self, entry_id: str) -> Optional[Dict[str, Any]]:
+        store = self._store_for_id(entry_id)
+        if store is None:
+            return None
+        return _stamp_channel(store.get_entry(entry_id), store.channel)
+
+    def find_file_by_source(self, path: str) -> Optional[Dict[str, Any]]:
+        best: Optional[Dict[str, Any]] = None
+        for ch, store in self._stores.items():
+            found = store.find_file_by_source(path)
+            if found is None:
+                continue
+            stamped = _stamp_channel(found, ch)
+            if best is None or str(stamped.get("ts") or "") >= str(best.get("ts") or ""):
+                best = stamped
+        return best
+
+    def find_file_by_output(self, path: str) -> Optional[Dict[str, Any]]:
+        best: Optional[Dict[str, Any]] = None
+        for ch, store in self._stores.items():
+            found = store.find_file_by_output(path)
+            if found is None:
+                continue
+            stamped = _stamp_channel(found, ch)
+            if best is None or str(stamped.get("ts") or "") >= str(best.get("ts") or ""):
+                best = stamped
+        return best
+
+    def prune_days_without_files(self, *, keep_today: bool = True) -> int:
+        return sum(
+            store.prune_days_without_files(keep_today=keep_today)
+            for store in self._stores.values()
+        )
+
+    def flush(self) -> None:
+        for store in self._stores.values():
+            store.flush()
+
+    def clear(self, channels: Optional[Iterable[str]] = None) -> None:
+        for ch in self._resolve_channels(channels):
+            self._stores[ch].clear()
