@@ -9,6 +9,14 @@ AskOverwriteFn = Callable[[str, str], Optional[bool]]
 # ask(path, alt_name) -> True overwrite, False use alt, None skip write
 
 
+def is_empty_file(path: str) -> bool:
+    """True if path exists as a regular file with size 0 (failed/hung leftover)."""
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) == 0
+    except OSError:
+        return False
+
+
 def make_timed_alt_path(path: str) -> str:
     """name.ext → name_HHMM.ext (hour+minute). If taken, use HHMMSS."""
     path = os.path.abspath(path)
@@ -60,6 +68,10 @@ def resolve_output_paths(
     normalized = [os.path.abspath(p) if p else p for p in paths]
     existing = [p for p in normalized if p and os.path.isfile(p)]
     if not existing:
+        return normalized
+
+    # Порожні залишки (0 B) з обірваного запуску — перезаписуємо без питання
+    if all(is_empty_file(p) for p in existing):
         return normalized
 
     sample = existing[0]

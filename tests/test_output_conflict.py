@@ -112,6 +112,24 @@ class TestResolveOutputPaths(unittest.TestCase):
                 os.path.splitext(os.path.basename(result[1]))[0],
             )
 
+    def test_empty_existing_files_overwrite_without_asking(self):
+        import tempfile
+
+        asked = []
+
+        def ask(path, alt_name):
+            asked.append((path, alt_name))
+            return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            existing = os.path.join(tmp, "talk.txt")
+            sibling = os.path.join(tmp, "talk.srt")
+            open(existing, "wb").close()
+            open(sibling, "wb").close()
+            result = resolve_output_paths([existing, sibling], ask)
+            self.assertEqual(result, [os.path.abspath(existing), os.path.abspath(sibling)])
+            self.assertEqual(asked, [])
+
 
 if __name__ == "__main__":
     unittest.main()

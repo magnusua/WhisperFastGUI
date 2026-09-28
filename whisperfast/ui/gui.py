@@ -1,4 +1,5 @@
 import os
+import queue
 import re
 import subprocess
 import sys
@@ -130,6 +131,9 @@ BaseTk = TkinterDnD.Tk if DND_OK else tk.Tk
 class WhisperGUI:
     def __init__(self, root, on_close_request=None, on_close_factory=None):
         self.root = root
+        # Лог/UI з фону (Telethon): черга, не root.after з чужого потоку
+        self._ui_call_queue: queue.Queue = queue.Queue()
+        self.root.after(100, self._drain_ui_call_queue)
         # callback для закрытия из трея или по X; можно задать напрямую или через factory(root, app)
         if on_close_factory is not None:
             self._on_close_request = on_close_factory(root, self)
@@ -1758,16 +1762,41 @@ class WhisperGUI:
             pass
         toolbar_icons.apply_feature_states(self)
 
+    def call_in_ui(self, fn):
+        """Запустити fn у Tk mainloop. З фонового потоку — через чергу (без root.after)."""
+        if threading.current_thread() is threading.main_thread():
+            try:
+                fn()
+            except Exception:
+                pass
+            return
+        self._ui_call_queue.put(fn)
+
+    def _drain_ui_call_queue(self):
+        try:
+            while True:
+                fn = self._ui_call_queue.get_nowait()
+                try:
+                    fn()
+                except Exception:
+                    pass
+        except queue.Empty:
+            pass
+        try:
+            self.root.after(100, self._drain_ui_call_queue)
+        except tk.TclError:
+            pass
+
     def _telegram_log(self, msg, tag=None):
-        """Forward a listener line, including a file path tagged as a document link."""
-        self.root.after(0, lambda m=msg, tg=tag: self.log(m, tg))
+        """Forward a listener line without touching Tk from the Telethon thread."""
+        self.call_in_ui(lambda m=msg, tg=tag: self.log(m, tg))
 
     def offer_link_retry(self, retry):
         """Clickable log line that runs the same social download again."""
         def go():
             threading.Thread(target=retry, name="ftw-social-retry", daemon=True).start()
 
-        self.root.after(0, lambda: self.log_action(t("telegram_link_retry"), go))
+        self.call_in_ui(lambda: self.log_action(t("telegram_link_retry"), go))
 
     def _add_telegram_auto_chat(self, name, chat_id):
         """Remember a chat so the next message from it is processed without asking."""
@@ -2915,7 +2944,7 @@ class WhisperGUI:
                 pass
         if not chat_label:
             chat_label = "?"
-        self.log(t("telegram_sent_files", chat=chat_label, names=names))
+        self.log(t("telegram_outbox_queued", chat=chat_label, names=names))
 
     def send_archive_job_to_telegram(self, job, *, force_ask=False):
         """Same send as a processed queue row. Shift always asks who should receive it."""
@@ -3002,7 +3031,7 @@ class WhisperGUI:
                 pass
         if not chat_label:
             chat_label = "?"
-        self.log(t("telegram_sent_files", chat=chat_label, names=names))
+        self.log(t("telegram_outbox_queued", chat=chat_label, names=names))
 
     def delete_selected_queue_items(self, event=None):
         """Удаляет выделенные строки из очереди и сохраняет изменения."""

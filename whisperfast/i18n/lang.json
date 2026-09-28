@@ -119,6 +119,21 @@
     "UK": "Надіслано в Telegram → {chat}: {names}",
     "RU": "Отправлено в Telegram → {chat}: {names}"
   },
+  "telegram_outbox_queued": {
+    "EN": "Queued for Telegram → {chat}: {names}",
+    "UK": "У черзі на Telegram → {chat}: {names}",
+    "RU": "В очереди на Telegram → {chat}: {names}"
+  },
+  "telegram_outbox_failed": {
+    "EN": "Telegram send failed (will retry): {error}",
+    "UK": "Помилка відправки в Telegram (буде повтор): {error}",
+    "RU": "Ошибка отправки в Telegram (будет повтор): {error}"
+  },
+  "telegram_outbox_give_up": {
+    "EN": "Gave up Telegram outbox item after repeated failures: {name}",
+    "UK": "Відмова від outbox Telegram після повторних збоїв: {name}",
+    "RU": "Отказ от outbox Telegram после повторных сбоев: {name}"
+  },
   "telegram_already_sent_all": {
     "EN": "All materials for {name} were already sent to Telegram.",
     "UK": "Усі матеріали для {name} вже було відправлено в Telegram.",

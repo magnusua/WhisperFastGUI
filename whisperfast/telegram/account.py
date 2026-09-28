@@ -8,7 +8,6 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 from whisperfast.config import BASE_DIR
 from whisperfast.i18n import t
 from whisperfast.settings import normalize_chat_ids, normalize_chat_names
-from whisperfast.telegram.outbox import take_outgoing
 from whisperfast.telegram.worker import _extension_ok, chat_display_name, resolve_work_dir, safe_filename
 
 LogFunc = Callable[[str], None]
@@ -116,48 +115,104 @@ async def _find_chat_id(client, wanted: str):
 
 
 async def _flush_outbox(client, log=None) -> None:
-    for item in take_outgoing():
-        raw_id = item.get("chat_id")
-        chat_id = int(raw_id) if raw_id is not None else None
-        wanted = str(item.get("chat_name") or "").strip()
-        if chat_id is None:
-            chat_id = await _find_chat_id(client, wanted) if wanted else None
-            if chat_id is None:
-                if log:
-                    log(t("telegram_chat_not_found", name=wanted or "?"))
-                continue
-        reply_to = item.get("reply_to")
-        reply = int(reply_to) if reply_to is not None else None
-        text = str(item.get("text") or "")
-        if text:
+    """Надіслати pending outbox. Файл зникає лише після успіху; помилка лишає його для retry."""
+    from whisperfast.telegram.outbox import (
+        list_outgoing_paths,
+        load_outgoing,
+        remove_outgoing,
+        save_outgoing,
+    )
+
+    def _safe_log(msg: str) -> None:
+        if not log:
+            return
+        try:
+            log(msg)
+        except Exception:
+            pass
+
+    async def _send_message(chat_id: int, text: str, reply: int | None) -> None:
+        try:
             await client.send_message(chat_id, text, reply_to=reply)
-        sent_names: list[str] = []
-        for entry in item.get("files") or []:
-            path = str(entry.get("path") or "")
-            if path and os.path.isfile(path):
-                await client.send_file(
-                    chat_id,
-                    path,
-                    caption=str(entry.get("caption") or ""),
-                    reply_to=reply,
-                )
-                sent_names.append(os.path.basename(path))
-        if not sent_names:
+        except Exception:
+            if reply is None:
+                raise
+            await client.send_message(chat_id, text, reply_to=None)
+
+    async def _send_file(chat_id: int, path: str, caption: str, reply: int | None) -> None:
+        try:
+            await client.send_file(chat_id, path, caption=caption, reply_to=reply)
+        except Exception:
+            if reply is None:
+                raise
+            await client.send_file(chat_id, path, caption=caption, reply_to=None)
+
+    for path in list_outgoing_paths():
+        item = load_outgoing(path)
+        if item is None:
+            remove_outgoing(path)
             continue
-        label = wanted
-        if not label:
+        attempts = int(item.get("attempts") or 0)
+        if attempts >= 8:
+            remove_outgoing(path)
+            _safe_log(t("telegram_outbox_give_up", name=os.path.basename(path)))
+            continue
+        try:
+            raw_id = item.get("chat_id")
+            chat_id = int(raw_id) if raw_id is not None else None
+            wanted = str(item.get("chat_name") or "").strip()
+            if chat_id is None:
+                chat_id = await _find_chat_id(client, wanted) if wanted else None
+                if chat_id is None:
+                    _safe_log(t("telegram_chat_not_found", name=wanted or "?"))
+                    remove_outgoing(path)
+                    continue
+            reply_to = item.get("reply_to")
+            reply = int(reply_to) if reply_to is not None else None
+            text = str(item.get("text") or "")
+            if text:
+                await _send_message(chat_id, text, reply)
+            sent_names: list[str] = []
+            for entry in item.get("files") or []:
+                file_path = str(entry.get("path") or "")
+                if file_path and os.path.isfile(file_path):
+                    await _send_file(
+                        chat_id,
+                        file_path,
+                        str(entry.get("caption") or ""),
+                        reply,
+                    )
+                    sent_names.append(os.path.basename(file_path))
+            remove_outgoing(path)
+            label = wanted
+            if not label:
+                try:
+                    from whisperfast.telegram.worker import chat_display_name
+
+                    entity = await client.get_entity(chat_id)
+                    label = chat_display_name(entity, chat_id)
+                except Exception:
+                    label = str(chat_id)
+            if label:
+                from whisperfast.telegram.recent import remember_name
+
+                remember_name(label)
+            if sent_names:
+                _safe_log(
+                    t(
+                        "telegram_sent_files",
+                        chat=label or str(chat_id),
+                        names=", ".join(sent_names),
+                    )
+                )
+        except Exception as exc:
+            item["attempts"] = attempts + 1
+            item["last_error"] = str(exc)
             try:
-                from whisperfast.telegram.worker import chat_display_name
-
-                entity = await client.get_entity(chat_id)
-                label = chat_display_name(entity, chat_id)
-            except Exception:
-                label = str(chat_id)
-        if label:
-            from whisperfast.telegram.recent import remember_name
-
-            remember_name(label)
-        # Лог відправки робить GUI / maybe_deliver (UI-потік), щоб не чіпати Tk з Telethon.
+                save_outgoing(path, item)
+            except OSError:
+                pass
+            _safe_log(t("telegram_outbox_failed", error=str(exc)))
 
 
 async def _take_video_links(event, urls, settings, submit, log, chat_id: int, message_id: int) -> None:
@@ -469,9 +524,23 @@ def run_account(
             async def _on_message(event):
                 await _handle_message(client, event, settings, submit, gui_running, self_id, log, ask)
 
+            def soft_log(msg, tag=None):
+                if not log:
+                    return
+                try:
+                    if tag is None:
+                        log(msg)
+                    else:
+                        log(msg, tag)
+                except Exception:
+                    pass
+
             async def _pump():
                 while not (stop and stop()):
-                    await _flush_outbox(client, log)
+                    try:
+                        await _flush_outbox(client, soft_log)
+                    except Exception as exc:
+                        soft_log(str(exc))
                     await asyncio.sleep(1)
                 await client.disconnect()
 
@@ -483,11 +552,11 @@ def run_account(
                 name=(me.first_name or me.username or str(me.id)),
                 chats=own_list,
             )
-            log(started)
+            soft_log(started)
             try:
                 await client.send_message("me", started)
             except Exception as exc:
-                log(t("telegram_start_notice_failed", error=str(exc)))
+                soft_log(t("telegram_start_notice_failed", error=str(exc)))
             try:
                 await client.run_until_disconnected()
             finally:
@@ -506,7 +575,11 @@ def run_account(
         print("stopped")
         return 0
     except Exception as exc:
-        log(str(exc))
+        try:
+            if log:
+                log(str(exc))
+        except Exception:
+            pass
         return 1
 
 

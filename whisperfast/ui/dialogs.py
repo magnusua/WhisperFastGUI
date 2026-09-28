@@ -401,7 +401,13 @@ def ask_overwrite_via_tk(app, path: str, alt_name: str, force: bool = False) -> 
     Якщо відкрите вікно «Промты» і це не AI (force=False) — не питаємо,
     щоб діалог не ховався під ним і не стопорив Whisper; одразу суфікс часу.
     AI передає force=True і чекає відповіді до виклику моделі.
+    Порожній файл (0 B) перезаписується без діалогу.
     """
+    from whisperfast.core.output_conflict import is_empty_file
+
+    if is_empty_file(path):
+        return True
+
     if not force and ai_prompts_dialog_is_open(app):
         return False
 
@@ -1934,7 +1940,14 @@ def show_telegram_settings_dialog(app):
                 pass
 
         def log_line(msg, tag=None):
-            app.root.after(0, lambda m=msg, tg=tag: app.log(m, tg))
+            forward = getattr(app, "call_in_ui", None)
+            if callable(forward):
+                forward(lambda m=msg, tg=tag: app.log(m, tg))
+                return
+            try:
+                app.root.after(0, lambda m=msg, tg=tag: app.log(m, tg))
+            except Exception:
+                pass
 
         forward = getattr(app, "_telegram_log", None)
         ask = getattr(app, "ask_telegram_learn", None)

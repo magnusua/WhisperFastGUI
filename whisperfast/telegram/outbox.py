@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from whisperfast.config import BASE_DIR
 
@@ -33,6 +33,7 @@ def enqueue_outgoing(
         "text": text or "",
         "files": list(files or []),
         "ts": time.time(),
+        "attempts": 0,
     }
     name = f"{time.time_ns()}_{os.getpid()}.json"
     path = os.path.join(folder, name)
@@ -44,7 +45,8 @@ def enqueue_outgoing(
     return path
 
 
-def take_outgoing() -> List[Dict[str, Any]]:
+def list_outgoing_paths() -> List[str]:
+    """Paths of pending outbox JSON files (oldest first). Does not delete."""
     folder = outbox_dir()
     if not os.path.isdir(folder):
         return []
@@ -52,19 +54,43 @@ def take_outgoing() -> List[Dict[str, Any]]:
         names = sorted(n for n in os.listdir(folder) if n.endswith(".json"))
     except OSError:
         return []
+    return [os.path.join(folder, name) for name in names]
+
+
+def load_outgoing(path: str) -> Optional[Dict[str, Any]]:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("chat_id") is None and not str(data.get("chat_name") or "").strip():
+        return None
+    return data
+
+
+def save_outgoing(path: str, data: Dict[str, Any]) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, ensure_ascii=False)
+        handle.write("\n")
+    os.replace(tmp, path)
+
+
+def remove_outgoing(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def take_outgoing() -> List[Dict[str, Any]]:
+    """Legacy helper for tests: read and remove every pending item."""
     out: List[Dict[str, Any]] = []
-    for name in names:
-        path = os.path.join(folder, name)
-        data = None
-        try:
-            with open(path, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
-        except (OSError, json.JSONDecodeError, TypeError):
-            data = None
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-        if isinstance(data, dict) and (data.get("chat_id") is not None or str(data.get("chat_name") or "").strip()):
+    for path in list_outgoing_paths():
+        data = load_outgoing(path)
+        remove_outgoing(path)
+        if data is not None:
             out.append(data)
     return out

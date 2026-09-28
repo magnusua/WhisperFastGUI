@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "2.1.10",
+      "date": "28.09.2026",
+      "notes": {
+        "EN": [
+          "Telegram outbox: the log says Sent only after Telethon actually delivers. Until then it says Queued for Telegram. A failed send keeps the pack for retry.",
+          "The Telegram listener no longer touches Tk via root.after from its background thread (fixes main thread is not in main loop, which killed the listener and left the outbox stuck).",
+          "An existing empty file (0 B) is overwritten without asking; the dialog still appears when the file has content, and still shows size and creation date."
+        ],
+        "UK": [
+          "Telegram outbox: «Відправлено» в логу лише після реальної доставки Telethon. До того — «В очереди на Telegram». Помилка відправки не губить пачку: файл лишається для повтору.",
+          "Слухач Telegram більше не чіпає Tk через root.after з фону (зникає main thread is not in main loop, через яке слухач падав і outbox не зливався).",
+          "Порожній наявний файл (0 B) перезаписується без діалогу; питання лишається, коли файл має вміст. У діалозі як і раніше видно розмір і дату створення."
+        ],
+        "RU": [
+          "Telegram outbox: «Отправлено» в логе только после реальной доставки Telethon. До этого — «В очереди на Telegram». Ошибка отправки не теряет пачку: файл остаётся для повтора.",
+          "Слушатель Telegram больше не трогает Tk через root.after из фона (пропадает main thread is not in main loop, из‑за которого слушатель падал и outbox не сливался).",
+          "Пустой существующий файл (0 B) перезаписывается без диалога; вопрос остаётся, когда у файла есть содержимое. В диалоге по-прежнему видны размер и дата создания."
+        ]
+      }
+    },
+    {
       "version": "2.1.9",
       "date": "28.09.2026",
       "notes": {

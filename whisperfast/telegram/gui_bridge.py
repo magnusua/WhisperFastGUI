@@ -330,38 +330,21 @@ def maybe_deliver_telegram(
     note_outputs(source, fresh)
     extras = take_targets(source)
 
-    def _log_sent():
-        try:
-            if not fresh:
-                return
-            names = ", ".join(os.path.basename(item["path"]) for item in fresh)
-            chat_ids = [str(int(meta["chat_id"]))]
-            for extra in extras:
-                try:
-                    label = str(int(extra["chat_id"]))
-                except (KeyError, TypeError, ValueError):
-                    continue
-                if label not in chat_ids:
-                    chat_ids.append(label)
-            chat = ", ".join(chat_ids)
-            # Якщо в архіві вже є людська мітка «Кому» — покажемо її замість сирих id
+    def _log_ui(msg: str):
+        def _do():
             try:
-                from whisperfast.library import get_library
-
-                job = get_library().find_by_source(source) or {}
-                stored = str(job.get("telegram_to") or "").strip()
-                if stored:
-                    chat = stored
+                app.log(msg)
             except Exception:
                 pass
-            app.log(t("telegram_sent_files", chat=chat, names=names))
-        except Exception:
-            pass
 
-    try:
-        app.root.after(0, _log_sent)
-    except Exception:
-        _log_sent()
+        call = getattr(app, "call_in_ui", None)
+        if callable(call):
+            call(_do)
+            return
+        try:
+            app.root.after(0, _do)
+        except Exception:
+            _do()
 
     if sender is not None:
         sender(meta, fresh, error if send_error else "")
@@ -376,6 +359,8 @@ def maybe_deliver_telegram(
 
         settings = load_app_settings()
         files = [{"path": item["path"], "caption": item["caption"]} for item in fresh]
+        names = ", ".join(os.path.basename(item["path"]) for item in fresh) if fresh else ""
+        chat_label = str(int(meta["chat_id"]))
         if fresh:
             sent_labels = [str(int(meta["chat_id"]))]
             for extra in extras:
@@ -385,9 +370,12 @@ def maybe_deliver_telegram(
                     continue
 
             def _mark_sent(source=source, labels=tuple(sent_labels)):
-                ctrl = getattr(app, "queue_ctrl", None)
-                if ctrl is not None:
-                    ctrl.set_result(source, tg_sent=True)
+                try:
+                    ctrl = getattr(app, "queue_ctrl", None)
+                    if ctrl is not None and hasattr(ctrl, "set_result"):
+                        ctrl.set_result(source, tg_sent=True)
+                except Exception:
+                    pass
                 try:
                     from whisperfast.library import note_telegram_recipient
 
@@ -403,9 +391,16 @@ def maybe_deliver_telegram(
                         pass
 
             try:
-                app.root.after(0, _mark_sent)
+                root = getattr(app, "root", None)
+                if root is not None:
+                    root.after(0, _mark_sent)
+                else:
+                    _mark_sent()
             except Exception:
-                _mark_sent()
+                try:
+                    _mark_sent()
+                except Exception:
+                    pass
         if normalize_mode(settings.get("telegram_mode")) == "account":
             enqueue_outgoing(
                 meta["chat_id"],
@@ -420,6 +415,8 @@ def maybe_deliver_telegram(
                     text="",
                     files=files,
                 )
+            if names:
+                _log_ui(t("telegram_outbox_queued", chat=chat_label, names=names))
             return
         token = str(settings.get("telegram_bot_token") or "").strip()
         if not token:
@@ -447,5 +444,7 @@ def maybe_deliver_telegram(
                     caption=item["caption"],
                     reply_to=int(extra["message_id"]),
                 )
+        if names:
+            _log_ui(t("telegram_sent_files", chat=chat_label, names=names))
 
     threading.Thread(target=_send, daemon=True).start()

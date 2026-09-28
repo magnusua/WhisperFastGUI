@@ -71,7 +71,7 @@
 | `capture.py` | Запис mic + WASAPI loopback → стерео PCM WAV **на диск по ходу** (не в RAM). `pause`/`resume`, `repair_wav_header` / `recover_captures` для аварійно обірваних файлів. |
 | `document_convert.py` | PDF/DOC/DOCX/текст → Markdown через `markitdown`; допоміжні перевірки `is_document_file`, `needs_office_to_md`. |
 | `pandoc_export.py` | Markdown → DOCX через Pandoc (опційно, коли увімкнено «MD → Word»). |
-| `output_conflict.py` | Вирішення конфлікту імен вихідних файлів: перезапис, суфікс `_HHMM`, або пропуск. `resolve_output_paths()` — UI-агностична, `ask_overwrite_via_tk()` — Tkinter-обгортка навколо неї. |
+| `output_conflict.py` | Вирішення конфлікту імен вихідних файлів: перезапис, суфікс `_HHMM`, або пропуск. Порожні (0 B) наявні файли перезаписуються без питання. `resolve_output_paths()` — UI-агностична; діалог Tk — `ask_overwrite_via_tk()` у `ui/dialogs.py`. |
 | `queue_manager.py` | `QueueController` (персист `request_queue.json`, додавання/видалення/перетягування рядків) + `DirectoryWatcher` (слідкування за каталогами). Діалог вибору каталогів слідкування (`open_watch_dirs_dialog`) перенесено в `ui/dialogs.py`. |
 | `input_files.py` | Чиста логіка валідації і додавання файлів/каталогів у чергу (без Tkinter) — придатна до тестування без GUI. Самі діалоги вибору файлу/каталогу (`add_single_file`, `add_multiple_files`, `add_directory`) — в `ui/dialogs.py`. |
 | `source_relocate.py` | Перенесення вихідного файлу поруч із результатами обробки після успішного завершення. |
@@ -83,7 +83,7 @@
 | `gui.py` | Клас `WhisperGUI` — головне вікно / оркестратор. |
 | `archive.py` | Вікно архіву: пошук, плеєр по SRT, Q&A, каскадне видалення. |
 | `capture_ui.py` | Record / Pause / Stop, згода, Ctrl+Shift+R і Ctrl+Shift+P, відновлення WAV при старті, `capture_blocks_shutdown()`. |
-| `dialogs.py` | Модальні діалоги (модель, збереження, ключі API, промпти, правила…). `ask_overwrite_via_tk` показує розмір і дату створення наявного файлу. |
+| `dialogs.py` | Модальні діалоги (модель, збереження, ключі API, промпти, правила…). `ask_overwrite_via_tk` показує розмір і дату створення; порожній файл (0 B) перезаписує без діалогу. |
 | `log_panel.py` | Рендеринг логу в Tkinter `Text` з розгортанням по днях/файлах, клікабельні шляхи. |
 | `ai_jobs.py` | Окрема серійна черга AI (`ftw-ai-queue`), незалежна від Whisper і соцмереж. Один файл може мати кілька AI-завдань підряд. |
 | `tray.py` | Іконка `ftw` і меню (динамічні Record/Pause). |
@@ -113,9 +113,10 @@
 | Файл | Відповідає за |
 |---|---|
 | `service.py` | Запуск і зупинка слухача всередині відкритого вікна. `listener_kind` каже, чи вистачає даних для акаунта (api_id, api_hash, телефон і файл сесії) або бота (токен). |
-| `account.py` | Telethon: особисті чати і групи. Власні повідомлення пропускаються, крім Обраного і чатів з `telegram_self_chat_names` (ім’я, повне ім’я, `@username`). Група з тією назвою віддає всі аудіо та відео. Старт пише рядок у лог і надсилає його в Обране. Прийнятий файл логується до завантаження. |
+| `account.py` | Telethon: особисті чати і групи. Зливає `.ftw_tg_out` (outbox): файл зникає лише після успішного send; лог «відправлено» — після доставки. Лог у GUI йде через `call_in_ui`, не через `root.after` з фону. |
 | `worker.py` | Режим бота і локальний `telegram-bot-api`. |
-| `gui_bridge.py` | Кладє файл у чергу і повертає результати поступово: TXT одразу, AI — коли промпт не running; повторна відправка лише ще не надісланих шляхів. Лог: `→ {чат}: {файли}`. |
+| `gui_bridge.py` | Кладє файл у чергу і повертає результати поступово: TXT одразу, AI — коли промпт не running. У режимі акаунта спочатку «В очереди на Telegram», «Отправлено» пише слухач після Telethon. |
+| `outbox.py` | `.ftw_tg_out/*.json`: черга вихідних відповідей для режиму акаунта. |
 | `origin.py` | `.ftw_tg_origin.json`: chat id і message id за шляхом. `retarget` викликається з `source_relocate`, коли джерело переїжджає. |
 | `seen.py` | `.ftw_tg_seen.json`: id файлу Telegram → локальний шлях, готові TXT/AI і чати, які переслали той самий файл, поки він ще оброблявся. |
 | `links.py` | Посилання YouTube, Instagram і Facebook: скачування через yt-dlp. У чергу Whisper — лише якщо `telegram_social_to_queue`. |
