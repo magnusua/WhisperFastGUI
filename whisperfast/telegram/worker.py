@@ -92,7 +92,17 @@ def safe_filename(name: str, fallback: str) -> str:
     return (cleaned or fallback)[:180]
 
 
+def _is_gif(filename: str, mime: str) -> bool:
+    """Telegram GIFs are silent. Clients name the mp4 form ``*.gif.mp4``."""
+    name = (filename or "").replace("\\", "/").lower()
+    if name.endswith(".gif") or name.endswith(".gif.mp4"):
+        return True
+    return (mime or "").lower() == "image/gif"
+
+
 def _extension_ok(filename: str, mime: str) -> bool:
+    if _is_gif(filename, mime):
+        return False
     ext = os.path.splitext(filename)[1].lower()
     if ext in _MEDIA_EXTENSIONS:
         return True
@@ -112,6 +122,9 @@ def media_from_message(message: Mapping[str, Any]) -> Optional[IncomingMedia]:
     if not isinstance(message, Mapping):
         return None
     if isinstance(message.get("sticker"), Mapping):
+        return None
+    # Bot API sets both animation and document. The document is a silent mp4.
+    if isinstance(message.get("animation"), Mapping):
         return None
     chat = message.get("chat") or {}
     if not isinstance(chat, Mapping) or chat.get("id") is None:

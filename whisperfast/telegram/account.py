@@ -79,6 +79,11 @@ def is_telegram_sticker(message) -> bool:
     return getattr(message, "sticker", None) is not None
 
 
+def is_telegram_gif(message) -> bool:
+    """Telegram GIFs are silent mp4 (or a large image/gif). Nothing to transcribe."""
+    return getattr(message, "gif", None) is not None
+
+
 def media_filename(name: str, mime: str) -> Optional[str]:
     mime_l = (mime or "").lower()
     filename = name or ""
@@ -294,7 +299,7 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
 
     settings = load_app_settings()
     message = event.message
-    if is_telegram_sticker(message):
+    if is_telegram_sticker(message) or is_telegram_gif(message):
         return
     chat_id = int(getattr(event, "chat_id", 0) or 0)
     sender = await event.get_sender()

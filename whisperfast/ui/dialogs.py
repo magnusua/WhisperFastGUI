@@ -1932,8 +1932,6 @@ def show_telegram_settings_dialog(app):
                 sync = getattr(app, "sync_telegram_listener_check", None)
                 if callable(sync):
                     sync()
-                if code:
-                    app.log(t("telegram_listener_off"))
             try:
                 app.root.after(0, ui)
             except tk.TclError:

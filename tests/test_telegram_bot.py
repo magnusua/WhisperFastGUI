@@ -85,6 +85,27 @@ class TestMediaFilter(unittest.TestCase):
         )
         self.assertIsNone(both)
 
+    def test_gif_is_not_media(self):
+        gif = media_from_message(
+            _message(
+                5,
+                animation={"file_id": "g", "file_name": "animation.gif.mp4", "mime_type": "video/mp4"},
+                document={"file_id": "g", "file_name": "animation.gif.mp4", "mime_type": "video/mp4"},
+            )
+        )
+        self.assertIsNone(gif)
+        named = media_from_message(
+            _message(
+                5,
+                document={"file_id": "g2", "file_name": "loop.gif.mp4", "mime_type": "video/mp4"},
+            )
+        )
+        self.assertIsNone(named)
+        image = media_from_message(
+            _message(5, document={"file_id": "g3", "file_name": "loop.gif", "mime_type": "image/gif"})
+        )
+        self.assertIsNone(image)
+
 
 class TestAllowlist(unittest.TestCase):
     def test_empty_allowlist_answers_start_and_ignores_media(self):
@@ -702,6 +723,8 @@ class TestAccountMode(unittest.TestCase):
         self.assertTrue(media_filename("clip.mp4", "video/mp4").endswith("clip.mp4"))
         self.assertTrue(media_filename("", "audio/ogg").endswith(".ogg"))
         self.assertIsNone(media_filename("note.txt", "text/plain"))
+        self.assertIsNone(media_filename("animation.gif.mp4", "video/mp4"))
+        self.assertIsNone(media_filename("loop.gif", "image/gif"))
 
     def test_sticker_is_not_downloaded(self):
         import asyncio
@@ -714,6 +737,29 @@ class TestAccountMode(unittest.TestCase):
             message=SimpleNamespace(
                 sticker=object(),
                 file=SimpleNamespace(name="sticker.webm", mime_type="video/webm"),
+            ),
+            chat_id=5,
+            get_sender=Mock(),
+            get_chat=Mock(),
+        )
+        submit = Mock()
+        log = Mock()
+        asyncio.run(_handle_message(None, event, {}, submit, lambda: True, 1, log))
+        event.get_sender.assert_not_called()
+        submit.assert_not_called()
+        log.assert_not_called()
+
+    def test_gif_is_not_downloaded(self):
+        import asyncio
+
+        from whisperfast.telegram.account import _handle_message, is_telegram_gif
+
+        self.assertTrue(is_telegram_gif(SimpleNamespace(gif=object())))
+        self.assertFalse(is_telegram_gif(SimpleNamespace(gif=None)))
+        event = SimpleNamespace(
+            message=SimpleNamespace(
+                gif=object(),
+                file=SimpleNamespace(name="animation.gif.mp4", mime_type="video/mp4"),
             ),
             chat_id=5,
             get_sender=Mock(),
@@ -839,6 +885,27 @@ class TestInWindowListener(unittest.TestCase):
             while service.is_running() and time.time() < deadline:
                 time.sleep(0.02)
         self.assertFalse(service.is_running())
+
+    def test_stop_writes_listener_stopped_to_the_log(self):
+        import whisperfast.telegram.service as service
+        from whisperfast.i18n import t
+
+        lines = []
+
+        def fake_run(**kwargs):
+            while not kwargs["stop"]():
+                time.sleep(0.02)
+            return 0
+
+        with patch("whisperfast.telegram.worker.run_from_settings", fake_run):
+            service.stop()
+            self.assertTrue(service.start(log=lines.append))
+            service.stop()
+            deadline = time.time() + 2
+            while service.is_running() and time.time() < deadline:
+                time.sleep(0.02)
+        self.assertFalse(service.is_running())
+        self.assertIn(t("telegram_listener_off"), lines)
 
 
 class TestVideoLinks(unittest.TestCase):

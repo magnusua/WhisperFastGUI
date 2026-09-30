@@ -1,13 +1,14 @@
 ---
-description: Always do project work on the F1 branch
+description: Default project branch is F1; a gitignored local rule can override it per computer
 alwaysApply: true
 ---
 
 # Branch: F1
 
-- All work for this project happens on branch **`F1`**.
-- Before editing or committing, ensure the current branch is `F1`.
+- Default for every computer: branch **`F1`**.
+- This computer may override that with `.cursor/rules/branch-local.mdc`. That file is gitignored and is not copied to other machines. If it is present, follow it and skip the F1 steps below.
+- Before editing or committing, if there is no local override, ensure the current branch is `F1`.
 - If `F1` does not exist locally: create it from the current tip (`git checkout -B F1`).
-- If on another branch (`main`, feature, or detached HEAD): switch to `F1` first (`git checkout F1`).
-- Do **not** commit project changes directly on `main` unless the user explicitly asks.
-- Push target for routine work: `origin F1` (`git push -u origin F1` when first publishing the branch).
+- If on another branch (`main`, feature, or detached HEAD) and there is no local override: switch to `F1` first (`git checkout F1`).
+- Do **not** commit project changes directly on `main` unless the user explicitly asks, or the local override says this computer works on `main`.
+- Push target for routine work without a local override: `origin F1` (`git push -u origin F1` when first publishing the branch).

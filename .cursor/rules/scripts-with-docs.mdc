@@ -19,4 +19,4 @@ When you create a one-off or automation script that may be reused:
    - PowerShell / BAT: header comment block with the same sections
    - Longer runbooks: `scripts/README.md` or a `docs/` entry that links to the script
 5. **Do not** put throwaway helpers in the repo root; keep reusable tooling in `scripts/`.
-6. If the script is project-specific and reusable, commit it on branch **`F1`** with its docs in the same change when the user asks to commit.
+6. If the script is project-specific and reusable, commit it on this machine's working branch (see the branch rule: `branch-local.mdc` if present, otherwise **`F1`**) with its docs in the same change when the user asks to commit.

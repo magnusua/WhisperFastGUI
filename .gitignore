@@ -56,6 +56,8 @@ tools/
 # IDE / OS
 .idea/
 .vscode/
+# Гілка лише для цього комп'ютера. Не потрапляє в репозиторій.
+.cursor/rules/branch-local.mdc
 *.swp
 .DS_Store
 Thumbs.db

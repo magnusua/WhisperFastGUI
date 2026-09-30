@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.13",
+      "date": "30.09.2026",
+      "notes": {
+        "EN": [
+          "Telegram GIFs are not queued. They are silent video (often animation.gif.mp4), so transcription no longer fails with list index out of range.",
+          "When the Telegram listener stops, the log says Listener is stopped."
+        ],
+        "UK": [
+          "GIF з Telegram не ставляться в чергу. Це німе відео (часто animation.gif.mp4), тож розшифровка більше не падає з list index out of range.",
+          "Коли слухача Telegram зупинено, у лог пишеться «Слухач зупинений.»"
+        ],
+        "RU": [
+          "GIF из Telegram не ставятся в очередь. Это немое видео (часто animation.gif.mp4), поэтому расшифровка больше не падает с list index out of range.",
+          "Когда слушатель Telegram остановлен, в лог пишется «Слушатель остановлен.»"
+        ]
+      }
+    },
+    {
       "version": "2.1.12",
       "date": "30.09.2026",
       "notes": {

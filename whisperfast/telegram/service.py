@@ -36,16 +36,23 @@ def start(
             from whisperfast.telegram.worker import run_from_settings
 
             code = 1
+            write = log or (lambda _msg: None)
             try:
                 code = run_from_settings(
                     submit=enqueue_telegram_file,
                     gui_running=lambda: True,
                     stop=_stop.is_set,
-                    log=log or (lambda _msg: None),
+                    log=write,
                     poll_timeout=5,
                     ask=ask,
                 )
             finally:
+                from whisperfast.i18n import t
+
+                try:
+                    write(t("telegram_listener_off"))
+                except Exception:
+                    pass
                 if on_done is not None:
                     on_done(code)
 
