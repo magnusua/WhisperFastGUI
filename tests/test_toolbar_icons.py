@@ -29,6 +29,32 @@ class TestToolbarIcons(unittest.TestCase):
         self.assertEqual(toolbar_icons.FILE_MAP["archive"], "search.png")
         self.assertEqual(toolbar_icons.FILE_MAP["clear_log"], "delete.png")
 
+    def test_toggle_icons_are_green_on_and_black_off(self):
+        on_keys = (
+            "notify_on",
+            "watch_on",
+            "mp3_on",
+            "prompts_on",
+            "telegram_on",
+            "docx_on",
+            "autostart_on",
+        )
+        off_keys = (
+            "notify_off",
+            "watch_off",
+            "mp3_off",
+            "prompts_off",
+            "telegram_off",
+            "docx_off",
+            "autostart_off",
+        )
+        for key in on_keys:
+            self.assertIn(key, toolbar_icons.FILE_MAP)
+            self.assertEqual(toolbar_icons.TINT_MAP[key], toolbar_icons._ON_GREEN)
+        for key in off_keys:
+            self.assertIn(key, toolbar_icons.FILE_MAP)
+            self.assertNotIn(key, toolbar_icons.TINT_MAP)
+
     def test_load_and_apply_on_buttons(self):
         root = _make_root()
         self.addCleanup(root.destroy)

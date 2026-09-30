@@ -154,7 +154,7 @@ class TestDirectoryWatcherTickPipeline(unittest.TestCase):
                 with watcher._lock:
                     self.assertIn(os.path.normpath(os.path.abspath(path)), watcher._pending)
 
-                clock.advance(WATCH_MIN_AGE_S)
+                clock.advance(WATCH_MIN_AGE_S + 0.05)
                 watcher._tick()  # old enough, size unchanged -> stable_since set, not ready yet
                 self.assertEqual(ready, [])
 
@@ -176,7 +176,7 @@ class TestDirectoryWatcherTickPipeline(unittest.TestCase):
 
             with patch.object(qm.time, "time", side_effect=clock.time):
                 watcher._tick()
-                clock.advance(WATCH_MIN_AGE_S)
+                clock.advance(WATCH_MIN_AGE_S + 0.05)
                 watcher._tick()  # stable_since set
                 # File keeps growing (still being written) — resets stability.
                 _touch(path, data=b"x" * 200)
@@ -189,6 +189,71 @@ class TestDirectoryWatcherTickPipeline(unittest.TestCase):
                 clock.advance(WATCH_STABLE_S)
                 watcher._tick()  # stable for long enough since the reset -> ready
         self.assertEqual(len(ready), 1)
+
+    def test_poll_uses_the_folder_list_taken_at_start(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            video = _touch(os.path.join(tmp, "clip.mp4"), data=b"x" * 20)
+            calls = {"n": 0}
+
+            def get_dirs():
+                calls["n"] += 1
+                if calls["n"] > 1:
+                    raise RuntimeError("main thread is not in main loop")
+                return [tmp]
+
+            watcher = DirectoryWatcher(on_file_ready=lambda p: None, get_dirs=get_dirs)
+            watcher.start()
+            try:
+                watcher._seen.clear()
+                watcher._tick()
+            finally:
+                watcher.stop()
+        self.assertEqual(calls["n"], 1)
+        self.assertIn(os.path.normpath(os.path.abspath(video)), watcher._pending)
+
+    def test_files_inside_a_subfolder_are_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sub = os.path.join(tmp, "Video 2026-09-30")
+            os.makedirs(sub)
+            video = _touch(os.path.join(sub, "clip.mp4"), data=b"x" * 40)
+            note = _touch(os.path.join(tmp, "notes.txt"), data=b"n")
+            watcher = DirectoryWatcher(on_file_ready=lambda p: None, get_dirs=lambda: [tmp])
+            watcher._tick()
+            with watcher._lock:
+                pending = set(watcher._pending)
+        self.assertNotIn(os.path.normpath(os.path.abspath(video)), pending)
+        self.assertIn(os.path.normpath(os.path.abspath(note)), pending)
+
+    def test_files_already_present_at_start_are_not_queued(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            video = _touch(os.path.join(tmp, "clip.mp4"), data=b"x" * 40)
+            watcher = DirectoryWatcher(on_file_ready=lambda p: None, get_dirs=lambda: [tmp])
+            watcher.start()
+            try:
+                watcher._tick()
+            finally:
+                watcher.stop()
+            with watcher._lock:
+                self.assertIn(os.path.normpath(os.path.abspath(video)), watcher._seen)
+                self.assertNotIn(os.path.normpath(os.path.abspath(video)), watcher._pending)
+
+    def test_loop_keeps_checking_after_a_tick_error(self):
+        calls = {"n": 0}
+        logs = []
+        watcher = DirectoryWatcher(on_file_ready=lambda p: None, log_func=logs.append, get_dirs=lambda: [])
+
+        def tick():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("tk")
+            watcher._stop.set()
+
+        watcher._tick = tick
+        watcher._stop.clear()
+        with patch.object(qm.time, "sleep", lambda _s: None):
+            watcher._loop()
+        self.assertGreaterEqual(calls["n"], 2)
+        self.assertTrue(any("tk" in msg for msg in logs))
 
     def test_on_file_ready_exception_returns_file_to_unseen(self):
         with tempfile.TemporaryDirectory() as tmp:

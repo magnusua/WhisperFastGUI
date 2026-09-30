@@ -86,6 +86,26 @@ def _watch_filename_is_program_output(name):
     return name.lower().endswith("_audio.mp3")
 
 
+def _watch_entries(watch_path):
+    """Supported files placed directly in the watched folder. Subfolders are ignored."""
+    entries = []
+    try:
+        names = list(os.listdir(watch_path))
+    except OSError:
+        return entries
+    for name in names:
+        full = os.path.normpath(os.path.abspath(os.path.join(watch_path, name)))
+        try:
+            if not os.path.isfile(full):
+                continue
+        except OSError:
+            continue
+        lower = name.lower()
+        if _watch_filename_is_program_output(name) or lower.endswith(VALID_EXTS):
+            entries.append((full, name))
+    return entries
+
+
 def _file_age_seconds(path):
     try:
         return max(0.0, time.time() - os.path.getmtime(path))
@@ -140,6 +160,9 @@ class DirectoryWatcher:
         self._seen = set()  # вже враховані / віддані в чергу / вичерпані retry
         self._pending = {}  # path -> state dict
         self._decode_retries = {}  # path -> int
+        self._cached_dirs = []
+        self._dirs_ready = False
+        self._last_error = ""
 
     def register_output_paths(self, paths):
         norm = []
@@ -186,24 +209,20 @@ class DirectoryWatcher:
     def start(self):
         self.stop()
         self._stop.clear()
+        # Read the folder list on this thread. The poll thread must not call
+        # back into Tk (StringVar.get raises "main thread is not in main loop").
         dirs = valid_watch_dirs(self._get_dirs())
+        self._cached_dirs = list(dirs)
+        self._dirs_ready = True
         initial = set()
         for watch_path in dirs:
-            try:
-                for f in os.listdir(watch_path):
-                    full = os.path.normpath(os.path.abspath(os.path.join(watch_path, f)))
-                    if not (os.path.isfile(full) and f.lower().endswith(VALID_EXTS)):
-                        continue
-                    if _watch_filename_is_program_output(f):
-                        initial.add(full)
-                        continue
-                    initial.add(full)
-            except OSError:
-                continue
+            for full, _name in _watch_entries(watch_path):
+                initial.add(full)
         with self._lock:
             self._seen = initial
             self._pending = {}
-        self._thread = threading.Thread(target=self._loop, daemon=True)
+            self._last_error = ""
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="ftw-watch")
         self._thread.start()
         paths_str = "; ".join(dirs) if dirs else ""
         self._log(t("watch_started", path=paths_str or "—"))
@@ -215,39 +234,47 @@ class DirectoryWatcher:
     def is_running(self):
         return self._thread is not None and self._thread.is_alive() and not self._stop.is_set()
 
-    def _scan_current_files(self):
+    def _log_watch_error(self, exc):
+        text = f"{type(exc).__name__}: {exc}"
+        with self._lock:
+            if text == self._last_error:
+                return
+            self._last_error = text
+        try:
+            self._log(t("watch_tick_failed", error=text))
+        except Exception:
+            pass
+
+    def _scan_current_files(self, dirs):
         current = set()
-        for watch_path in valid_watch_dirs(self._get_dirs()):
-            try:
-                for f in os.listdir(watch_path):
-                    full = os.path.normpath(os.path.abspath(os.path.join(watch_path, f)))
-                    if not (os.path.isfile(full) and f.lower().endswith(VALID_EXTS)):
-                        continue
-                    if _watch_filename_is_program_output(f):
-                        with self._lock:
-                            self._seen.add(full)
-                        continue
-                    current.add(full)
-            except OSError:
-                continue
+        for watch_path in dirs:
+            for full, name in _watch_entries(watch_path):
+                if _watch_filename_is_program_output(name):
+                    with self._lock:
+                        self._seen.add(full)
+                    continue
+                current.add(full)
         return current
 
     def _loop(self):
         while not self._stop.is_set():
             try:
                 self._tick()
-            except OSError:
-                pass
+            except Exception as exc:
+                self._log_watch_error(exc)
             for _ in range(int(WATCH_POLL_INTERVAL_S / 0.25)):
                 if self._stop.is_set():
                     break
                 time.sleep(0.25)
 
     def _tick(self):
-        dirs = valid_watch_dirs(self._get_dirs())
+        if self._dirs_ready:
+            dirs = list(self._cached_dirs)
+        else:
+            dirs = valid_watch_dirs(self._get_dirs())
         if not dirs:
             return
-        current = self._scan_current_files()
+        current = self._scan_current_files(dirs)
         now = time.time()
         ready = []
 

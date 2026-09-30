@@ -63,9 +63,11 @@ FILE_MAP = {
     "device_cpu": "device-cpu.png",
 }
 
-# Recolor a black Material glyph (RGB kept, alpha from the PNG).
+# Toggle icons: green while the option is on, the source black glyph while it is off.
 _ON_GREEN = (22, 163, 74)
 TINT_MAP = {
+    "notify_on": _ON_GREEN,
+    "watch_on": _ON_GREEN,
     "autostart_on": _ON_GREEN,
     "mp3_on": _ON_GREEN,
     "prompts_on": _ON_GREEN,

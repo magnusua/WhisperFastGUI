@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.14",
+      "date": "30.09.2026",
+      "notes": {
+        "EN": [
+          "Toolbar toggles are green when on and black when off: finish sound, folder watch, autostart, MP3, prompts, Telegram, and Word.",
+          "Folder watch reads its folder list on the interface thread, so the background poll no longer fails with main thread is not in main loop. A scan error is written to the log and watching continues."
+        ],
+        "UK": [
+          "Перемикачі на панелі зелені, коли увімкнені, і чорні, коли вимкнені: звук після черги, стеження за каталогами, автозапуск, MP3, промпти, Telegram і Word.",
+          "Стеження читає список каталогів у потоці інтерфейсу, тож фонова перевірка більше не падає з main thread is not in main loop. Помилка сканування пишеться в лог, і стеження триває далі."
+        ],
+        "RU": [
+          "Переключатели на панели зелёные, когда включены, и чёрные, когда выключены: звук после очереди, слежение за каталогами, автозапуск, MP3, промты, Telegram и Word.",
+          "Слежение читает список каталогов в потоке интерфейса, поэтому фоновая проверка больше не падает с main thread is not in main loop. Ошибка сканирования пишется в лог, и слежение продолжается."
+        ]
+      }
+    },
+    {
       "version": "2.1.13",
       "date": "30.09.2026",
       "notes": {

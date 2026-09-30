@@ -2585,9 +2585,9 @@
     "RU": "Удалить все файлы из очереди."
   },
   "tooltip_play_sound": {
-    "EN": "Play a sound when the transcription queue is finished. If «To Cursor» is enabled, the sound waits until Cursor post-processing of all files is finished too.",
-    "UK": "Відтворити звук після завершення черги транскрибації. Якщо увімкнено «У Cursor», звук чекає також завершення постпроцесингу всіх файлів у Cursor.",
-    "RU": "Воспроизвести звук после завершения очереди транскрибации. Если включено «В Cursor», звук ждёт также завершения постобработки всех файлов в Cursor."
+    "EN": "Play a sound when the transcription queue is finished. If «To Cursor» is enabled, the sound waits until Cursor post-processing of all files is finished too. A green icon is on; a black icon is off.",
+    "UK": "Відтворити звук після завершення черги транскрибації. Якщо увімкнено «У Cursor», звук чекає також завершення постпроцесингу всіх файлів у Cursor. Зелена іконка — увімкнено, чорна — вимкнено.",
+    "RU": "Воспроизвести звук после завершения очереди транскрибации. Если включено «В Cursor», звук ждёт также завершения постобработки всех файлов в Cursor. Зелёная иконка — включено, чёрная — выключено."
   },
   "tooltip_help": {
     "EN": "Open help: user guide plus architecture/setup docs from the docs/ folder.",
@@ -2890,9 +2890,9 @@
     "RU": "Включить/выключить слежение за каталогами на новые файлы."
   },
   "tooltip_watch_dirs": {
-    "EN": "Click to edit watched folders. Shift+click turns watching on or off. An open eye is on; a closed eye is off.",
-    "UK": "Клік відкриває каталоги слідкування. Shift+клік вмикає або вимикає. Відкрите око — увімкнено, закрите — вимкнено.",
-    "RU": "Клик открывает каталоги слежения. Shift+щелчок включает или выключает. Открытый глаз — включено, закрытый — выключено."
+    "EN": "Click to edit watched folders. Shift+click turns watching on or off. A green open eye is on; a black closed eye is off.",
+    "UK": "Клік відкриває каталоги слідкування. Shift+клік вмикає або вимикає. Зелене відкрите око — увімкнено, чорне закрите — вимкнено.",
+    "RU": "Клик открывает каталоги слежения. Shift+щелчок включает или выключает. Зелёный открытый глаз — включено, чёрный закрытый — выключено."
   },
   "watch_downloads_default": {
     "EN": "No folders are set for watching. Watching will use your Downloads folder:\n{path}",
@@ -2908,6 +2908,11 @@
     "EN": "Watching folder(s): {path}",
     "UK": "Слідкування за каталогом(ами): {path}",
     "RU": "Слежение за каталогом(ами): {path}"
+  },
+  "watch_tick_failed": {
+    "EN": "Folder watch hit an error and will keep checking: {error}",
+    "UK": "Слідкування спіткнулося і перевіряє далі: {error}",
+    "RU": "Слежение споткнулось и проверяет дальше: {error}"
   },
   "watch_stopped": {
     "EN": "Folder watch stopped.",
