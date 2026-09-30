@@ -41,7 +41,6 @@ class TestToolbarIcons(unittest.TestCase):
             _toolbar_photos=photos,
             add_files_btn=ttk.Button(root),
             add_directory_btn=ttk.Button(root),
-            clear_queue_btn=ttk.Button(root),
             archive_btn=ttk.Button(root),
             capture_clip_btn=ttk.Button(root),
             capture_settings_btn=ttk.Button(root),
@@ -70,7 +69,6 @@ class TestToolbarIcons(unittest.TestCase):
         toolbar_icons.apply_static(app)
         self.assertEqual(app.add_files_btn._toolbar_icon_key, "add_files")
         self.assertEqual(app.add_directory_btn._toolbar_icon_key, "add_directory")
-        self.assertEqual(app.clear_queue_btn._toolbar_icon_key, "clear_queue")
         self.assertEqual(app.archive_btn._toolbar_icon_key, "archive")
         self.assertEqual(app.capture_settings_btn._toolbar_icon_key, "capture_settings")
         self.assertEqual(app.play_sound_btn._toolbar_icon_key, "notify_on")

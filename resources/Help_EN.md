@@ -24,7 +24,7 @@ For documents it creates Markdown (`.md`), and optionally AI outputs and Word (`
 - Drag files into the program window to add them.
 - Drag queue rows to change the processing order.
 - Use **Delete** or right-click → **Delete** to remove selected rows.
-- Use **Clear queue** to remove all rows.
+- The trash icon in the queue column header removes all rows. The × in a row removes only that row.
 - The queue is saved automatically and restored at the next launch.
 
 Supported audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`.
@@ -126,7 +126,7 @@ Audio and video go into the queue. As soon as a file is accepted, a line appears
 
 In account mode, messages you send yourself are skipped, except **Saved Messages** and the chats named in “Also process your own audio and video in these chats” (first name, full name, or `@username`, ignoring case). A group with that title sends every audio and video. When the listener starts, the same notice is sent to Saved Messages. An empty chat-id list means every private chat. In bot mode, while the chat-id list is empty, the bot ignores media and answers `/start` with that chat’s id.
 
-In the queue, the trash column removes the row (the archive entry stays). The Telegram column sends the same result set as an automatic reply. If the file is not tied to a chat, a window asks for a group or contact name and lists the last 10 recipients. Shift+click on that column always asks who should receive the files, even when a chat is already known. Status shows an hourglass while waiting, a check mark when the transcript is done, `AI` / `TG` / `AI + TG` for the later steps, or the error text.
+In the queue, × in the trash column removes the row (the archive entry stays). The trash icon in that column’s header clears the whole queue. The Telegram column sends the same result set as an automatic reply. If the file is not tied to a chat, a window asks for a group or contact name and lists the last 10 recipients. Shift+click on that column always asks who should receive the files, even when a chat is already known. Status shows an hourglass while waiting, a check mark when the transcript is done, `AI` / `TG` / `AI + TG` for the later steps, or the error text.
 
 ## Log
 
@@ -144,7 +144,7 @@ In the queue, the trash column removes the row (the archive entry stays). The Te
 - **Add files / Add directory** — add media or documents.
 - **Archive** — search past transcripts; click a line to hear it. **Sent to** column and **Send to Telegram**.
 - **Record** — capture microphone + system audio into the queue (Ctrl+Shift+R). Pause with Ctrl+Shift+P. **Clip** saves the last N seconds; the gear opens recording settings.
-- **Clear queue** — remove all queue items.
+- **Trash in the queue header** — remove all queue items. × in a row removes only that row.
 - **Environment** — one puzzle icon. The menu is **Check system** (Python, FFmpeg, Pandoc, GPU, CUDA), **Check updates** (the app, pip, Whisper models, FFmpeg/Pandoc; a package is offered only when the version is newer and matches this Python), and **Install or reinstall** pip packages (including `markitdown`) and system tools.
 - **Model** — a chip icon. The current model name is in the tooltip. The device icon to its left opens AUTO, GPU, or CPU. In GPU mode the video card stays awake while FTW is open.
 - **Clear log** — clear the visible log channel (or all when All is selected).

@@ -200,7 +200,6 @@ def apply_static(app) -> None:
     for attr, key in (
         ("add_files_btn", "add_files"),
         ("add_directory_btn", "add_directory"),
-        ("clear_queue_btn", "clear_queue"),
         ("archive_btn", "archive"),
         ("capture_clip_btn", "capture_clip"),
         ("capture_settings_btn", "capture_settings"),

@@ -103,6 +103,7 @@ from whisperfast import autostart as win_autostart
 from whisperfast.ui.widgets import (
     Tooltip,
     placeholder_entry,
+    TOOLTIP_DELAY_MS,
     UI_DESIGN_WIDTH,
     UI_MIN_SCALE,
     UI_BASE_FONT_SIZE,
@@ -502,15 +503,80 @@ class WhisperGUI:
             pass
 
     def _set_remove_column_heading(self):
-        """Trash icon in the header of the per-row delete column."""
+        """Trash in the column header clears the whole queue."""
         photo = (getattr(self, "_toolbar_photos", None) or {}).get("clear_log")
         try:
             if photo is not None:
-                self.queue_list.heading("remove", text="", image=photo, anchor="center")
+                self.queue_list.heading(
+                    "remove", text="", image=photo, anchor="center", command=self.clear_queue
+                )
             else:
-                self.queue_list.heading("remove", text="×", anchor="center")
+                self.queue_list.heading(
+                    "remove", text="×", anchor="center", command=self.clear_queue
+                )
         except tk.TclError:
             pass
+
+    def _pointer_on_clear_queue_heading(self, event):
+        try:
+            return (
+                self.queue_list.identify_region(event.x, event.y) == "heading"
+                and self._queue_column_name(event) == "remove"
+            )
+        except tk.TclError:
+            return False
+
+    def _on_queue_heading_motion(self, event):
+        if not self._pointer_on_clear_queue_heading(event):
+            self._hide_clear_queue_heading_tip()
+            return
+        if getattr(self, "_clear_queue_tip_job", None) or getattr(self, "_clear_queue_tip", None):
+            return
+        x, y = event.x_root, event.y_root
+        self._clear_queue_tip_job = self.queue_list.after(
+            TOOLTIP_DELAY_MS, lambda: self._show_clear_queue_heading_tip(x, y)
+        )
+
+    def _show_clear_queue_heading_tip(self, x, y):
+        self._clear_queue_tip_job = None
+        text = t("tooltip_clear_queue")
+        if not text:
+            return
+        tip = tk.Toplevel(self.queue_list)
+        tip.wm_overrideredirect(True)
+        tip.wm_geometry("+0+0")
+        label = tk.Label(
+            tip,
+            text=text,
+            justify="left",
+            background="#ffffc0",
+            relief="solid",
+            borderwidth=1,
+            font=("Segoe UI", 9),
+            padx=6,
+            pady=4,
+            wraplength=420,
+        )
+        label.pack()
+        tip.update_idletasks()
+        tip.wm_geometry(f"+{x}+{y + 18}")
+        self._clear_queue_tip = tip
+
+    def _hide_clear_queue_heading_tip(self, event=None):
+        job = getattr(self, "_clear_queue_tip_job", None)
+        if job:
+            try:
+                self.queue_list.after_cancel(job)
+            except tk.TclError:
+                pass
+            self._clear_queue_tip_job = None
+        tip = getattr(self, "_clear_queue_tip", None)
+        if tip is not None:
+            try:
+                tip.destroy()
+            except tk.TclError:
+                pass
+            self._clear_queue_tip = None
 
     def _refresh_queue_treeview(self):
         self.queue_ctrl.refresh_treeview()
@@ -734,8 +800,6 @@ class WhisperGUI:
         self.add_files_btn.pack(side="left", padx=(8, 2))
         self.add_directory_btn = ttk.Button(header_f, command=self.add_directory_action)
         self.add_directory_btn.pack(side="left", padx=2)
-        self.clear_queue_btn = ttk.Button(header_f, command=self.clear_queue)
-        self.clear_queue_btn.pack(side="left", padx=2)
         self.archive_sep = ttk.Label(header_f, text="|")
         self.archive_sep.pack(side="left", padx=(4, 4))
         self.archive_btn = ttk.Button(header_f, command=self._open_archive)
@@ -853,6 +917,10 @@ class WhisperGUI:
         scroll_q.pack(side="right", fill="y")
         self.queue_list.bind("<Double-1>", self._on_queue_row_double_click)
         self.queue_list.bind("<Button-1>", self.on_drag_start)
+        self.queue_list.bind("<Motion>", self._on_queue_heading_motion, add="+")
+        self.queue_list.bind("<Leave>", self._hide_clear_queue_heading_tip, add="+")
+        self._clear_queue_tip_job = None
+        self._clear_queue_tip = None
         self.queue_list.bind("<ButtonRelease-1>", self._on_queue_button_release)
         self.queue_list.bind("<Shift-Button-1>", self._on_queue_shift_click)
         self.queue_list.bind("<B1-Motion>", self.on_drag_motion)
@@ -954,7 +1022,6 @@ class WhisperGUI:
         tip(self.queue_header_label, "tooltip_queue_header")
         tip(self.add_files_btn, "tooltip_add_files")
         tip(self.add_directory_btn, "tooltip_add_directory")
-        tip(self.clear_queue_btn, "tooltip_clear_queue")
         tip(self.archive_btn, "tooltip_archive")
         tip(self.capture_btn, "tooltip_capture")
         tip(self.capture_pause_btn, "tooltip_capture_pause")
@@ -2834,6 +2901,7 @@ class WhisperGUI:
         self.ai_jobs.start_cursor_after_prompt_choice(job, prompts)
 
     def clear_queue(self):
+        self._hide_clear_queue_heading_tip()
         self.queue_ctrl.clear()
 
     def _delete_queue_row_at(self, event):
@@ -3154,7 +3222,10 @@ class WhisperGUI:
         if self._queue_column_name(event) == "remove":
             self._drag_iid = None
             self._drag_index = -1
-            self._delete_queue_row_at(event)
+            if self.queue_list.identify_region(event.x, event.y) == "heading":
+                self.clear_queue()
+            else:
+                self._delete_queue_row_at(event)
             return "break"
         if self._queue_column_name(event) == "tg":
             self._drag_iid = None
