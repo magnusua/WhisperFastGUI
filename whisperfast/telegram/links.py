@@ -7,7 +7,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import List
+from typing import List, Sequence, Tuple
 from urllib.parse import urlsplit
 
 from whisperfast.config import AUDIO_EXTENSIONS, BASE_DIR, VIDEO_EXTENSIONS
@@ -23,8 +23,17 @@ _HOSTS = (
     "fb.watch",
     "fb.com",
 )
+_FACEBOOK_HOSTS = frozenset({"facebook.com", "fb.watch", "fb.com"})
 _URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 _TRAILING = ".,;:!?)]}>\"'"
+_AUTH_HINTS = (
+    "login.php",
+    "registered users",
+    "cookies-from-browser",
+    "use --cookies",
+    "only available for registered",
+)
+_BROWSER_COOKIE_CANDIDATES = ("chrome", "edge", "firefox")
 
 
 def extract_video_urls(text: str) -> List[str]:
@@ -127,32 +136,55 @@ def _saved_quality() -> str:
     return normalize_social_quality(load_app_settings().get("telegram_social_quality"))
 
 
-def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
-    """Save one video with yt-dlp. Raises RuntimeError when the download fails."""
-    os.makedirs(dest_dir, exist_ok=True)
-    started = time.time()
-    template = os.path.join(dest_dir, "%(id)s.%(ext)s")
-    cmd = [
-        sys.executable,
-        "-m",
-        "yt_dlp",
-        "--no-playlist",
-        "-f",
-        download_format(quality if quality is not None else _saved_quality()),
-        "--merge-output-format",
-        "mp4",
-        "-o",
-        template,
-        "--print",
-        "after_move:filepath",
-    ]
-    cookies = os.path.join(BASE_DIR, "downloads", "facebook", "cookies.txt")
-    if os.path.isfile(cookies):
-        cmd.extend(["--cookies", cookies])
-    cmd.append(url)
+def _url_host(url: str) -> str:
+    host = urlsplit(url).netloc.lower().split(":")[0]
+    for prefix in ("www.", "m.", "web."):
+        if host.startswith(prefix):
+            host = host[len(prefix) :]
+            break
+    return host
+
+
+def is_facebook_url(url: str) -> bool:
+    return _url_host(url) in _FACEBOOK_HOSTS
+
+
+def is_facebook_stories_url(url: str) -> bool:
+    """Ephemeral Facebook Stories (/stories/...) — not supported by yt-dlp."""
+    if not is_facebook_url(url):
+        return False
+    path = urlsplit(url).path.lower()
+    return "/stories/" in path or path.rstrip("/").endswith("/stories")
+
+
+def _cookies_file() -> str:
+    return os.path.join(BASE_DIR, "downloads", "facebook", "cookies.txt")
+
+
+def _looks_like_auth_failure(output: str) -> bool:
+    low = (output or "").lower()
+    return any(hint in low for hint in _AUTH_HINTS)
+
+
+def _friendly_download_error(url: str, output: str) -> str:
+    from whisperfast.i18n import t
+
+    if is_facebook_stories_url(url) or (
+        is_facebook_url(url) and "/stories/" in (output or "").lower()
+    ):
+        return t("telegram_link_facebook_stories")
+    if is_facebook_url(url) and _looks_like_auth_failure(output):
+        return t("telegram_link_facebook_auth")
+    if "No module named" in (output or ""):
+        return output[-400:]
+    return (output or "").strip()[-400:] or "yt-dlp produced no file"
+
+
+def _run_yt_dlp(cmd: Sequence[str], dest_dir: str, started: float) -> Tuple[str, str]:
+    """Run yt-dlp once. Returns (media_path_or_empty, combined_output)."""
     try:
         proc = subprocess.Popen(
-            cmd,
+            list(cmd),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -175,10 +207,64 @@ def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
                 path = line
                 break
     if path and os.path.isfile(path):
+        return path, output
+    return "", output
+
+
+def _base_yt_dlp_cmd(dest_dir: str, quality: str | None) -> List[str]:
+    template = os.path.join(dest_dir, "%(id)s.%(ext)s")
+    return [
+        sys.executable,
+        "-m",
+        "yt_dlp",
+        "--no-playlist",
+        "-f",
+        download_format(quality if quality is not None else _saved_quality()),
+        "--merge-output-format",
+        "mp4",
+        "-o",
+        template,
+        "--print",
+        "after_move:filepath",
+    ]
+
+
+def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
+    """Save one video with yt-dlp. Raises RuntimeError when the download fails."""
+    if is_facebook_stories_url(url):
+        from whisperfast.i18n import t
+
+        raise RuntimeError(t("telegram_link_facebook_stories"))
+
+    os.makedirs(dest_dir, exist_ok=True)
+    started = time.time()
+    base = _base_yt_dlp_cmd(dest_dir, quality)
+    cookies = _cookies_file()
+    auth_args: List[str] = []
+    if os.path.isfile(cookies):
+        auth_args = ["--cookies", cookies]
+
+    path, output = _run_yt_dlp(base + auth_args + [url], dest_dir, started)
+    if path:
         return path
-    if "No module named" in output:
-        raise RuntimeError(output[-400:])
-    raise RuntimeError(output[-400:] or "yt-dlp produced no file")
+
+    # Facebook often needs a logged-in session; retry with browser cookies.
+    if (
+        is_facebook_url(url)
+        and _looks_like_auth_failure(output)
+        and not auth_args
+    ):
+        for browser in _BROWSER_COOKIE_CANDIDATES:
+            path, retry_out = _run_yt_dlp(
+                base + ["--cookies-from-browser", browser] + [url],
+                dest_dir,
+                started,
+            )
+            if path:
+                return path
+            output = retry_out or output
+
+    raise RuntimeError(_friendly_download_error(url, output))
 
 
 def report_link_failure(log, exc, retry) -> None:
@@ -217,13 +303,17 @@ def social_videos_go_to_queue(settings) -> bool:
 
 
 def log_downloaded_file(log, path: str) -> None:
-    """Log the saved video so the program log opens it like a document link."""
+    """Log the saved path as a clickable link (open file / Shift+click folder)."""
     if not path:
         return
     try:
-        log(path, tag="link")
+        shown = os.path.abspath(path)
+    except OSError:
+        shown = path
+    try:
+        log(shown, tag="link")
     except TypeError:
-        log(path)
+        log(shown)
 
 
 def mark_own_upload(chat_id: int, path: str) -> None:

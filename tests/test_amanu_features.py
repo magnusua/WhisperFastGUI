@@ -314,6 +314,11 @@ class TestEchoAndCodec(unittest.TestCase):
         self.assertIn(".opus", VALID_EXTS)
         self.assertEqual(normalize_codec("m4a"), "aac")
 
+    def test_mka_in_extensions(self):
+        # Bandicam and similar record Matroska Audio (.mka); same container as .mkv.
+        self.assertIn(".mka", AUDIO_EXTENSIONS)
+        self.assertIn(".mka", VALID_EXTS)
+
     def test_mono_mix(self):
         try:
             from pydub import AudioSegment

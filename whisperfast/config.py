@@ -50,7 +50,7 @@ GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
 # RTX 50 (Blackwell) needs CUDA 12.8. cu128 wheels also run older NVIDIA GPUs.
 CUDA_INDEX = "https://download.pytorch.org/whl/cu128"
 # Расширения по типам (единый источник для gui и input_files)
-AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.opus')
+AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.opus', '.mka')
 VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.webm')
 # Текстовые / документные файлы (без Whisper; PDF/DOC/DOCX → MD, затем опционально Cursor)
 TEXT_EXTENSIONS = ('.md', '.markdown', '.txt', '.text', '.rst', '.csv', '.html', '.htm')

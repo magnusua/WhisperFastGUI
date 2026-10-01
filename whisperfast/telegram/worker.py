@@ -34,6 +34,8 @@ _MIME_EXT = {
     "audio/wav": ".wav",
     "audio/x-wav": ".wav",
     "audio/flac": ".flac",
+    "audio/x-matroska": ".mka",
+    "audio/matroska": ".mka",
     "video/mp4": ".mp4",
     "video/webm": ".webm",
     "video/quicktime": ".mov",
@@ -311,9 +313,11 @@ def process_pending(
     submit: Optional[Callable] = None,
     gui_running: Optional[Callable[[], bool]] = None,
     work_dir: Optional[str] = None,
+    log: Optional[LogFunc] = None,
 ) -> None:
     """Download each file and hand it to the running FTW queue, one at a time."""
     from whisperfast.telegram.gui_bridge import gui_is_running, submit_to_running_gui
+    from whisperfast.telegram.links import log_downloaded_file
 
     if submit is None:
         submit = submit_to_running_gui
@@ -350,6 +354,9 @@ def process_pending(
             t("telegram_gui_added", name=job.filename),
             reply_to=job.message_id,
         )
+        if log is not None:
+            log(t("telegram_gui_added", name=job.filename))
+            log_downloaded_file(log, local)
 
 
 def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) -> bool:
@@ -656,6 +663,7 @@ def run_bot(
                 settings=settings,
                 submit=submit,
                 gui_running=gui_running,
+                log=log,
             )
     return 0
 

@@ -1114,6 +1114,21 @@
     "UK": "▶ Перезапустити завдання",
     "RU": "▶ Перезапустить задание"
   },
+  "log_file_retry_whisper_btn": {
+    "EN": "▶ Restart processing",
+    "UK": "▶ Перезапустити обробку",
+    "RU": "▶ Перезапустить обработку"
+  },
+  "whisper_retrying": {
+    "EN": "▶ Restarting processing: {name}",
+    "UK": "▶ Перезапуск обробки: {name}",
+    "RU": "▶ Перезапуск обработки: {name}"
+  },
+  "whisper_retry_missing": {
+    "EN": "Cannot restart — file not found: {name}",
+    "UK": "Неможливо перезапустити — файл не знайдено: {name}",
+    "RU": "Нельзя перезапустить — файл не найден: {name}"
+  },
   "ai_retrying": {
     "EN": "▶ Restarting AI job: {name}",
     "UK": "▶ Перезапуск завдання AI: {name}",
@@ -4120,6 +4135,16 @@
     "EN": "Could not download the video: {error}",
     "UK": "Не вдалося завантажити відео: {error}",
     "RU": "Не удалось скачать видео: {error}"
+  },
+  "telegram_link_facebook_stories": {
+    "EN": "Facebook Stories links (/stories/...) are not supported. Send a Reel, post, or share link, or upload the video file to the chat.",
+    "UK": "Посилання на Facebook Stories (/stories/...) не підтримуються. Надішліть Reel, пост чи share-посилання, або завантажте відеофайл у чат.",
+    "RU": "Ссылки на Facebook Stories (/stories/...) не поддерживаются. Пришлите Reel, пост или share-ссылку, либо загрузите видеофайл в чат."
+  },
+  "telegram_link_facebook_auth": {
+    "EN": "Facebook requires login. Save cookies to downloads/facebook/cookies.txt (export while logged in), or stay signed in to Facebook in Chrome/Edge and retry. Public Reels/share links work without cookies.",
+    "UK": "Facebook вимагає вхід. Збережіть cookies у downloads/facebook/cookies.txt (експорт під час сесії), або увійдіть у Facebook у Chrome/Edge і спробуйте знову. Публічні Reel/share-посилання працюють без cookies.",
+    "RU": "Facebook требует вход. Сохраните cookies в downloads/facebook/cookies.txt (экспорт в залогиненной сессии) или войдите в Facebook в Chrome/Edge и повторите. Публичные Reel/share-ссылки работают без cookies."
   },
   "telegram_link_retry": {
     "EN": "▶ Restart download",

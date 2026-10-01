@@ -27,7 +27,7 @@ For documents it creates Markdown (`.md`), and optionally AI outputs and Word (`
 - The trash icon in the queue column header removes all rows. The × in a row removes only that row.
 - The queue is saved automatically and restored at the next launch.
 
-Supported audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`.
+Supported audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.mka`.
 
 Supported video: `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm`.
 
@@ -170,6 +170,7 @@ The taskbar icon opens the choice. The current mode is marked in the menu.
 - **Double-click a queue row** — edit its time range.
 - **Shift+click a queue row** — show the source file. Shift+click the Telegram column asks who should receive the results.
 - **Click a log link** — open the file; **Shift+click** — show it in the folder.
+- **▶ Restart processing** in a failed file log block — run that file again. After a Telegram download, the full path is also a clickable link.
 
 ## Interface language
 

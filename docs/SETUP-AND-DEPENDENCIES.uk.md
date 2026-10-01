@@ -17,7 +17,7 @@
 
 | Тип | Формати |
 |---|---|
-| Аудіо | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` |
+| Аудіо | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.mka` |
 | Відео | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm` |
 | Текст | `.md`, `.markdown`, `.txt`, `.text`, `.rst`, `.csv`, `.html`, `.htm` |
 | Документи | `.pdf`, `.doc`, `.docx` (конвертуються в Markdown через `markitdown`) |

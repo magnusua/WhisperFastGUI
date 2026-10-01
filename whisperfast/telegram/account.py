@@ -427,6 +427,7 @@ async def _deliver_learned(event, message, settings, submit, gui_running, log, c
             task.add_done_callback(_link_tasks.discard)
         return
     log(t("telegram_found", name=filename, chat=chat_display_name(chat, chat_id)))
+    from whisperfast.telegram.links import log_downloaded_file
     from whisperfast.telegram.seen import add_target, classify, note_download, telethon_file_key
 
     file_key = telethon_file_key(message)
@@ -458,6 +459,7 @@ async def _deliver_learned(event, message, settings, submit, gui_running, log, c
             return
         await event.reply(t("telegram_gui_added", name=os.path.basename(known["path"])))
         log(t("telegram_gui_added", name=os.path.basename(known["path"])))
+        log_downloaded_file(log, known["path"])
         return
     if not gui_running():
         await event.reply(t("telegram_gui_required"))
@@ -480,6 +482,7 @@ async def _deliver_learned(event, message, settings, submit, gui_running, log, c
     note_download(file_key, local, size if isinstance(size, int) else None)
     await event.reply(t("telegram_gui_added", name=os.path.basename(local)))
     log(t("telegram_gui_added", name=os.path.basename(local)))
+    log_downloaded_file(log, local)
 
 
 def run_account(

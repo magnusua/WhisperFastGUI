@@ -120,6 +120,7 @@ class LogPanel:
         self._note_edit_state = {}  # file_id -> in-progress edit across re-renders
         self.on_note_commit = None  # callback(file_id, note)
         self.on_select_prompts = None  # callback(file_id) — «Обрати промти» without a live job
+        self.on_retry_failed_file = None  # callback(file_id) — restart Whisper/doc after failure
         self.on_channel_filter_change = None  # callback(channel|None)
 
     def set_ui_scheduler(self, schedule_ui):
@@ -244,6 +245,29 @@ class LogPanel:
         if file_id:
             self._active_file_id = file_id
         return file_id
+
+    def reopen_file_for_retry(self, file_id):
+        """Clear failed status so the same log block can run again."""
+        fid = file_id or self._active_file_id
+        if not fid:
+            return None
+
+        def _mut(e):
+            e["status"] = "running"
+            e.pop("error", None)
+            e.pop("ts_end", None)
+
+        entry = self._store.update_file(fid, _mut)
+        self._active_file_id = fid
+        if not entry:
+            return None
+
+        def _do():
+            self._render_file_entry(entry, insert_new=False)
+            self._scroll_to_end_if_today()
+
+        self._run_on_ui(_do)
+        return entry
 
     def set_file_note(self, file_id, note):
         """Update the file-session brief shown in the header cell."""
@@ -1004,7 +1028,9 @@ class LogPanel:
             self._file_action_callbacks.get(file_id) is not None
             or bool(_prompt_input_from_entry(entry))
         )
-        has_retry = self._file_retry_callbacks.get(file_id) is not None
+        has_ai_retry = self._file_retry_callbacks.get(file_id) is not None
+        is_failed = (entry.get("status") or "") == "failed"
+        has_failed_retry = is_failed and callable(getattr(self, "on_retry_failed_file", None))
         if outputs or has_prompt:
             mark = "▼" if out_expanded else "▶"
             out_h = "   " + t("log_file_outputs_header", mark=mark) + "\n"
@@ -1078,7 +1104,16 @@ class LogPanel:
                 tags.append("link")
             cursor = self._insert_logged_text(cursor, display, tags)
 
-        if has_retry:
+        if has_failed_retry:
+            failed_tag = f"file_failed_retry_{file_id}"
+            rbtn = "   " + t("log_file_retry_whisper_btn") + "\n"
+            box.insert(
+                cursor,
+                rbtn,
+                tuple(base_body + ["action", failed_tag]),
+            )
+            cursor = box.index(f"{cursor}+{len(rbtn)}c")
+        elif has_ai_retry:
             rbtn = "   " + t("log_file_retry_ai_btn") + "\n"
             box.insert(
                 cursor,
@@ -1416,6 +1451,15 @@ class LogPanel:
                 if callable(fallback):
                     try:
                         fallback(fid)
+                    except Exception:
+                        pass
+                    return "break"
+            if tag.startswith("file_failed_retry_"):
+                fid = tag[len("file_failed_retry_") :]
+                cb = getattr(self, "on_retry_failed_file", None)
+                if callable(cb):
+                    try:
+                        cb(fid)
                     except Exception:
                         pass
                     return "break"

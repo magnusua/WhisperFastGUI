@@ -183,6 +183,7 @@ class WhisperGUI:
         self.queue = self.queue_ctrl.queue  # сумісність: той самий list
         self.log_panel.on_note_commit = self._on_log_note_commit
         self.log_panel.on_select_prompts = self.ai_jobs.start_prompts_for_log_file
+        self.log_panel.on_retry_failed_file = self.retry_failed_file
         self.cancel_requested = False
         self._process_queue_lock = threading.Lock()  # только одна обработка очереди одновременно
         
@@ -1722,6 +1723,32 @@ class WhisperGUI:
 
     def set_file_retry_callback(self, file_id, callback):
         self.log_panel.set_file_retry_callback(file_id, callback)
+
+    def retry_failed_file(self, file_id):
+        """Restart Whisper/document processing for a failed log file-session."""
+        entry = None
+        try:
+            entry = self.log_panel._store.get_file(file_id)
+        except Exception:
+            entry = None
+        source = str((entry or {}).get("source") or "").strip()
+        name = (entry or {}).get("name") or (os.path.basename(source) if source else "?")
+        if not source or not os.path.isfile(source):
+            self.log(t("whisper_retry_missing", name=name))
+            return
+        idx = self.queue_ctrl.prepare_retry(source)
+        if idx is None:
+            added, _skipped = self.queue_ctrl.add_files([source])
+            if not added:
+                self.log(t("whisper_retry_missing", name=name))
+                return
+            idx = self.queue_ctrl.find_index_by_path(source)
+            if idx is None:
+                self.log(t("whisper_retry_missing", name=name))
+                return
+        self.log_panel.reopen_file_for_retry(file_id)
+        self.log_file_event(t("whisper_retrying", name=name), file_id=file_id)
+        self.start_thread(mode="single", target_idx=idx)
 
     def log_file_segment(self, t_str, text, count=None, file_id=None):
         self.log_panel.log_file_segment(t_str, text, count=count, file_id=file_id)

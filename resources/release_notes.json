@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "2.1.15",
+      "date": "01.10.2026",
+      "notes": {
+        "EN": [
+          "Audio: .mka (Matroska Audio, including Bandicam) is accepted in the queue.",
+          "Telegram: after a media download the log shows a clickable full path (open the file; Shift+click opens the folder).",
+          "Failed processing: the file log block offers ▶ Restart processing to run the same file again.",
+          "Facebook / yt-dlp: clearer errors for Stories and login; retries with Chrome/Edge/Firefox cookies when cookies.txt is not enough."
+        ],
+        "UK": [
+          "Аудіо: підтримується .mka (Matroska Audio, зокрема Bandicam).",
+          "Telegram: після завантаження медіа в лог пишеться клікабельний повний шлях (відкрити файл; Shift+клік — каталог).",
+          "Помилка обробки: у блоці файлу в логу є «▶ Перезапустити обробку» для повторного запуску того самого файлу.",
+          "Facebook / yt-dlp: зрозуміліші помилки для Stories і логіну; повтор зі cookies з Chrome/Edge/Firefox, якщо cookies.txt недостатньо."
+        ],
+        "RU": [
+          "Аудио: поддерживается .mka (Matroska Audio, в том числе Bandicam).",
+          "Telegram: после загрузки медиа в лог пишется кликабельный полный путь (открыть файл; Shift+клик — каталог).",
+          "Ошибка обработки: в блоке файла в логе есть «▶ Перезапустить обработку» для повторного запуска того же файла.",
+          "Facebook / yt-dlp: понятнее ошибки для Stories и входа; повтор с cookies из Chrome/Edge/Firefox, если cookies.txt недостаточно."
+        ]
+      }
+    },
+    {
       "version": "2.1.14",
       "date": "30.09.2026",
       "notes": {

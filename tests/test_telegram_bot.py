@@ -239,6 +239,33 @@ class TestQueue(unittest.TestCase):
             self.assertEqual([item[0] for item in messages], [1, 2])
             self.assertEqual(messages[0][2], 10)
 
+    def test_process_pending_logs_clickable_path(self):
+        messages = []
+        logged = []
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "clip.ogg")
+            open(src, "wb").close()
+
+            class Client:
+                def get_file_path(self, file_id):
+                    return src
+
+                def send_message(self, chat_id, text, reply_to=None):
+                    messages.append((chat_id, text, reply_to))
+
+            process_pending(
+                [IncomingMedia(3, 7, "c", "clip.ogg", "voice")],
+                client=Client(),
+                settings={},
+                submit=lambda *args: None,
+                gui_running=lambda: True,
+                work_dir=tmp,
+                log=lambda msg, tag=None: logged.append((msg, tag)),
+            )
+        self.assertTrue(any(tag == "link" for _msg, tag in logged))
+        self.assertTrue(any(str(msg).endswith("clip.ogg") for msg, tag in logged if tag == "link"))
+
     def test_missing_gui_is_reported_in_the_same_chat(self):
         messages = []
 
@@ -846,18 +873,27 @@ class TestListenerKind(unittest.TestCase):
     def test_bot_needs_a_token_and_account_needs_a_session(self):
         from whisperfast.telegram.service import listener_kind
 
-        self.assertIsNone(listener_kind({"telegram_mode": "bot"}))
-        self.assertEqual(listener_kind({"telegram_mode": "bot", "telegram_bot_token": "123:abc"}), "bot")
-        self.assertIsNone(
-            listener_kind(
-                {
-                    "telegram_mode": "account",
-                    "telegram_api_id": "1",
-                    "telegram_api_hash": "h",
-                    "telegram_phone": "+380501111111",
-                }
-            )
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = os.path.join(tmp, "no_session")
+            with patch(
+                "whisperfast.telegram.account.session_base_path",
+                return_value=missing,
+            ):
+                self.assertIsNone(listener_kind({"telegram_mode": "bot"}))
+                self.assertEqual(
+                    listener_kind({"telegram_mode": "bot", "telegram_bot_token": "123:abc"}),
+                    "bot",
+                )
+                self.assertIsNone(
+                    listener_kind(
+                        {
+                            "telegram_mode": "account",
+                            "telegram_api_id": "1",
+                            "telegram_api_hash": "h",
+                            "telegram_phone": "+380501111111",
+                        }
+                    )
+                )
 
 
 class TestInWindowListener(unittest.TestCase):
@@ -921,6 +957,29 @@ class TestVideoLinks(unittest.TestCase):
         self.assertIn("https://www.instagram.com/reel/XYZ/", urls)
         self.assertIn("https://fb.watch/qq", urls)
         self.assertEqual(len(urls), 3)
+
+    def test_facebook_stories_rejected_with_clear_error(self):
+        from whisperfast.telegram.links import (
+            download_video,
+            is_facebook_stories_url,
+            _friendly_download_error,
+        )
+
+        story = (
+            "https://www.facebook.com/stories/122094155667116717/"
+            "UzpfSVNDOjEwODM1NTA4MjExMDA2NzI=/?view_single=1"
+        )
+        share = "https://www.facebook.com/share/r/1bqRVZukqn/"
+        self.assertTrue(is_facebook_stories_url(story))
+        self.assertFalse(is_facebook_stories_url(share))
+        with self.assertRaises(RuntimeError) as raised:
+            download_video(story, tempfile.mkdtemp())
+        self.assertIn("Stories", str(raised.exception))
+        auth_msg = _friendly_download_error(
+            share,
+            "ERROR: This video is only available for registered users. Use --cookies",
+        )
+        self.assertIn("cookies", auth_msg.lower())
 
     def test_newest_media_file_is_the_downloaded_video(self):
         from whisperfast.telegram.links import newest_media_file
@@ -1050,6 +1109,22 @@ class TestVideoLinks(unittest.TestCase):
         self.assertEqual([row["url"] for row in rows], ["https://youtu.be/abc", "https://youtu.be/second"])
         self.assertTrue(rows[0]["path"].endswith("clip.mp4"))
 
+    def test_downloaded_file_is_logged_as_clickable_path(self):
+        from whisperfast.telegram.links import log_downloaded_file
+
+        logged = []
+
+        def log(msg, tag=None):
+            logged.append((msg, tag))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "bandicam.mka")
+            open(path, "wb").close()
+            log_downloaded_file(log, path)
+        self.assertEqual(len(logged), 1)
+        self.assertEqual(logged[0][1], "link")
+        self.assertEqual(os.path.normcase(logged[0][0]), os.path.normcase(os.path.abspath(path)))
+
 
 class TestSameTelegramFile(unittest.TestCase):
     def test_forward_is_not_downloaded_again(self):
@@ -1132,7 +1207,7 @@ class TestLearnQuestionReopen(unittest.TestCase):
             _add_telegram_ignored_chat=Mock(),
             _drop_telegram_ignored_chat=Mock(),
         )
-        app.log_action = lambda _msg, callback: setattr(app, "callback", callback)
+        app.log_action = lambda _msg, callback, **_kw: setattr(app, "callback", callback)
         settled = []
         replayed = []
 
@@ -1168,7 +1243,7 @@ class TestLearnQuestionReopen(unittest.TestCase):
             _add_telegram_ignored_chat=Mock(),
             _drop_telegram_ignored_chat=Mock(),
         )
-        app.log_action = lambda _msg, callback: setattr(app, "callback", callback)
+        app.log_action = lambda _msg, callback, **_kw: setattr(app, "callback", callback)
         settled = []
 
         def show_prompt(_app, _chat, _material, finish, outgoing=False):

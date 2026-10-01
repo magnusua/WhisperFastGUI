@@ -587,6 +587,27 @@ class QueueController:
             self._update_treeview_row(idx)
             self.schedule_save()
 
+    def find_index_by_path(self, path):
+        """Queue index for this path, or None."""
+        keys = _path_match_keys(path)
+        if not keys:
+            return None
+        for idx, q in enumerate(self.queue):
+            if _path_match_keys(q.get("path")) & keys:
+                return idx
+        return None
+
+    def prepare_retry(self, path):
+        """Clear error / processed so this row can run again. Returns index or None."""
+        idx = self.find_index_by_path(path)
+        if idx is None:
+            return None
+        self.queue[idx]["processed"] = False
+        self.queue[idx]["error"] = ""
+        self._update_treeview_row(idx)
+        self.schedule_save()
+        return idx
+
     def remove_paths(self, paths):
         skipped = set()
         for p in paths or []:
