@@ -465,7 +465,7 @@ def maybe_deliver_telegram(
                 reply_to=meta["message_id"],
             )
         for item in fresh:
-            client.send_document(
+            client.send_path(
                 meta["chat_id"],
                 item["path"],
                 caption=item["caption"],
@@ -473,7 +473,7 @@ def maybe_deliver_telegram(
             )
         for extra in extras:
             for item in fresh:
-                client.send_document(
+                client.send_path(
                     int(extra["chat_id"]),
                     item["path"],
                     caption=item["caption"],

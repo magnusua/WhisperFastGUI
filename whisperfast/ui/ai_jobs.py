@@ -576,6 +576,17 @@ class AiJobQueue:
                 job["telegram_prompt_nums"] = list(tg_nums)
         if tg_nums is not None:
             nums = [int(n) for n in tg_nums if int(n) > 0]
+            if not nums:
+                # Explicit empty list from Telegram (e.g. social link, no reply).
+                job["status"] = "skipped"
+                fid = job.get("log_file_id")
+                msg = t("telegram_ai_skipped_no_reply")
+                if fid:
+                    app.log_file_event(msg, file_id=fid)
+                else:
+                    app.log(msg)
+                self._job_end()
+                return True
         else:
             rules = getattr(app, "ai_prompt_rules", None)
             if rules is None:
@@ -845,6 +856,18 @@ class AiJobQueue:
             job["status"] = "skipped"
             self._job_end()
             return
+
+        # Mark intended AI outputs before write so folder-watch cannot re-queue them.
+        try:
+            from whisperfast.postprocess.cursor_postprocess import edited_output_path
+
+            intended = [
+                edited_output_path(txt_path, num, name)
+                for num, name, _text in (prompts or [])
+            ]
+            app.queue_ctrl.register_output_paths(intended)
+        except Exception:
+            pass
 
         def on_usage(pid, prompt_tokens, completion_tokens, usd):
             data = load_app_settings()

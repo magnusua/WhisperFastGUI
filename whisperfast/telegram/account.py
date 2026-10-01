@@ -193,12 +193,15 @@ async def _flush_outbox(client, log=None) -> None:
             await client.send_message(chat_id, text, reply_to=None)
 
     async def _send_file(chat_id: int, path: str, caption: str, reply: int | None) -> None:
+        from whisperfast.telegram.send_media import telethon_send_kwargs
+
+        extra = telethon_send_kwargs(path)
         try:
-            await client.send_file(chat_id, path, caption=caption, reply_to=reply)
+            await client.send_file(chat_id, path, caption=caption, reply_to=reply, **extra)
         except Exception:
             if reply is None:
                 raise
-            await client.send_file(chat_id, path, caption=caption, reply_to=None)
+            await client.send_file(chat_id, path, caption=caption, reply_to=None, **extra)
 
     for path in list_outgoing_paths():
         item = load_outgoing(path)
@@ -268,9 +271,27 @@ async def _flush_outbox(client, log=None) -> None:
             _safe_log(t("telegram_outbox_failed", error=str(exc)))
 
 
-async def _take_video_links(event, urls, settings, submit, log, chat_id: int, message_id: int) -> None:
+async def _take_video_links(
+    event,
+    urls,
+    settings,
+    submit,
+    log,
+    chat_id: int,
+    message_id: int,
+    *,
+    is_private: bool = False,
+) -> None:
     """Поставити соц-посилання в окрему чергу (не Whisper/AI, не блокує Telethon loop)."""
+    import threading
+
+    from whisperfast.telegram.links import social_videos_go_to_queue
     from whisperfast.telegram.outbox import enqueue_outgoing
+    from whisperfast.telegram.prompts_ask import (
+        PROMPT_ASK_TIMEOUT_S,
+        ask_prompt_nums,
+        should_ask_prompts,
+    )
     from whisperfast.telegram.social_queue import enqueue_social_urls
 
     def reply(text: str) -> None:
@@ -288,9 +309,37 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
             ],
         )
 
-    def submit_whisper(path: str, cid: int, mid: int, prompt_nums=None) -> None:
+    ask_holder: dict = {"nums": None, "done": threading.Event()}
+    ask_needed = social_videos_go_to_queue(settings) and should_ask_prompts(
+        settings, is_private=is_private
+    )
+
+    async def _run_ask() -> None:
         try:
-            submit(path, cid, mid, prompt_nums=prompt_nums)
+            ask_holder["nums"] = await ask_prompt_nums(
+                event, settings, on_timeout="none"
+            )
+        except Exception:
+            ask_holder["nums"] = []
+        finally:
+            ask_holder["done"].set()
+
+    if ask_needed:
+        ask_task = asyncio.create_task(_run_ask())
+        _link_tasks.add(ask_task)
+        ask_task.add_done_callback(_link_tasks.discard)
+    else:
+        ask_holder["done"].set()
+
+    def submit_whisper(path: str, cid: int, mid: int, prompt_nums=None) -> None:
+        nums = prompt_nums
+        if ask_needed:
+            ask_holder["done"].wait(timeout=float(PROMPT_ASK_TIMEOUT_S) + 5.0)
+            nums = ask_holder["nums"]
+            if nums is None:
+                nums = []
+        try:
+            submit(path, cid, mid, prompt_nums=nums)
         except TypeError:
             submit(path, cid, mid)
 
@@ -306,10 +355,29 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
     )
 
 
-async def _take_video_links_guarded(event, urls, settings, submit, log, chat_id: int, message_id: int) -> None:
+async def _take_video_links_guarded(
+    event,
+    urls,
+    settings,
+    submit,
+    log,
+    chat_id: int,
+    message_id: int,
+    *,
+    is_private: bool = False,
+) -> None:
     """Fire-and-forget у соц-чергу; збій не валить account listener."""
     try:
-        await _take_video_links(event, urls, settings, submit, log, chat_id, message_id)
+        await _take_video_links(
+            event,
+            urls,
+            settings,
+            submit,
+            log,
+            chat_id,
+            message_id,
+            is_private=is_private,
+        )
     except Exception as exc:
         text = t("telegram_link_failed", error=str(exc))
         log(text)
@@ -510,6 +578,7 @@ async def _deliver_learned(
         if urls:
             task = asyncio.create_task(_take_video_links_guarded(
                 event, urls, settings, submit, log, chat_id, int(message.id),
+                is_private=is_private,
             ))
             _link_tasks.add(task)
             task.add_done_callback(_link_tasks.discard)

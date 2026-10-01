@@ -46,8 +46,9 @@ def urllib_upload_transport(
     fields: Dict[str, Any],
     file_path: str,
     timeout: float,
+    file_field: str = "document",
 ) -> Dict[str, Any]:
-    body, content_type = _encode_multipart(fields, file_path)
+    body, content_type = _encode_multipart(fields, file_path, file_field=file_field)
     req = urllib.request.Request(
         url,
         data=body,
@@ -82,10 +83,15 @@ def _read_json(req: urllib.request.Request, timeout: float) -> Dict[str, Any]:
     return parsed
 
 
-def _encode_multipart(fields: Dict[str, Any], file_path: str) -> tuple:
+def _encode_multipart(
+    fields: Dict[str, Any],
+    file_path: str,
+    file_field: str = "document",
+) -> tuple:
     boundary = "----ftw" + uuid.uuid4().hex
     filename = os.path.basename(file_path) or "file"
     mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    field = (file_field or "document").strip() or "document"
     chunks = []
     for key, value in fields.items():
         if value is None:
@@ -100,7 +106,7 @@ def _encode_multipart(fields: Dict[str, Any], file_path: str) -> tuple:
     chunks.append(
         (
             f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="document"; filename="{filename}"\r\n'
+            f'Content-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
             f"Content-Type: {mime}\r\n\r\n"
         ).encode("utf-8")
     )
@@ -155,6 +161,21 @@ class TelegramClient:
             params["reply_to_message_id"] = int(reply_to)
         return self.call("sendMessage", params, timeout=60)
 
+    def _upload_file(
+        self,
+        method: str,
+        fields: Dict[str, Any],
+        path: str,
+        file_field: str = "document",
+        timeout: float = 3600,
+    ) -> Any:
+        url = self._url(method)
+        try:
+            body = self._upload(url, fields, path, timeout, file_field)
+        except TypeError:
+            body = self._upload(url, fields, path, timeout)
+        return unwrap_result(body)
+
     def send_document(
         self,
         chat_id: int,
@@ -167,5 +188,88 @@ class TelegramClient:
             fields["caption"] = caption
         if reply_to is not None:
             fields["reply_to_message_id"] = int(reply_to)
-        body = self._upload(self._url("sendDocument"), fields, path, 3600)
-        return unwrap_result(body)
+        return self._upload_file("sendDocument", fields, path, "document")
+
+    def send_video(
+        self,
+        chat_id: int,
+        path: str,
+        caption: Optional[str] = None,
+        reply_to: Optional[int] = None,
+        duration: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        supports_streaming: bool = True,
+    ) -> Any:
+        fields: Dict[str, Any] = {"chat_id": chat_id}
+        if caption:
+            fields["caption"] = caption
+        if reply_to is not None:
+            fields["reply_to_message_id"] = int(reply_to)
+        if duration and int(duration) > 0:
+            fields["duration"] = int(duration)
+        if width and int(width) > 0:
+            fields["width"] = int(width)
+        if height and int(height) > 0:
+            fields["height"] = int(height)
+        if supports_streaming:
+            fields["supports_streaming"] = "true"
+        return self._upload_file("sendVideo", fields, path, "video")
+
+    def send_audio(
+        self,
+        chat_id: int,
+        path: str,
+        caption: Optional[str] = None,
+        reply_to: Optional[int] = None,
+        duration: Optional[int] = None,
+    ) -> Any:
+        fields: Dict[str, Any] = {"chat_id": chat_id}
+        if caption:
+            fields["caption"] = caption
+        if reply_to is not None:
+            fields["reply_to_message_id"] = int(reply_to)
+        if duration and int(duration) > 0:
+            fields["duration"] = int(duration)
+        return self._upload_file("sendAudio", fields, path, "audio")
+
+    def send_path(
+        self,
+        chat_id: int,
+        path: str,
+        caption: Optional[str] = None,
+        reply_to: Optional[int] = None,
+    ) -> Any:
+        """Send video/audio as media when possible; otherwise as a document."""
+        from whisperfast.telegram.send_media import bot_send_method, probe_video
+        from whisperfast.utils import get_audio_duration_seconds
+
+        method = bot_send_method(path)
+        if method == "sendVideo":
+            info = probe_video(path)
+            try:
+                return self.send_video(
+                    chat_id,
+                    path,
+                    caption=caption,
+                    reply_to=reply_to,
+                    duration=int(info["duration"]) if info.get("duration") else None,
+                    width=int(info["width"]) if info.get("width") else None,
+                    height=int(info["height"]) if info.get("height") else None,
+                )
+            except TelegramApiError:
+                return self.send_document(chat_id, path, caption=caption, reply_to=reply_to)
+        if method == "sendAudio":
+            try:
+                seconds = get_audio_duration_seconds(path)
+                duration = int(seconds) if seconds and seconds > 0 else None
+                return self.send_audio(
+                    chat_id,
+                    path,
+                    caption=caption,
+                    reply_to=reply_to,
+                    duration=duration,
+                )
+            except TelegramApiError:
+                return self.send_document(chat_id, path, caption=caption, reply_to=reply_to)
+        return self.send_document(chat_id, path, caption=caption, reply_to=reply_to)

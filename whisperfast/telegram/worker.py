@@ -393,7 +393,7 @@ def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) 
         log(text)
         client.send_message(job.chat_id, text, reply_to=job.message_id)
         for item in known.get("outputs") or []:
-            client.send_document(
+            client.send_path(
                 job.chat_id,
                 item["path"],
                 caption=str(item.get("caption") or ""),
@@ -433,7 +433,7 @@ def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> N
             path = str((item or {}).get("path") or "")
             if not path:
                 continue
-            client.send_document(
+            client.send_path(
                 chat_id,
                 path,
                 caption=str((item or {}).get("caption") or ""),
@@ -485,7 +485,7 @@ def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
             path = str((item or {}).get("path") or "")
             if not path:
                 continue
-            client.send_document(
+            client.send_path(
                 chat_id,
                 path,
                 caption=str((item or {}).get("caption") or ""),

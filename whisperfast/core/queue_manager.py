@@ -83,7 +83,20 @@ def valid_watch_dirs(dirs):
 
 
 def _watch_filename_is_program_output(name):
-    return name.lower().endswith("_audio.mp3")
+    """True for files FTW writes next to a source (must not re-enter the watch queue)."""
+    lower = (name or "").lower()
+    if lower.endswith("_audio.mp3"):
+        return True
+    # Transcript / subtitles written beside the media
+    if lower.endswith(".srt"):
+        return True
+    # Default AI names when the prompt has no title; timed conflict → *_HHMM.md etc.
+    stem, ext = os.path.splitext(lower)
+    if ext not in (".md", ".markdown"):
+        return False
+    if stem.endswith("_edited") or "_edited_" in stem:
+        return True
+    return False
 
 
 def _watch_entries(watch_path):
@@ -177,6 +190,9 @@ class DirectoryWatcher:
             return
         with self._lock:
             self._seen.update(norm)
+            # If watch already started pending before the write finished, drop it.
+            for path in norm:
+                self._pending.pop(path, None)
 
     def notify_decode_failed(self, path):
         """Повертає файл у pending для повторної спроби (макс. WATCH_MAX_DECODE_RETRIES)."""
@@ -296,6 +312,9 @@ class DirectoryWatcher:
                 self._pending.pop(p, None)
 
             for path, state in list(self._pending.items()):
+                if path in self._seen:
+                    self._pending.pop(path, None)
+                    continue
                 age = now - state["first_seen"]
                 if age < WATCH_MIN_AGE_S:
                     continue

@@ -20,7 +20,7 @@ from whisperfast.i18n import t
 LogFunc = Callable[..., None]
 ReplyFn = Callable[[str], None]
 SendFilesFn = Callable[[List[dict]], None]
-SubmitWhisperFn = Callable[[str, int, int], None]
+SubmitWhisperFn = Callable[..., None]
 RetryHook = Callable[[Callable[[], None]], None]
 
 _SOCIAL_WORKER_NAME = "ftw-social-queue"
@@ -205,6 +205,7 @@ def process_social_urls(
             continue
         try:
             # Fire-and-forget у Whisper; соц-черга тут завершує свою роботу.
+            # Account listener may wait for an in-chat prompt ask inside submit_whisper.
             submit_whisper(path, chat_id, message_id)
         except Exception as exc:
             reply(t("telegram_failed", error=str(exc)))

@@ -1,23 +1,29 @@
 {
   "releases": [
     {
-      "version": "2.1.18",
+      "version": "2.2.0",
       "date": "01.10.2026",
       "notes": {
         "EN": [
-          "Telegram account mode: in private chats, after audio/video arrives FTW asks which prompt numbers to run (comma-separated; 0 = all). No reply within 20 s uses the default prompts. Optional “contacts only” for private media and social links.",
-          "Queue: click the AI or Telegram column header to process the whole queue (only files without AI/TG, or all again; the timed default is only the missing ones). The ▶ cell in the AI column runs immediately and does not depend on the OS language.",
-          "Log: messages when To AI is toggled and when AI is started from the queue. Preparing Markdown from .txt no longer looks like a Cursor failure."
+          "Telegram account mode: private audio/video asks which AI prompt numbers to run (0 = all; 20 s → defaults). Social links that go into the Whisper queue get the same ask; no reply skips AI (transcription only). Optional contacts-only filter.",
+          "Telegram sends downloaded social videos and other mp4/audio as playable media (sendVideo / streaming), not as a generic file.",
+          "Queue: AI and Telegram column headers batch-process the queue; the AI ▶ cell runs immediately regardless of OS language.",
+          "Folder watch no longer re-queues AI .md outputs, extracted _audio.mp3, or .srt.",
+          "Log: messages when To AI is toggled and when AI starts from the queue; preparing Markdown from .txt no longer looks like a Cursor failure."
         ],
         "UK": [
-          "Telegram (акаунт): у особистих чатах після аудіо/відео одразу питаються номери промптів через кому (0 = усі). Без відповіді 20 с — промпти за замовчуванням. Опція «лише контакти» для медіа й соцпосилань.",
-          "Черга: клік по заголовку AI або Telegram обробляє всю чергу (лише без AI/TG або все заново; таймер за замовчуванням — лише нові). ▶ у стовпці AI спрацьовує одразу, незалежно від мови ОС.",
-          "Лог: повідомлення при увімкненні/вимкненні «В AI» і при запуску AI з черги. Підготовка Markdown з .txt більше не виглядає як помилка Cursor."
+          "Telegram (акаунт): після аудіо/відео питаються номери промптів (0 = усі; 20 с → за замовчуванням). Для соцпосилань у черзі Whisper — той самий запит; без відповіді AI не запускається (лише розшифровка). Опція «лише контакти».",
+          "Завантажене відео з соцмереж і інші mp4/аудіо йдуть у чат як медіа (плеєр), а не як файл-документ.",
+          "Черга: заголовки AI і Telegram — пакетна обробка; ▶ у стовпці AI одразу, незалежно від мови ОС.",
+          "Стеження більше не ставить у чергу AI .md, _audio.mp3 і .srt.",
+          "Лог: увімкнення/вимкнення «В AI» і запуск AI з черги; Markdown з .txt більше не виглядає як помилка Cursor."
         ],
         "RU": [
-          "Telegram (аккаунт): в личных чатах после аудио/видео сразу спрашиваются номера промптов через запятую (0 = все). Без ответа 20 с — промпты по умолчанию. Опция «только контакты» для медиа и соцссылок.",
-          "Очередь: клик по заголовку AI или Telegram обрабатывает всю очередь (только без AI/TG или все заново; таймер по умолчанию — только новые). ▶ в столбце AI срабатывает сразу, независимо от языка ОС.",
-          "Лог: сообщения при включении/выключении «В AI» и при запуске AI из очереди. Подготовка Markdown из .txt больше не выглядит как ошибка Cursor."
+          "Telegram (аккаунт): после аудио/видео спрашиваются номера промптов (0 = все; 20 с → по умолчанию). Для соцссылок в очереди Whisper — тот же вопрос; без ответа AI не запускается (только расшифровка). Опция «только контакты».",
+          "Скачанное видео из соцсетей и другие mp4/аудио уходят в чат как медиа (плеер), а не как файл-документ.",
+          "Очередь: заголовки AI и Telegram — пакетная обработка; ▶ в столбце AI сразу, независимо от языка ОС.",
+          "Слежение больше не ставит в очередь AI .md, _audio.mp3 и .srt.",
+          "Лог: включение/выключение «В AI» и запуск AI из очереди; Markdown из .txt больше не выглядит как ошибка Cursor."
         ]
       }
     },

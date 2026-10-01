@@ -134,6 +134,35 @@ class TestDirectoryWatcherRegisterOutputs(unittest.TestCase):
         with watcher._lock:
             self.assertNotIn(os.path.normpath(os.path.abspath(out_path)), watcher._pending)
 
+    def test_register_clears_already_pending_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = _touch(os.path.join(tmp, "talk_redactor.md"), data=b"x" * 50)
+            ready = []
+            watcher = DirectoryWatcher(on_file_ready=ready.append, get_dirs=lambda: [tmp])
+            clock = _FakeClock()
+            with patch.object(qm.time, "time", side_effect=clock.time):
+                watcher._tick()
+                norm = os.path.normpath(os.path.abspath(path))
+                with watcher._lock:
+                    self.assertIn(norm, watcher._pending)
+                watcher.register_output_paths([path])
+                with watcher._lock:
+                    self.assertNotIn(norm, watcher._pending)
+                    self.assertIn(norm, watcher._seen)
+                clock.advance(WATCH_MIN_AGE_S + WATCH_STABLE_S + 1)
+                watcher._tick()
+        self.assertEqual(ready, [])
+
+    def test_program_output_names(self):
+        from whisperfast.core.queue_manager import _watch_filename_is_program_output
+
+        self.assertTrue(_watch_filename_is_program_output("clip_audio.mp3"))
+        self.assertTrue(_watch_filename_is_program_output("clip.srt"))
+        self.assertTrue(_watch_filename_is_program_output("clip_edited.md"))
+        self.assertTrue(_watch_filename_is_program_output("clip_edited_2.md"))
+        self.assertFalse(_watch_filename_is_program_output("notes.md"))
+        self.assertFalse(_watch_filename_is_program_output("meeting.mp4"))
+
 
 class TestDirectoryWatcherTickPipeline(unittest.TestCase):
     """A new file must sit pending >= WATCH_MIN_AGE_S, then be size-stable for

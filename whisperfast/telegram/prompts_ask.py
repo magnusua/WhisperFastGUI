@@ -47,14 +47,19 @@ def format_prompt_question(
     *,
     defaults: Sequence[int],
     timeout_s: float = PROMPT_ASK_TIMEOUT_S,
+    on_timeout: str = "defaults",
 ) -> str:
     """Human-readable list of prompt numbers for the Telegram reply."""
-    lines = [
-        t("telegram_prompt_ask_header", timeout=int(timeout_s)),
-        t(
+    if on_timeout == "none":
+        no_reply = t("telegram_prompt_ask_no_ai")
+    else:
+        no_reply = t(
             "telegram_prompt_ask_defaults",
             nums=", ".join(str(n) for n in defaults) if defaults else "—",
-        ),
+        )
+    lines = [
+        t("telegram_prompt_ask_header", timeout=int(timeout_s)),
+        no_reply,
         t("telegram_prompt_ask_zero"),
         "",
     ]
@@ -105,18 +110,29 @@ async def ask_prompt_nums(
     settings: Mapping[str, Any],
     *,
     timeout_s: float = PROMPT_ASK_TIMEOUT_S,
+    on_timeout: str = "defaults",
 ) -> List[int]:
-    """Send the prompt question and wait for a reply (or timeout → defaults)."""
+    """Send the prompt question and wait for a reply.
+
+    ``on_timeout``:
+    - ``defaults`` — empty/timeout uses ``ai_default_prompt_nums`` (private media).
+    - ``none`` — empty/timeout skips AI (social links).
+    """
     from whisperfast.postprocess.cursor_postprocess import parse_redactor_prompts
 
     defaults = defaults_from_settings(settings)
     prompts = parse_redactor_prompts()
     all_nums = [int(row[0]) for row in prompts if int(row[0]) > 0]
     if not prompts:
-        return defaults
+        return [] if on_timeout == "none" else defaults
 
     chat_id = int(getattr(event, "chat_id", 0) or 0)
-    question = format_prompt_question(prompts, defaults=defaults, timeout_s=timeout_s)
+    question = format_prompt_question(
+        prompts,
+        defaults=defaults,
+        timeout_s=timeout_s,
+        on_timeout=on_timeout,
+    )
     try:
         await event.reply(question)
     except Exception:
@@ -124,7 +140,7 @@ async def ask_prompt_nums(
             client = event.client
             await client.send_message(chat_id, question, reply_to=int(event.message.id))
         except Exception:
-            return defaults
+            return [] if on_timeout == "none" else defaults
 
     loop = asyncio.get_running_loop()
     fut: asyncio.Future = loop.create_future()
@@ -140,7 +156,8 @@ async def ask_prompt_nums(
         if _pending.get(chat_id) is fut:
             _pending.pop(chat_id, None)
 
-    return parse_prompt_reply(reply, all_nums=all_nums, defaults=defaults)
+    fallback = [] if on_timeout == "none" else defaults
+    return parse_prompt_reply(reply, all_nums=all_nums, defaults=fallback)
 
 
 def same_media_stem(a: str, b: str) -> bool:

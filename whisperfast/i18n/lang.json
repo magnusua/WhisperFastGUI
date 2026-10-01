@@ -4271,6 +4271,16 @@
     "UK": "Без відповіді → за замовчуванням: {nums}",
     "RU": "Без ответа → по умолчанию: {nums}"
   },
+  "telegram_prompt_ask_no_ai": {
+    "EN": "No reply → skip AI prompts (transcription only).",
+    "UK": "Без відповіді → без промптів AI (лише розшифровка).",
+    "RU": "Без ответа → без промптов AI (только расшифровка)."
+  },
+  "telegram_ai_skipped_no_reply": {
+    "EN": "AI prompts skipped (no Telegram reply).",
+    "UK": "Промпти AI пропущено (немає відповіді в Telegram).",
+    "RU": "Промпты AI пропущены (нет ответа в Telegram)."
+  },
   "telegram_prompt_ask_zero": {
     "EN": "0 = all prompts",
     "UK": "0 = усі промпти",

@@ -524,6 +524,41 @@ class TestTelegramPromptAsk(unittest.TestCase):
             )
         )
 
+    def test_social_ask_needed_when_queue_and_ai_on(self):
+        """Social links ask prompts only when they go to Whisper and AI ask is on."""
+        from whisperfast.telegram.links import social_videos_go_to_queue
+        from whisperfast.telegram.prompts_ask import should_ask_prompts
+
+        settings = {
+            "telegram_social_to_queue": True,
+            "telegram_ask_prompts": True,
+            "send_txt_to_ai": True,
+        }
+        self.assertTrue(social_videos_go_to_queue(settings))
+        self.assertTrue(should_ask_prompts(settings, is_private=True))
+        settings["telegram_social_to_queue"] = False
+        self.assertFalse(social_videos_go_to_queue(settings))
+
+    def test_social_no_reply_skips_ai(self):
+        from whisperfast.telegram.prompts_ask import format_prompt_question, parse_prompt_reply
+
+        with patch("whisperfast.telegram.prompts_ask.t", side_effect=lambda key, **kw: key):
+            text = format_prompt_question(
+                [(1, "redactor", "x")],
+                defaults=[1],
+                on_timeout="none",
+            )
+        self.assertIn("telegram_prompt_ask_no_ai", text)
+        self.assertNotIn("telegram_prompt_ask_defaults", text)
+        self.assertEqual(
+            parse_prompt_reply("", all_nums=[1, 2], defaults=[]),
+            [],
+        )
+        self.assertEqual(
+            parse_prompt_reply("2", all_nums=[1, 2], defaults=[]),
+            [2],
+        )
+
 
 class TestPipeline(unittest.TestCase):
     def test_transcribe_then_ai_without_dialog(self):
@@ -624,6 +659,41 @@ class TestClient(unittest.TestCase):
         self.assertEqual(calls[1][1]["reply_to_message_id"], 4)
         with self.assertRaises(TelegramApiError):
             unwrap_result({"ok": False, "description": "bad"})
+
+    def test_send_path_uses_send_video_for_mp4(self):
+        from whisperfast.telegram.send_media import bot_send_method
+
+        self.assertEqual(bot_send_method(r"C:\clip.mp4"), "sendVideo")
+        self.assertEqual(bot_send_method(r"C:\note.txt"), "sendDocument")
+        self.assertEqual(bot_send_method(r"C:\track.mp3"), "sendAudio")
+
+        uploads = []
+
+        def upload(url, fields, path, timeout, file_field="document"):
+            uploads.append((url, fields, path, file_field))
+            return {"ok": True, "result": {"message_id": 9}}
+
+        client = TelegramClient(
+            "tok",
+            api_base="http://127.0.0.1:8081",
+            upload=upload,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "clip.mp4")
+            open(path, "wb").close()
+            with patch("whisperfast.telegram.send_media.probe_video", return_value={"duration": 12.4, "width": 640, "height": 360}):
+                client.send_path(7, path, caption="hi", reply_to=3)
+        self.assertEqual(len(uploads), 1)
+        url, fields, sent_path, file_field = uploads[0]
+        self.assertTrue(url.endswith("/sendVideo"))
+        self.assertEqual(file_field, "video")
+        self.assertEqual(fields["chat_id"], 7)
+        self.assertEqual(fields["caption"], "hi")
+        self.assertEqual(fields["duration"], 12)
+        self.assertEqual(fields["width"], 640)
+        self.assertEqual(fields["height"], 360)
+        self.assertEqual(fields["supports_streaming"], "true")
+        self.assertEqual(sent_path, path)
 
 
 class TestLocalServerAndCli(unittest.TestCase):
@@ -1160,7 +1230,7 @@ class TestVideoLinks(unittest.TestCase):
         ), patch("whisperfast.telegram.links.remember_link"):
             _ingest_bot_links(message, {"telegram_work_dir": "."}, client, None, log)
         self.assertIn((video, "link"), logged)
-        client.send_document.assert_called_once()
+        client.send_path.assert_called_once()
 
     def test_source_url_in_a_log_line_is_its_own_link(self):
         from whisperfast.ui.log_panel import url_spans
