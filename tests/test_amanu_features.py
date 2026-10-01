@@ -314,10 +314,16 @@ class TestEchoAndCodec(unittest.TestCase):
         self.assertIn(".opus", VALID_EXTS)
         self.assertEqual(normalize_codec("m4a"), "aac")
 
-    def test_mka_in_extensions(self):
-        # Bandicam and similar record Matroska Audio (.mka); same container as .mkv.
-        self.assertIn(".mka", AUDIO_EXTENSIONS)
-        self.assertIn(".mka", VALID_EXTS)
+    def test_common_recorder_formats_in_extensions(self):
+        # Bandicam / phone / camcorder / Telegram extras that FFmpeg can feed Whisper.
+        from whisperfast.config import VIDEO_EXTENSIONS
+
+        for ext in (".mka", ".aac", ".wma", ".aiff", ".amr", ".weba", ".m4b"):
+            self.assertIn(ext, AUDIO_EXTENSIONS)
+            self.assertIn(ext, VALID_EXTS)
+        for ext in (".m4v", ".mts", ".m2ts", ".3gp", ".flv", ".ts", ".ogv"):
+            self.assertIn(ext, VIDEO_EXTENSIONS)
+            self.assertIn(ext, VALID_EXTS)
 
     def test_mono_mix(self):
         try:

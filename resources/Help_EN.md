@@ -27,9 +27,9 @@ For documents it creates Markdown (`.md`), and optionally AI outputs and Word (`
 - The trash icon in the queue column header removes all rows. The × in a row removes only that row.
 - The queue is saved automatically and restored at the next launch.
 
-Supported audio: `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.mka`.
+Supported audio: `.aac`, `.ac3`, `.aif`/`.aiff`/`.aifc`, `.amr`/`.awb`, `.ape`, `.au`, `.caf`, `.dts`, `.eac3`, `.flac`, `.m4a`/`.m4b`, `.mka`, `.mp2`/`.mp3`/`.mpga`, `.oga`/`.ogg`/`.opus`/`.spx`, `.wav`, `.weba`, `.wma`, `.wv`.
 
-Supported video: `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm`.
+Supported video: `.3gp`/`.3g2`, `.asf`, `.avi`, `.divx`, `.flv`/`.f4v`, `.m2ts`/`.mts`/`.ts`, `.m4v`, `.mkv`, `.mov`, `.mp4`, `.mpeg`/`.mpg`, `.mxf`, `.ogv`, `.rm`/`.rmvb`, `.vob`, `.webm`, `.wmv`.
 
 Supported text: `.md`, `.markdown`, `.txt`, `.text`, `.rst`, `.csv`, `.html`, `.htm`.
 

@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "2.1.17",
+      "date": "01.10.2026",
+      "notes": {
+        "EN": [
+          "More audio and video queue formats via FFmpeg: including .aac, .wma, .aiff, .amr, .m4b, .weba, .m4v, .mts/.m2ts/.ts, .3gp, .flv, .ogv and other common containers, so files like Bandicam .mka are not rejected as invalid."
+        ],
+        "UK": [
+          "Більше аудіо- й відеоформатів у черзі (через FFmpeg): зокрема .aac, .wma, .aiff, .amr, .m4b, .weba, .m4v, .mts/.m2ts/.ts, .3gp, .flv, .ogv та інші поширені контейнери — щоб файли на кшталт Bandicam .mka не відхилялись як невалідні."
+        ],
+        "RU": [
+          "Больше аудио- и видеоформатов в очереди (через FFmpeg): в том числе .aac, .wma, .aiff, .amr, .m4b, .weba, .m4v, .mts/.m2ts/.ts, .3gp, .flv, .ogv и другие распространённые контейнеры — чтобы файлы вроде Bandicam .mka не отклонялись как невалидные."
+        ]
+      }
+    },
+    {
       "version": "2.1.16",
       "date": "01.10.2026",
       "notes": {

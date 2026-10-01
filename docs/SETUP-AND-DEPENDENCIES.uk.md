@@ -17,8 +17,8 @@
 
 | Тип | Формати |
 |---|---|
-| Аудіо | `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg`, `.opus`, `.mka` |
-| Відео | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.webm` |
+| Аудіо | `.aac`, `.ac3`, `.aif`/`.aiff`/`.aifc`, `.amr`/`.awb`, `.ape`, `.au`, `.caf`, `.dts`, `.eac3`, `.flac`, `.m4a`/`.m4b`, `.mka`, `.mp2`/`.mp3`/`.mpga`, `.oga`/`.ogg`/`.opus`/`.spx`, `.wav`, `.weba`, `.wma`, `.wv` |
+| Відео | `.3gp`/`.3g2`, `.asf`, `.avi`, `.divx`, `.flv`/`.f4v`, `.m2ts`/`.mts`/`.ts`, `.m4v`, `.mkv`, `.mov`, `.mp4`, `.mpeg`/`.mpg`, `.mxf`, `.ogv`, `.rm`/`.rmvb`, `.vob`, `.webm`, `.wmv` |
 | Текст | `.md`, `.markdown`, `.txt`, `.text`, `.rst`, `.csv`, `.html`, `.htm` |
 | Документи | `.pdf`, `.doc`, `.docx` (конвертуються в Markdown через `markitdown`) |
 

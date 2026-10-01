@@ -49,9 +49,62 @@ GITHUB_BRANCH = "main"
 GITHUB_URL = f"https://github.com/{GITHUB_REPO}"
 # RTX 50 (Blackwell) needs CUDA 12.8. cu128 wheels also run older NVIDIA GPUs.
 CUDA_INDEX = "https://download.pytorch.org/whl/cu128"
-# Расширения по типам (единый источник для gui и input_files)
-AUDIO_EXTENSIONS = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.opus', '.mka')
-VIDEO_EXTENSIONS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.webm')
+# Расширения по типам (единый источник для gui и input_files).
+# Аудіо/відео — те, що FFmpeg (pydub) зазвичай відкриває для Whisper.
+AUDIO_EXTENSIONS = (
+    ".aac",
+    ".ac3",
+    ".aif",
+    ".aifc",
+    ".aiff",
+    ".amr",
+    ".ape",
+    ".au",
+    ".awb",
+    ".caf",
+    ".dts",
+    ".eac3",
+    ".flac",
+    ".m4a",
+    ".m4b",
+    ".mka",
+    ".mp2",
+    ".mp3",
+    ".mpga",
+    ".oga",
+    ".ogg",
+    ".opus",
+    ".spx",
+    ".wav",
+    ".weba",
+    ".wma",
+    ".wv",
+)
+VIDEO_EXTENSIONS = (
+    ".3g2",
+    ".3gp",
+    ".asf",
+    ".avi",
+    ".divx",
+    ".f4v",
+    ".flv",
+    ".m2ts",
+    ".m4v",
+    ".mkv",
+    ".mov",
+    ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".mts",
+    ".mxf",
+    ".ogv",
+    ".rm",
+    ".rmvb",
+    ".ts",
+    ".vob",
+    ".webm",
+    ".wmv",
+)
 # Текстовые / документные файлы (без Whisper; PDF/DOC/DOCX → MD, затем опционально Cursor)
 TEXT_EXTENSIONS = ('.md', '.markdown', '.txt', '.text', '.rst', '.csv', '.html', '.htm')
 OFFICE_TO_MD_EXTENSIONS = ('.pdf', '.doc', '.docx')
