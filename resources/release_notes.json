@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.1.16",
+      "date": "01.10.2026",
+      "notes": {
+        "EN": [
+          "Autostart: click opens settings — Windows startup and optional daily restart at 02:00. Shift+click only toggles the Startup shortcut. Restart waits if a recording or transcription is running.",
+          "Updates: after FTW has been open more than 10 hours, GitHub is checked once per session (same Update / Later / Skip dialog; skipped versions stay skipped)."
+        ],
+        "UK": [
+          "Автозапуск: клік відкриває налаштування — запуск із Windows і опція щоденного перезапуску о 02:00. Shift+клік лише вмикає/вимикає ярлик Startup. Під час запису або транскрибації перезапуск чекає.",
+          "Оновлення: якщо FTW відкритий понад 10 годин, один раз за сесію перевіряється GitHub (той самий діалог Оновити / Пізніше / Пропустити; пропущена версія лишається пропущеною)."
+        ],
+        "RU": [
+          "Автозапуск: клик открывает настройки — запуск с Windows и опция ежедневного перезапуска в 02:00. Shift+клик только включает/выключает ярлык Startup. Во время записи или транскрибации перезапуск ждёт.",
+          "Обновления: если FTW открыт более 10 часов, один раз за сессию проверяется GitHub (тот же диалог Обновить / Позже / Пропустить; пропущенная версия остаётся пропущенной)."
+        ]
+      }
+    },
+    {
       "version": "2.1.15",
       "date": "01.10.2026",
       "notes": {

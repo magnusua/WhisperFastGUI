@@ -72,6 +72,7 @@ _DEFAULTS = {
     "python_path_chosen": False,
     "python_discovered": [],
     "skip_app_update_version": "",  # не пропонувати цю remote-версію при старті
+    "daily_restart_enabled": False,  # перезапуск щодня о 02:00
     "ai_prompt_rules": [],
     "ai_month_budget": 0.0,
     "ai_spend_month": "",

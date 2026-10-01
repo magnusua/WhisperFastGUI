@@ -2628,6 +2628,95 @@ def show_startup_app_update_dialog(app, current, latest, remote_date=None, on_re
     return dialog
 
 
+def show_autostart_settings_dialog(app):
+    """Windows autostart + optional daily restart at 02:00."""
+    from whisperfast import autostart as win_autostart
+    from whisperfast.runtime_schedule import DAILY_RESTART_HOUR, DAILY_RESTART_MINUTE
+
+    dialog = tk.Toplevel(app.root)
+    dialog.title(t("autostart_settings_title"))
+    dialog.transient(app.root)
+    dialog.resizable(False, False)
+
+    frame = ttk.Frame(dialog, padding=16)
+    frame.pack(fill="both", expand=True)
+
+    win_var = tk.BooleanVar(value=bool(win_autostart.is_enabled()))
+    daily_var = tk.BooleanVar(value=bool(getattr(app, "daily_restart_enabled", tk.BooleanVar(value=False)).get()))
+
+    win_cb = ttk.Checkbutton(frame, text=t("autostart_windows_cb"), variable=win_var)
+    win_cb.pack(anchor="w")
+    hint = ttk.Label(frame, text=t("autostart_windows_hint"), wraplength=420, justify="left")
+    hint.pack(anchor="w", pady=(2, 12))
+
+    time_label = f"{DAILY_RESTART_HOUR:02d}:{DAILY_RESTART_MINUTE:02d}"
+    daily_cb = ttk.Checkbutton(
+        frame,
+        text=t("autostart_daily_restart_cb", time=time_label),
+        variable=daily_var,
+    )
+    daily_cb.pack(anchor="w")
+    daily_hint = ttk.Label(
+        frame, text=t("autostart_daily_restart_hint"), wraplength=420, justify="left"
+    )
+    daily_hint.pack(anchor="w", pady=(2, 12))
+
+    bf = ttk.Frame(frame)
+    bf.pack(fill="x", pady=(8, 0))
+
+    def apply_language():
+        dialog.title(t("autostart_settings_title"))
+        win_cb.config(text=t("autostart_windows_cb"))
+        hint.config(text=t("autostart_windows_hint"))
+        daily_cb.config(text=t("autostart_daily_restart_cb", time=time_label))
+        daily_hint.config(text=t("autostart_daily_restart_hint"))
+        ok_btn.config(text=t("save"))
+        cancel_btn.config(text=t("cancel_btn"))
+
+    def close():
+        try:
+            dialog.destroy()
+        except tk.TclError:
+            pass
+
+    def save():
+        want_win = bool(win_var.get())
+        want_daily = bool(daily_var.get())
+        try:
+            app.daily_restart_enabled.set(want_daily)
+        except Exception:
+            pass
+        apply_daily = getattr(app, "_apply_daily_restart_setting", None)
+        if callable(apply_daily):
+            apply_daily(want_daily)
+        apply_win = getattr(app, "_apply_autostart_windows", None)
+        if callable(apply_win):
+            apply_win(want_win)
+        else:
+            try:
+                app.autostart_enabled.set(want_win)
+                app._on_autostart_toggled()
+            except Exception:
+                pass
+        persist = getattr(app, "_persist_settings", None)
+        if callable(persist):
+            persist()
+        close()
+
+    ok_btn = ttk.Button(bf, text=t("save"), command=save, width=12)
+    ok_btn.pack(side="right", padx=(6, 0))
+    cancel_btn = ttk.Button(bf, text=t("cancel_btn"), command=close, width=12)
+    cancel_btn.pack(side="right")
+
+    apply_language()
+    track_i18n_window(app, dialog, apply_language)
+    dialog.protocol("WM_DELETE_WINDOW", close)
+    dialog.bind("<Escape>", lambda _e: close())
+    center_toplevel(app, dialog)
+    dialog.focus_set()
+    return dialog
+
+
 def show_prompt_rules_dialog(app):
     """Edit auto-run prompt rules (always / watch_dir / filename)."""
     from whisperfast.postprocess.prompt_rules import normalize_prompt_rules

@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 
@@ -199,6 +200,12 @@ class WhisperGUI:
         self.watch_dir = tk.StringVar()  # каталоги через кому (settings.json)
         self.watch_enabled = tk.BooleanVar(value=False)
         self.autostart_enabled = tk.BooleanVar(value=win_autostart.is_enabled())
+        self.daily_restart_enabled = tk.BooleanVar(value=False)
+        self._app_started_at = time.time()
+        self._uptime_update_checked = False
+        self._daily_restart_last_day = ""
+        self._daily_restart_after_id = None
+        self._uptime_update_after_id = None
         self.play_sound_on_finish = tk.BooleanVar(value=False)  # По умолчанию снят
         self.save_audio_mp3 = tk.BooleanVar(value=False)  # Сохранять извлечённое аудио в MP3
         self.send_txt_to_ai = tk.BooleanVar(value=False)
@@ -258,6 +265,7 @@ class WhisperGUI:
         # watch_dir: один або кілька каталогів через кому
         self.watch_dir.set(serialize_watch_dirs(parse_watch_dirs(saved.get("watch_dir", "") or "")))
         self.watch_enabled.set(bool(saved.get("watch_enabled", False)))
+        self.daily_restart_enabled.set(bool(saved.get("daily_restart_enabled", False)))
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         if "keep_gpu_awake" in saved:
             self.keep_gpu_awake.set(bool(saved.get("keep_gpu_awake")))
@@ -425,6 +433,8 @@ class WhisperGUI:
 
         # Перевірка нової версії на GitHub (фоном, після показу вікна)
         self.root.after(2000, self._schedule_startup_app_update_check)
+        self._schedule_uptime_update_check()
+        self._schedule_daily_restart()
 
 
     def _setup_tray(self):
@@ -872,8 +882,9 @@ class WhisperGUI:
         # наступний віджет лівіше, тож пакуємо з правого краю групи.
         self.header_tools_sep = ttk.Label(header_f, text="|")
         self.header_tools_sep.pack(side="right", padx=(4, 4))
-        self.autostart_btn = ttk.Button(header_f, command=self._toggle_autostart)
+        self.autostart_btn = ttk.Button(header_f)
         self.autostart_btn.pack(side="right", padx=2)
+        self.autostart_btn.bind("<Button-1>", self._on_autostart_click)
         ttk.Label(header_f, text="|").pack(side="right", padx=(4, 4))
         self.tray_mode_btn = ttk.Button(header_f, command=self._show_tray_mode_menu)
         self.tray_mode_btn.pack(side="right", padx=2)
@@ -1436,10 +1447,44 @@ class WhisperGUI:
 
     def _schedule_startup_app_update_check(self):
         """Фонова перевірка GitHub; при новій версії — окремий діалог."""
+        self._run_app_update_check(silent_log=True)
+
+    def _schedule_uptime_update_check(self):
+        """After 10 h uptime, check GitHub once (same skip-version rules as startup)."""
+        from whisperfast.runtime_schedule import POLL_S, UPTIME_UPDATE_CHECK_S, uptime_update_due
+
+        def tick():
+            self._uptime_update_after_id = None
+            try:
+                if uptime_update_due(
+                    getattr(self, "_app_started_at", 0.0),
+                    already_checked=bool(getattr(self, "_uptime_update_checked", False)),
+                    threshold_s=UPTIME_UPDATE_CHECK_S,
+                ):
+                    self._uptime_update_checked = True
+                    hours = int(UPTIME_UPDATE_CHECK_S // 3600)
+                    self.log(t("uptime_update_check_log", hours=hours))
+                    self._run_app_update_check(silent_log=True)
+                    return
+            except Exception:
+                pass
+            try:
+                self._uptime_update_after_id = self.root.after(int(POLL_S * 1000), tick)
+            except tk.TclError:
+                pass
+
+        try:
+            delay_ms = max(1000, int(min(POLL_S, UPTIME_UPDATE_CHECK_S) * 1000))
+            self._uptime_update_after_id = self.root.after(delay_ms, tick)
+        except tk.TclError:
+            pass
+
+    def _run_app_update_check(self, *, silent_log=True):
+        """Background GitHub check; offers the same Update / Later / Skip dialog."""
 
         def worker():
             try:
-                info = check_app_update(log_func=None)
+                info = check_app_update(log_func=None if silent_log else self.log)
             except Exception:
                 return
             if not info.get("needs_update"):
@@ -1452,7 +1497,104 @@ class WhisperGUI:
                 return
             self.root.after(0, lambda i=info: self._show_startup_app_update_dialog(i))
 
-        threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=worker, daemon=True, name="ftw-app-update-check").start()
+
+    def _schedule_daily_restart(self):
+        """Poll for the configured daily wall-clock restart (default 02:00)."""
+        from whisperfast.runtime_schedule import (
+            BUSY_RETRY_S,
+            DAILY_RESTART_HOUR,
+            DAILY_RESTART_MINUTE,
+            POLL_S,
+            should_fire_daily,
+        )
+
+        if self._daily_restart_after_id is not None:
+            try:
+                self.root.after_cancel(self._daily_restart_after_id)
+            except Exception:
+                pass
+            self._daily_restart_after_id = None
+
+        try:
+            enabled_now = bool(self.daily_restart_enabled.get())
+        except tk.TclError:
+            enabled_now = False
+        if enabled_now and not str(getattr(self, "_daily_restart_last_day", "") or ""):
+            # Already past today's slot at enable/startup → wait until tomorrow.
+            past, day_key = should_fire_daily(
+                enabled=True,
+                last_fire_day="",
+                hour=DAILY_RESTART_HOUR,
+                minute=DAILY_RESTART_MINUTE,
+            )
+            if past:
+                self._daily_restart_last_day = day_key
+
+        def tick():
+            self._daily_restart_after_id = None
+            try:
+                enabled = bool(self.daily_restart_enabled.get())
+            except tk.TclError:
+                return
+            fire, day_key = should_fire_daily(
+                enabled=enabled,
+                last_fire_day=str(getattr(self, "_daily_restart_last_day", "") or ""),
+                hour=DAILY_RESTART_HOUR,
+                minute=DAILY_RESTART_MINUTE,
+            )
+            if fire:
+                if self._daily_restart_is_busy():
+                    self.log(t("autostart_daily_restart_busy_log"))
+                    try:
+                        self._daily_restart_after_id = self.root.after(
+                            int(BUSY_RETRY_S * 1000), tick
+                        )
+                    except tk.TclError:
+                        pass
+                    return
+                self._daily_restart_last_day = day_key
+                time_label = f"{DAILY_RESTART_HOUR:02d}:{DAILY_RESTART_MINUTE:02d}"
+                self.log(t("autostart_daily_restart_now_log", time=time_label))
+                self.root.after(200, lambda: self._restart_after_app_update(None))
+                return
+            try:
+                self._daily_restart_after_id = self.root.after(int(POLL_S * 1000), tick)
+            except tk.TclError:
+                pass
+
+        try:
+            self._daily_restart_after_id = self.root.after(int(POLL_S * 1000), tick)
+        except tk.TclError:
+            pass
+
+    def _daily_restart_is_busy(self) -> bool:
+        if capture_ui.capture_blocks_shutdown():
+            return True
+        lock = getattr(self, "_process_queue_lock", None)
+        if lock is not None and lock.locked():
+            return True
+        return False
+
+    def _apply_daily_restart_setting(self, enabled: bool):
+        try:
+            self.daily_restart_enabled.set(bool(enabled))
+        except tk.TclError:
+            return
+        if not enabled:
+            self._daily_restart_last_day = ""
+        time_label = "02:00"
+        try:
+            from whisperfast.runtime_schedule import DAILY_RESTART_HOUR, DAILY_RESTART_MINUTE
+
+            time_label = f"{DAILY_RESTART_HOUR:02d}:{DAILY_RESTART_MINUTE:02d}"
+        except Exception:
+            pass
+        if enabled:
+            self.log(t("autostart_daily_restart_enabled_log", time=time_label))
+        else:
+            self.log(t("autostart_daily_restart_disabled_log"))
+        self._schedule_daily_restart()
 
     def _cleanup_orphan_cursor_bridges(self):
         """При старті прибирає zombie cursor-sdk-bridge від попередніх зависань."""
@@ -2521,9 +2663,36 @@ class WhisperGUI:
         self._apply_tray_mode()
         self._persist_settings()
 
+    def _on_autostart_click(self, event):
+        """Клік — налаштування. Shift+клік — автозавантаження Windows."""
+        if event is not None and (getattr(event, "state", 0) & 0x0001):
+            self._toggle_autostart()
+        else:
+            ui_dialogs.show_autostart_settings_dialog(self)
+        return "break"
+
     def _toggle_autostart(self):
         try:
             self.autostart_enabled.set(not bool(self.autostart_enabled.get()))
+        except tk.TclError:
+            return
+        self._on_autostart_toggled()
+
+    def _apply_autostart_windows(self, want: bool):
+        """Enable or disable the Startup shortcut to match the settings dialog."""
+        try:
+            current = bool(win_autostart.is_enabled())
+        except Exception:
+            current = False
+        if bool(want) == current:
+            try:
+                self.autostart_enabled.set(current)
+            except tk.TclError:
+                pass
+            toolbar_icons.apply_autostart_state(self)
+            return
+        try:
+            self.autostart_enabled.set(bool(want))
         except tk.TclError:
             return
         self._on_autostart_toggled()
@@ -2673,6 +2842,7 @@ class WhisperGUI:
             "mp3_output_dir": normalize_display_path((self.mp3_output_dir.get() or "").strip()),
             "watch_dir": serialize_watch_dirs(parse_watch_dirs(self.watch_dir.get())),
             "watch_enabled": self.watch_enabled.get(),
+            "daily_restart_enabled": bool(self.daily_restart_enabled.get()),
             "device_mode": self.device_mode.get(),
             "keep_gpu_awake": bool(self.keep_gpu_awake.get()),
             "play_sound_on_finish": self.play_sound_on_finish.get(),

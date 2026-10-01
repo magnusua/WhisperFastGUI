@@ -2810,9 +2810,59 @@
     "RU": "Автозапуск"
   },
   "tooltip_autostart": {
-    "EN": "Windows startup (25 s delay). Checked = shortcut is in Startup. Click to add or remove it.",
-    "UK": "Автозавантаження Windows (затримка 25 с). Галочка — ярлик уже в Startup. Клік додає або прибирає його.",
-    "RU": "Автозагрузка Windows (задержка 25 с). Галочка — ярлык уже в Startup. Клик добавляет или убирает его."
+    "EN": "Click: autostart settings (Windows startup, daily restart at 02:00). Shift+click: turn Windows startup on or off. A green icon means startup is on.",
+    "UK": "Клік: налаштування автозапуску (Windows, щоденний перезапуск о 02:00). Shift+клік: увімкнути або вимкнути автозавантаження Windows. Зелена іконка — увімкнено.",
+    "RU": "Клик: настройки автозапуска (Windows, ежедневный перезапуск в 02:00). Shift+клик: включить или выключить автозагрузку Windows. Зелёная иконка — включено."
+  },
+  "autostart_settings_title": {
+    "EN": "Autostart",
+    "UK": "Автозапуск",
+    "RU": "Автозапуск"
+  },
+  "autostart_windows_cb": {
+    "EN": "Start FTW with Windows (25 s delay)",
+    "UK": "Запускати FTW з Windows (затримка 25 с)",
+    "RU": "Запускать FTW с Windows (задержка 25 с)"
+  },
+  "autostart_windows_hint": {
+    "EN": "Adds or removes the Startup shortcut for this install.",
+    "UK": "Додає або прибирає ярлик у Startup для цієї установки.",
+    "RU": "Добавляет или убирает ярлык в Startup для этой установки."
+  },
+  "autostart_daily_restart_cb": {
+    "EN": "Restart FTW every day at {time}",
+    "UK": "Перезапускати FTW щодня о {time}",
+    "RU": "Перезапускать FTW каждый день в {time}"
+  },
+  "autostart_daily_restart_hint": {
+    "EN": "If a recording or transcription is running, the restart waits until it finishes.",
+    "UK": "Якщо йде запис або транскрибація, перезапуск чекає завершення.",
+    "RU": "Если идёт запись или транскрибация, перезапуск ждёт завершения."
+  },
+  "autostart_daily_restart_enabled_log": {
+    "EN": "Daily restart at {time} enabled.",
+    "UK": "Щоденний перезапуск о {time} увімкнено.",
+    "RU": "Ежедневный перезапуск в {time} включён."
+  },
+  "autostart_daily_restart_disabled_log": {
+    "EN": "Daily restart disabled.",
+    "UK": "Щоденний перезапуск вимкнено.",
+    "RU": "Ежедневный перезапуск выключен."
+  },
+  "autostart_daily_restart_now_log": {
+    "EN": "Daily restart ({time}): closing and starting FTW again…",
+    "UK": "Щоденний перезапуск ({time}): закриваю і запускаю FTW знову…",
+    "RU": "Ежедневный перезапуск ({time}): закрываю и запускаю FTW снова…"
+  },
+  "autostart_daily_restart_busy_log": {
+    "EN": "Daily restart postponed — recording or processing is still running.",
+    "UK": "Щоденний перезапуск відкладено — ще йде запис або обробка.",
+    "RU": "Ежедневный перезапуск отложен — ещё идёт запись или обработка."
+  },
+  "uptime_update_check_log": {
+    "EN": "▶ Checking for updates (app has been open more than {hours} h)…",
+    "UK": "▶ Перевірка оновлень (програма відкрита понад {hours} год)…",
+    "RU": "▶ Проверка обновлений (программа открыта более {hours} ч)…"
   },
   "autostart_enabled_log": {
     "EN": "Autostart enabled (Startup shortcut, 25 s delay).",

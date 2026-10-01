@@ -78,6 +78,7 @@
 | `python_path_chosen` | `false` | Чи користувач уже підтвердив вибір інтерпретатора. |
 | `python_discovered` | `[]` | Раніше знайдені інтерпретатори. |
 | `skip_app_update_version` | `""` | Версія на GitHub, яку користувач попросив не пропонувати повторно. |
+| `daily_restart_enabled` | `false` | Щоденний перезапуск FTW о 02:00 (локальний час). Якщо йде запис/обробка — чекає. |
 | `telegram_mode` | `"bot"` | `account` — особисті чати цього акаунта (Telethon); `bot` — бот і локальний telegram-bot-api. |
 | `telegram_api_id` | `""` | Число App api_id з my.telegram.org. |
 | `telegram_api_hash` | `""` | App api_hash. На Windows шифрується DPAPI. |
