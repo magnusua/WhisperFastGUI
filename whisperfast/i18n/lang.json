@@ -164,6 +164,76 @@
     "UK": "Обробити всі файли заново?",
     "RU": "Обработать все файлы заново?"
   },
+  "process_ai_only_new": {
+    "EN": "Run AI only for queue files without AI yet? ({count})",
+    "UK": "Запустити AI лише для файлів у черзі без AI? ({count})",
+    "RU": "Запустить AI только для файлов в очереди без AI? ({count})"
+  },
+  "process_ai_again": {
+    "EN": "All selected queue files already have AI. Run AI again for all of them?",
+    "UK": "У всіх вибраних файлів черги вже є AI. Запустити AI заново для всіх?",
+    "RU": "У всех выбранных файлов очереди уже есть AI. Запустить AI заново для всех?"
+  },
+  "process_tg_only_new": {
+    "EN": "Send to Telegram only queue files not sent yet? ({count})",
+    "UK": "Надіслати в Telegram лише ще не відправлені файли черги? ({count})",
+    "RU": "Отправить в Telegram только ещё не отправленные файлы очереди? ({count})"
+  },
+  "process_tg_again": {
+    "EN": "All selected queue files were already sent to Telegram. Send them again?",
+    "UK": "Усі вибрані файли черги вже були надіслані в Telegram. Надіслати заново?",
+    "RU": "Все выбранные файлы очереди уже были отправлены в Telegram. Отправить заново?"
+  },
+  "ai_queue_batch_log": {
+    "EN": "▶ AI for queue: {count} file(s) ({mode})",
+    "UK": "▶ AI для черги: {count} файл(ів) ({mode})",
+    "RU": "▶ AI для очереди: {count} файл(ов) ({mode})"
+  },
+  "ai_queue_batch_mode_new": {
+    "EN": "without AI only",
+    "UK": "лише без AI",
+    "RU": "только без AI"
+  },
+  "ai_queue_batch_mode_all": {
+    "EN": "all again",
+    "UK": "усі заново",
+    "RU": "все заново"
+  },
+  "tg_queue_batch_log": {
+    "EN": "▶ Telegram for queue: {count} file(s) ({mode})",
+    "UK": "▶ Telegram для черги: {count} файл(ів) ({mode})",
+    "RU": "▶ Telegram для очереди: {count} файл(ов) ({mode})"
+  },
+  "tg_queue_batch_mode_new": {
+    "EN": "unsent only",
+    "UK": "лише невідправлені",
+    "RU": "только неотправленные"
+  },
+  "tg_queue_batch_mode_all": {
+    "EN": "all again",
+    "UK": "усі заново",
+    "RU": "все заново"
+  },
+  "ai_queue_batch_empty": {
+    "EN": "No queue files ready for AI.",
+    "UK": "Немає файлів у черзі для AI.",
+    "RU": "Нет файлов в очереди для AI."
+  },
+  "tg_queue_batch_empty": {
+    "EN": "No processed queue files to send to Telegram.",
+    "UK": "Немає оброблених файлів черги для Telegram.",
+    "RU": "Нет обработанных файлов очереди для Telegram."
+  },
+  "tooltip_col_ai_heading": {
+    "EN": "Click to run AI on the queue. You can choose only files without AI, or all again.",
+    "UK": "Клік — запустити AI для черги. Можна лише файли без AI або всі заново.",
+    "RU": "Клик — запустить AI для очереди. Можно только файлы без AI или все заново."
+  },
+  "tooltip_col_tg_heading": {
+    "EN": "Click to send the queue to Telegram. You can choose only unsent files, or all again.",
+    "UK": "Клік — надіслати чергу в Telegram. Можна лише невідправлені або всі заново.",
+    "RU": "Клик — отправить очередь в Telegram. Можно только неотправленные или все заново."
+  },
   "edit_row_title": {
     "EN": "Edit time range",
     "UK": "Редагувати діапазон часу",
@@ -338,6 +408,16 @@
     "EN": "To AI",
     "UK": "В AI",
     "RU": "В AI"
+  },
+  "send_txt_to_ai_enabled_log": {
+    "EN": "AI post-processing enabled — transcripts will go to prompts.",
+    "UK": "Постобробку AI увімкнено — транскрипти підуть у промпти.",
+    "RU": "Постобработка AI включена — транскрипты пойдут в промпты."
+  },
+  "send_txt_to_ai_disabled_log": {
+    "EN": "AI post-processing disabled — transcripts stay without prompts.",
+    "UK": "Постобробку AI вимкнено — транскрипти без промптів.",
+    "RU": "Постобработка AI выключена — транскрипты без промптов."
   },
   "export_md_to_docx": {
     "EN": "MD → Word",
@@ -703,6 +783,11 @@
     "EN": "▶ Sending to AI: {name}",
     "UK": "▶ Передаю в AI: {name}",
     "RU": "▶ Передаю в AI: {name}"
+  },
+  "ai_started_from_queue_log": {
+    "EN": "▶ AI started from queue: {name}",
+    "UK": "▶ AI запущено з черги: {name}",
+    "RU": "▶ AI запущен из очереди: {name}"
   },
   "cursor_handoff": {
     "EN": "▶ Sending to AI: {name}",
@@ -2214,15 +2299,25 @@
     "UK": "✓ Markdown готовий: {name}",
     "RU": "✓ Markdown готов: {name}"
   },
+  "doc_text_prepared_md": {
+    "EN": "✓ Prepared Markdown copy (no AI): {src} → {md}",
+    "UK": "✓ Підготовлено Markdown (без AI): {src} → {md}",
+    "RU": "✓ Подготовлен Markdown (без AI): {src} → {md}"
+  },
+  "doc_ai_skipped_toggle": {
+    "EN": "AI prompts skipped — turn on “Send to AI” (or click Choose prompts): {name}",
+    "UK": "Промпти AI пропущено — увімкніть «В AI» (або натисніть «Обрати промти»): {name}",
+    "RU": "Промпты AI пропущены — включите «В AI» (или нажмите «Выбрать промты»): {name}"
+  },
   "doc_not_sent_to_cursor": {
-    "EN": "⚠ File was not passed to Cursor: {name}",
-    "UK": "⚠ Файл не передано в Cursor: {name}",
-    "RU": "⚠ Файл не передан в Cursor: {name}"
+    "EN": "AI prompts were not run for: {name}",
+    "UK": "Промпти AI не запускались для: {name}",
+    "RU": "Промпты AI не запускались для: {name}"
   },
   "doc_md_sent_to_cursor": {
-    "EN": "▶ Markdown sent to Cursor for prompt processing: {name}",
-    "UK": "▶ Markdown передано в Cursor для прогону промптів: {name}",
-    "RU": "▶ Markdown передан в Cursor для прогона промптов: {name}"
+    "EN": "▶ Markdown sent to AI for prompt processing: {name}",
+    "UK": "▶ Markdown передано в AI для прогону промптів: {name}",
+    "RU": "▶ Markdown передан в AI для прогона промптов: {name}"
   },
   "cursor_chain_done": {
     "EN": "✅ Cursor finished ({count} file(s)) for: {name}",
@@ -4146,6 +4241,41 @@
     "UK": "Ставити відео з соцмереж у чергу Whisper",
     "RU": "Ставить видео из соцсетей в очередь Whisper"
   },
+  "telegram_ask_prompts_label": {
+    "EN": "Ask for AI prompt numbers in private chats (20s, then defaults)",
+    "UK": "Питати номери промптів AI в особистих чатах (20 с, потім за замовчуванням)",
+    "RU": "Спрашивать номера промптов AI в личных чатах (20 с, затем по умолчанию)"
+  },
+  "telegram_tip_ask_prompts": {
+    "EN": "When media arrives in a private chat and AI is enabled, FTW immediately asks which prompt numbers to run (comma-separated). Reply 0 for all. If there is no answer within 20 seconds, the default prompts are used.",
+    "UK": "Коли в особистому чаті приходить медіа і AI увімкнено, FTW одразу питає номери промптів через кому. 0 — усі. Без відповіді за 20 с — промпти за замовчуванням.",
+    "RU": "Когда в личный чат приходит медиа и AI включён, FTW сразу спрашивает номера промптов через запятую. 0 — все. Без ответа за 20 с — промпты по умолчанию."
+  },
+  "telegram_contacts_only_label": {
+    "EN": "Process private media and social links only from contacts",
+    "UK": "Обробляти медіа й соцпосилання в особистих чатах лише від контактів",
+    "RU": "Обрабатывать медиа и соцссылки в личных чатах только от контактов"
+  },
+  "telegram_tip_contacts_only": {
+    "EN": "Account mode only. Skips strangers who are not in your Telegram contacts. Saved Messages and chats you listed as own chats still work. The chat-id allowlist still applies if it is not empty.",
+    "UK": "Лише режим акаунта. Пропускає незнайомців поза контактами. Обране і чати з поля «свої» лишаються. Allowlist chat id, якщо заданий, теж діє.",
+    "RU": "Только режим аккаунта. Пропускает незнакомцев вне контактов. Избранное и чаты из поля «свои» остаются. Allowlist chat id, если задан, тоже действует."
+  },
+  "telegram_prompt_ask_header": {
+    "EN": "Which AI prompts should run? Reply with numbers separated by commas within {timeout}s.",
+    "UK": "Які промпти AI запустити? Відповідь номерами через кому протягом {timeout} с.",
+    "RU": "Какие промпты AI запустить? Ответьте номерами через запятую в течение {timeout} с."
+  },
+  "telegram_prompt_ask_defaults": {
+    "EN": "No reply → defaults: {nums}",
+    "UK": "Без відповіді → за замовчуванням: {nums}",
+    "RU": "Без ответа → по умолчанию: {nums}"
+  },
+  "telegram_prompt_ask_zero": {
+    "EN": "0 = all prompts",
+    "UK": "0 = усі промпти",
+    "RU": "0 = все промпты"
+  },
   "telegram_tip_social_queue": {
     "EN": "Off by default. A YouTube, Instagram, or Facebook link is downloaded and sent back to the chat. Turn this on to also run that video through Whisper.",
     "UK": "За замовчуванням вимкнено. Посилання YouTube, Instagram або Facebook скачується і надсилається назад у чат. Увімкніть, щоб це відео ще й пішло в обробку Whisper.",
@@ -4622,9 +4752,9 @@
     "RU": "Адрес локального Bot API. Оставьте http://127.0.0.1:8081, если telegram-bot-api не запущен на другом порту."
   },
   "telegram_tip_chats_account": {
-    "EN": "Leave empty to take files from every private chat. Or list chat ids separated by commas. Messages you send yourself are skipped, except Saved Messages and the chats named in the field above.",
-    "UK": "Порожньо — файли з усіх особистих чатів. Або перелічіть chat id через кому. Власні повідомлення пропускаються, крім Обраного і чатів, названих у полі вище.",
-    "RU": "Пусто — файлы из всех личных чатов. Или перечислите chat id через запятую. Свои сообщения пропускаются, кроме Избранного и чатов, названных в поле выше."
+    "EN": "Leave empty to take files from every private chat. Or list chat ids separated by commas. Messages you send yourself are skipped, except Saved Messages and the chats named in the field above. Use “contacts only” below to limit intake to your address book.",
+    "UK": "Порожньо — файли з усіх особистих чатів. Або перелічіть chat id через кому. Власні повідомлення пропускаються, крім Обраного і чатів, названих у полі вище. Нижче є опція «лише контакти».",
+    "RU": "Пусто — файлы из всех личных чатов. Или перечислите chat id через запятую. Свои сообщения пропускаются, кроме Избранного и чатов, названных в поле выше. Ниже есть опция «только контакты»."
   },
   "telegram_tip_chats_bot": {
     "EN": "Chat ids allowed to send files to the bot, separated by commas. While the list is empty, the bot ignores media and answers /start with that chat’s id, so you can copy it here.",

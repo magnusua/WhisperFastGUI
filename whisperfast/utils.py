@@ -80,17 +80,20 @@ def queue_status_text(item) -> str:
     return "✓"
 
 
+# Locale-independent cell markers (do not go through i18n / OS language).
+QUEUE_AI_RUN_MARK = "\u25B6"  # ▶
+QUEUE_TG_RUN_MARK = "\u27A4"  # ➤
+
+
 def queue_tree_values(num, item):
     """Treeview row: #, remove, filename, note, AI, Telegram, start, end seg 1/2, end, status."""
-    from whisperfast.i18n import t
-
     path = item.get("path") or ""
     ext = os.path.splitext(path)[1].lower()
-    ai_text = t("col_ai_run") if item.get("processed") or ext in (".txt", ".md") else ""
-    tg_text = "➤" if item.get("processed") else ""
+    ai_text = QUEUE_AI_RUN_MARK if item.get("processed") or ext in (".txt", ".md") else ""
+    tg_text = QUEUE_TG_RUN_MARK if item.get("processed") else ""
     return (
         num,
-        "×",
+        "\u00d7",  # ×
         os.path.basename(path),
         normalize_queue_note(item.get("note")),
         ai_text,

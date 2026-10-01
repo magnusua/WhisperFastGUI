@@ -1681,6 +1681,24 @@ def show_telegram_settings_dialog(app):
     social_check = ttk.Checkbutton(frame, text=t("telegram_social_queue_label"), variable=social_queue)
     social_check.pack(anchor="w", pady=(8, 0))
     tip(social_check, "telegram_tip_social_queue")
+    ask_prompts_holder = getattr(app, "telegram_ask_prompts", None)
+    ask_prompts = tk.BooleanVar(
+        value=bool(ask_prompts_holder.get()) if ask_prompts_holder is not None else True
+    )
+    ask_prompts_check = ttk.Checkbutton(
+        frame, text=t("telegram_ask_prompts_label"), variable=ask_prompts
+    )
+    ask_prompts_check.pack(anchor="w", pady=(6, 0))
+    tip(ask_prompts_check, "telegram_tip_ask_prompts")
+    contacts_holder = getattr(app, "telegram_contacts_only", None)
+    contacts_only = tk.BooleanVar(
+        value=bool(contacts_holder.get()) if contacts_holder is not None else False
+    )
+    contacts_check = ttk.Checkbutton(
+        frame, text=t("telegram_contacts_only_label"), variable=contacts_only
+    )
+    contacts_check.pack(anchor="w", pady=(6, 0))
+    tip(contacts_check, "telegram_tip_contacts_only")
     learn_row = ttk.Frame(frame)
     learn_row.pack(fill="x", pady=(8, 0))
     learn_check = ttk.Checkbutton(learn_row, text=t("telegram_learn_label"), variable=learn_mode)
@@ -1901,6 +1919,10 @@ def show_telegram_settings_dialog(app):
         app.telegram_work_dir.set((work_dir.get() or "").strip())
         if social_holder is not None:
             social_holder.set(bool(social_queue.get()))
+        if ask_prompts_holder is not None:
+            ask_prompts_holder.set(bool(ask_prompts.get()))
+        if contacts_holder is not None:
+            contacts_holder.set(bool(contacts_only.get()))
         if learn_holder is not None:
             learn_holder.set(bool(learn_mode.get()))
         if intake_holder is not None:

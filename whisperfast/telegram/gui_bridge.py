@@ -19,21 +19,23 @@ def gui_is_running() -> bool:
     return find_other_instance_pid() is not None
 
 
-def enqueue_telegram_file(path: str, chat_id: int, message_id: int) -> None:
+def enqueue_telegram_file(path: str, chat_id: int, message_id: int, prompt_nums=None) -> None:
     """Queue a file for this process. Used when the listener runs inside the open window."""
-    append_command(
-        "telegram_file",
-        path=os.path.abspath(path),
-        chat_id=int(chat_id),
-        message_id=int(message_id),
-    )
+    payload = {
+        "path": os.path.abspath(path),
+        "chat_id": int(chat_id),
+        "message_id": int(message_id),
+    }
+    if prompt_nums is not None:
+        payload["prompt_nums"] = [int(n) for n in prompt_nums if int(n) > 0]
+    append_command("telegram_file", **payload)
 
 
-def submit_to_running_gui(path: str, chat_id: int, message_id: int) -> None:
+def submit_to_running_gui(path: str, chat_id: int, message_id: int, prompt_nums=None) -> None:
     """Ask the open FTW window to queue this file. Raises if the window is not running."""
     if not gui_is_running():
         raise RuntimeError(t("telegram_gui_required"))
-    enqueue_telegram_file(path, chat_id, message_id)
+    enqueue_telegram_file(path, chat_id, message_id, prompt_nums=prompt_nums)
 
 
 def _same_path(a: str, b: str) -> bool:
@@ -43,11 +45,13 @@ def _same_path(a: str, b: str) -> bool:
         return False
 
 
-def _stamp(queue_ctrl, path: str, chat_id: int, message_id: int) -> None:
+def _stamp(queue_ctrl, path: str, chat_id: int, message_id: int, prompt_nums=None) -> None:
     for item in queue_ctrl.queue:
         if _same_path(str(item.get("path") or ""), path):
             item["telegram_chat_id"] = int(chat_id)
             item["telegram_message_id"] = int(message_id)
+            if prompt_nums is not None:
+                item["telegram_prompt_nums"] = [int(n) for n in prompt_nums if int(n) > 0]
     save = getattr(queue_ctrl, "save_to_file", None)
     if callable(save):
         save()
@@ -82,12 +86,25 @@ def apply_telegram_command(app, cmd: Mapping[str, Any]) -> None:
         message_id = int(cmd.get("message_id"))
     except (TypeError, ValueError):
         return
+    prompt_nums = None
+    raw_nums = cmd.get("prompt_nums")
+    if isinstance(raw_nums, list):
+        prompt_nums = []
+        seen = set()
+        for item in raw_nums:
+            try:
+                n = int(item)
+            except (TypeError, ValueError):
+                continue
+            if n > 0 and n not in seen:
+                seen.add(n)
+                prompt_nums.append(n)
     ctrl = app.queue_ctrl
     ctrl.add_files([path])
-    _stamp(ctrl, path, chat_id, message_id)
+    _stamp(ctrl, path, chat_id, message_id, prompt_nums=prompt_nums)
     from whisperfast.telegram.origin import remember
 
-    remember(path, chat_id, message_id)
+    remember(path, chat_id, message_id, prompt_nums=prompt_nums)
     kick_gui_queue(app)
 
 
@@ -287,6 +304,15 @@ def mark_telegram_paths_sent(app, paths: Sequence[str]) -> None:
         for path in paths:
             if path:
                 sent.add(_norm_path(path))
+
+
+def unmark_telegram_paths(app, paths: Sequence[str]) -> None:
+    """Allow the same files to be queued for Telegram again."""
+    with _lock(app):
+        sent = _sent_set(app)
+        for path in paths:
+            if path:
+                sent.discard(_norm_path(path))
 
 
 def maybe_deliver_telegram(

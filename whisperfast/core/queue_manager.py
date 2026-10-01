@@ -393,6 +393,19 @@ class QueueController:
                             overrides[key] = int(item.get(key))
                         except (TypeError, ValueError):
                             pass
+                raw_nums = item.get("telegram_prompt_nums")
+                if isinstance(raw_nums, list):
+                    nums = []
+                    seen = set()
+                    for value in raw_nums:
+                        try:
+                            n = int(value)
+                        except (TypeError, ValueError):
+                            continue
+                        if n > 0 and n not in seen:
+                            seen.add(n)
+                            nums.append(n)
+                    overrides["telegram_prompt_nums"] = nums
                 overrides["ai_done"] = bool(item.get("ai_done"))
                 overrides["tg_sent"] = bool(item.get("tg_sent"))
                 overrides["error"] = str(item.get("error") or "")
@@ -418,6 +431,8 @@ class QueueController:
                 for key in ("telegram_chat_id", "telegram_message_id"):
                     if q.get(key) is not None:
                         row[key] = q.get(key)
+                if isinstance(q.get("telegram_prompt_nums"), list):
+                    row["telegram_prompt_nums"] = list(q.get("telegram_prompt_nums"))
                 if q.get("ai_done"):
                     row["ai_done"] = True
                 if q.get("tg_sent"):

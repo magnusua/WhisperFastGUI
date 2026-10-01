@@ -94,7 +94,7 @@ def _reuse_or_begin_file_log(app, path, name=None, current=None, total=None):
 
 
 def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
-    """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально Cursor / DOCX."""
+    """Документ/текст: при необходимости PDF/DOC/DOCX → MD, затем опционально AI / DOCX."""
     out_dir = app._resolve_output_dir(path, opts)
     send_to_cursor = bool(opts.get("send_txt_to_ai", opts.get("send_txt_to_cursor")))
     export_md_to_docx = bool(opts.get("export_md_to_docx"))
@@ -149,9 +149,23 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
             file_id,
             lambda jid=ai_job_id: app.ai_jobs.open_prompt_dialog(jid),
         )
-    if was_converted or needs_office_to_md(path):
+    elif hasattr(app, "ai_jobs") and file_id:
+        # AI was off for this run — still wire «Выбрать промты» to the prepared MD.
+        app.set_file_prompt_callback(
+            file_id,
+            lambda p=md_path, fid=file_id: app.ai_jobs.start_prompts_for_path(
+                p, log_file_id=fid
+            ),
+        )
+
+    if was_converted:
         app.log_file_event(
             t("doc_converted", src=src_name, md=md_name),
+            file_id=file_id,
+        )
+    elif os.path.normcase(os.path.abspath(path)) != os.path.normcase(os.path.abspath(md_path)):
+        app.log_file_event(
+            t("doc_text_prepared_md", src=src_name, md=md_name),
             file_id=file_id,
         )
     else:
@@ -163,15 +177,11 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
             file_id=file_id,
         )
 
-    # Исходный не-MD в Cursor не передаём — только Markdown.
-    if was_converted or needs_office_to_md(path):
+    if send_to_cursor:
         app.log_file_event(
-            t("doc_not_sent_to_cursor", name=src_name),
+            t("doc_md_sent_to_cursor", name=md_name),
             file_id=file_id,
         )
-
-    if send_to_cursor:
-        # DOCX после Cursor: экспорт каждого созданного *.md
         app._schedule_cursor_postprocess(
             md_path,
             cursor_api_key=cursor_api_key,
@@ -180,11 +190,10 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
             log_file_id=file_id,
         )
     else:
-        if not (was_converted or needs_office_to_md(path)):
-            app.log_file_event(
-                t("doc_not_sent_to_cursor", name=src_name),
-                file_id=file_id,
-            )
+        app.log_file_event(
+            t("doc_ai_skipped_toggle", name=md_name),
+            file_id=file_id,
+        )
         if export_md_to_docx:
             app._export_markdown_to_docx(md_path, log_file_id=file_id)
         app.log_file_event(t("doc_processing_done", name=src_name), file_id=file_id)
@@ -197,7 +206,6 @@ def _process_document_item(app: TranscriptionHost, path, opts, file_id=None):
 
     _call_ui(app, lambda: app._set_progress_value(100))
     app.end_file_log("done", file_id=file_id)
-
 
 def run_queue(app: TranscriptionHost, mode, target_idx, options=None):
     opts = options or {}

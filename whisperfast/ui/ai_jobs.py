@@ -456,7 +456,7 @@ class AiJobQueue:
                 return job
         return None
 
-    def start_prompts_for_path(self, source_or_txt, log_file_id=None) -> bool:
+    def start_prompts_for_path(self, source_or_txt, log_file_id=None, force_dialog=True) -> bool:
         """Open the prompt picker for a transcript (or a source that has one)."""
         app = self.app
         panel = getattr(app, "log_panel", None)
@@ -475,12 +475,17 @@ class AiJobQueue:
                 existing["log_file_id"] = log_file_id
             if existing.get("status") == "running":
                 return True
+            if force_dialog:
+                self.open_prompt_dialog(existing["id"])
+                return True
+            if self._maybe_autorun(existing):
+                return True
             self.open_prompt_dialog(existing["id"])
             return True
         fid = log_file_id or (
             app.find_file_log_id(path) if hasattr(app, "find_file_log_id") else None
         )
-        self.schedule_postprocess(path, log_file_id=fid, force_dialog=True)
+        self.schedule_postprocess(path, log_file_id=fid, force_dialog=force_dialog)
         return True
 
     def start_prompts_for_log_file(self, file_id) -> bool:
@@ -550,6 +555,7 @@ class AiJobQueue:
         from whisperfast.postprocess.prompt_rules import first_matching_rule, select_prompts
         from whisperfast.postprocess.usage import budget_exceeded
         from whisperfast.settings import load_app_settings, normalize_default_prompt_nums
+        from whisperfast.telegram.prompts_ask import resolve_prompt_nums_for_txt
 
         app = self.app
         settings = load_app_settings()
@@ -563,29 +569,37 @@ class AiJobQueue:
             job["status"] = "skipped"
             self._job_end()
             return True
-        rules = getattr(app, "ai_prompt_rules", None)
-        if rules is None:
-            rules = settings.get("ai_prompt_rules") or []
-        source = job.get("txt_path") or ""
-        watch_dirs = []
-        try:
-            from whisperfast.core.queue_manager import parse_watch_dirs
-
-            watch_dirs = parse_watch_dirs(app.watch_dir.get())
-        except Exception:
-            pass
-        rule = first_matching_rule(rules, source, watch_dirs=watch_dirs)
-        if rule:
-            if not rule.get("skip_dialog"):
-                return False
-            nums = rule.get("prompt_nums") or []
-        elif not self._auto_process_enabled(settings):
-            return False
+        tg_nums = job.get("telegram_prompt_nums")
+        if tg_nums is None:
+            tg_nums = resolve_prompt_nums_for_txt(app, job.get("txt_path") or "")
+            if tg_nums is not None:
+                job["telegram_prompt_nums"] = list(tg_nums)
+        if tg_nums is not None:
+            nums = [int(n) for n in tg_nums if int(n) > 0]
         else:
-            stored = getattr(app, "ai_default_prompt_nums", None)
-            if stored is None:
-                stored = settings.get("ai_default_prompt_nums")
-            nums = normalize_default_prompt_nums(stored)
+            rules = getattr(app, "ai_prompt_rules", None)
+            if rules is None:
+                rules = settings.get("ai_prompt_rules") or []
+            source = job.get("txt_path") or ""
+            watch_dirs = []
+            try:
+                from whisperfast.core.queue_manager import parse_watch_dirs
+
+                watch_dirs = parse_watch_dirs(app.watch_dir.get())
+            except Exception:
+                pass
+            rule = first_matching_rule(rules, source, watch_dirs=watch_dirs)
+            if rule:
+                if not rule.get("skip_dialog"):
+                    return False
+                nums = rule.get("prompt_nums") or []
+            elif not self._auto_process_enabled(settings):
+                return False
+            else:
+                stored = getattr(app, "ai_default_prompt_nums", None)
+                if stored is None:
+                    stored = settings.get("ai_default_prompt_nums")
+                nums = normalize_default_prompt_nums(stored)
         if not nums:
             return False
         ensure_redactor_file()

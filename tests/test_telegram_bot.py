@@ -477,6 +477,52 @@ class TestGuiHandoff(unittest.TestCase):
             with patch("whisperfast.telegram.origin._FILE", origin):
                 remember(video, 7, 8)
                 self.assertEqual(lookup(video), {"chat_id": 7, "message_id": 8})
+                remember(video, 7, 8, prompt_nums=[1, 3, 0, 3])
+                self.assertEqual(
+                    lookup(video),
+                    {"chat_id": 7, "message_id": 8, "prompt_nums": [1, 3]},
+                )
+
+
+class TestTelegramPromptAsk(unittest.TestCase):
+    def test_parse_prompt_reply(self):
+        from whisperfast.telegram.prompts_ask import parse_prompt_reply
+
+        defaults = [1]
+        all_nums = [1, 2, 3]
+        self.assertEqual(parse_prompt_reply("", all_nums=all_nums, defaults=defaults), [1])
+        self.assertEqual(parse_prompt_reply("0", all_nums=all_nums, defaults=defaults), [1, 2, 3])
+        self.assertEqual(parse_prompt_reply("2, 3", all_nums=all_nums, defaults=defaults), [2, 3])
+        self.assertEqual(parse_prompt_reply("2 1", all_nums=all_nums, defaults=defaults), [2, 1])
+        self.assertEqual(parse_prompt_reply("nope", all_nums=all_nums, defaults=defaults), [1])
+
+    def test_should_ask_prompts(self):
+        from whisperfast.telegram.prompts_ask import should_ask_prompts
+
+        self.assertTrue(
+            should_ask_prompts(
+                {"telegram_ask_prompts": True, "send_txt_to_ai": True},
+                is_private=True,
+            )
+        )
+        self.assertFalse(
+            should_ask_prompts(
+                {"telegram_ask_prompts": True, "send_txt_to_ai": True},
+                is_private=False,
+            )
+        )
+        self.assertFalse(
+            should_ask_prompts(
+                {"telegram_ask_prompts": False, "send_txt_to_ai": True},
+                is_private=True,
+            )
+        )
+        self.assertFalse(
+            should_ask_prompts(
+                {"telegram_ask_prompts": True, "send_txt_to_ai": False},
+                is_private=True,
+            )
+        )
 
 
 class TestPipeline(unittest.TestCase):
@@ -752,6 +798,46 @@ class TestAccountMode(unittest.TestCase):
         self.assertIsNone(media_filename("note.txt", "text/plain"))
         self.assertIsNone(media_filename("animation.gif.mp4", "video/mp4"))
         self.assertIsNone(media_filename("loop.gif", "image/gif"))
+
+    def test_contacts_only_filters_strangers(self):
+        from whisperfast.telegram.account import accept_private_chat
+
+        self.assertFalse(
+            accept_private_chat(
+                5,
+                is_private=True,
+                sender_is_bot=False,
+                outgoing=False,
+                self_id=1,
+                allowlist=[],
+                contacts_only=True,
+                sender_is_contact=False,
+            )
+        )
+        self.assertTrue(
+            accept_private_chat(
+                5,
+                is_private=True,
+                sender_is_bot=False,
+                outgoing=False,
+                self_id=1,
+                allowlist=[],
+                contacts_only=True,
+                sender_is_contact=True,
+            )
+        )
+        self.assertTrue(
+            accept_private_chat(
+                1,
+                is_private=True,
+                sender_is_bot=False,
+                outgoing=True,
+                self_id=1,
+                allowlist=[],
+                contacts_only=True,
+                sender_is_contact=False,
+            )
+        )
 
     def test_sticker_is_not_downloaded(self):
         import asyncio

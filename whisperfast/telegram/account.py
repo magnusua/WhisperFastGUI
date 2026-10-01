@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 from whisperfast.config import BASE_DIR
@@ -12,6 +13,24 @@ from whisperfast.telegram.worker import _extension_ok, chat_display_name, resolv
 
 LogFunc = Callable[[str], None]
 _link_tasks = set()
+_settings_cache: tuple[float, Optional[dict]] = (0.0, None)
+_SETTINGS_TTL_S = 1.5
+
+
+def _fresh_settings(fallback: Optional[Mapping[str, Any]] = None) -> dict:
+    """Reload settings at most every ~1.5s so allowlist edits apply without disk spam."""
+    global _settings_cache
+    now = time.monotonic()
+    ts, cached = _settings_cache
+    if cached is not None and now - ts < _SETTINGS_TTL_S:
+        return cached
+    from whisperfast.settings import load_app_settings
+
+    data = load_app_settings()
+    if not isinstance(data, dict):
+        data = dict(fallback or {})
+    _settings_cache = (now, data)
+    return data
 
 
 def normalize_mode(value: Any) -> str:
@@ -59,6 +78,8 @@ def accept_private_chat(
     self_names: Sequence[str] = (),
     chat_names: Sequence[str] = (),
     is_group: bool = False,
+    contacts_only: bool = False,
+    sender_is_contact: bool = False,
 ) -> bool:
     """Private chats, plus groups whose title is listed. Channels stay out."""
     if sender_is_bot or not (is_private or is_group):
@@ -71,6 +92,13 @@ def accept_private_chat(
     allowed = set(int(item) for item in allowlist)
     if allowed and int(chat_id) not in allowed:
         return False
+    if contacts_only and is_private and not is_group:
+        if int(chat_id) == int(self_id):
+            return True
+        if outgoing and names_match(chat_names, self_names):
+            return True
+        if not sender_is_contact and int(chat_id) != int(self_id):
+            return False
     return True
 
 
@@ -104,6 +132,26 @@ def _file_bits(message) -> tuple:
     if handle is None:
         return "", ""
     return str(getattr(handle, "name", "") or ""), str(getattr(handle, "mime_type", "") or "")
+
+
+async def _resolve_sender(event):
+    sender = getattr(event, "sender", None)
+    if sender is not None:
+        return sender
+    try:
+        return await event.get_sender()
+    except Exception:
+        return None
+
+
+async def _resolve_chat(event):
+    chat = getattr(event, "chat", None)
+    if chat is not None:
+        return chat
+    try:
+        return await event.get_chat()
+    except Exception:
+        return None
 
 
 async def _find_chat_id(client, wanted: str):
@@ -240,8 +288,11 @@ async def _take_video_links(event, urls, settings, submit, log, chat_id: int, me
             ],
         )
 
-    def submit_whisper(path: str, cid: int, mid: int) -> None:
-        submit(path, cid, mid)
+    def submit_whisper(path: str, cid: int, mid: int, prompt_nums=None) -> None:
+        try:
+            submit(path, cid, mid, prompt_nums=prompt_nums)
+        except TypeError:
+            submit(path, cid, mid)
 
     enqueue_social_urls(
         list(urls),
@@ -275,8 +326,6 @@ async def _take_video_links_guarded(event, urls, settings, submit, log, chat_id:
 
 async def _await_learn(ask, log, chat_name: str, material: str, chat_id: int, outgoing: bool = False, replay=None):
     """Wait until the window answers. Closed dialog stays pending."""
-    import asyncio
-
     if not material:
         return False
     if ask is None:
@@ -294,17 +343,33 @@ async def _await_learn(ask, log, chat_name: str, material: str, chat_id: int, ou
     return await future in ("once", "always")
 
 
-async def _handle_message(client, event, settings, submit, gui_running, self_id: int, log: LogFunc, ask=None) -> None:
-    from whisperfast.settings import load_app_settings
+def _call_submit(submit, path: str, chat_id: int, message_id: int, prompt_nums=None) -> None:
+    if prompt_nums is None:
+        submit(path, chat_id, message_id)
+        return
+    try:
+        submit(path, chat_id, message_id, prompt_nums=prompt_nums)
+    except TypeError:
+        submit(path, chat_id, message_id)
 
-    settings = load_app_settings()
+
+async def _handle_message(client, event, settings, submit, gui_running, self_id: int, log: LogFunc, ask=None) -> None:
+    settings = _fresh_settings(settings)
     message = event.message
     if is_telegram_sticker(message) or is_telegram_gif(message):
         return
     chat_id = int(getattr(event, "chat_id", 0) or 0)
-    sender = await event.get_sender()
+    text = str(getattr(message, "message", None) or getattr(message, "raw_text", None) or "")
+    from whisperfast.telegram.prompts_ask import take_pending_reply
+
+    name, mime = _file_bits(message)
+    filename_early = media_filename(name, mime)
+    if not filename_early and take_pending_reply(chat_id, text):
+        return
+
+    sender = await _resolve_sender(event)
     sender_is_bot = bool(getattr(sender, "bot", False))
-    from whisperfast.settings import normalize_chat_names
+    sender_is_contact = bool(getattr(sender, "contact", False))
     from whisperfast.telegram.learn import (
         chat_always_asks,
         chat_is_automatic,
@@ -315,35 +380,37 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
 
     allowlist = normalize_chat_ids(settings.get("telegram_allowed_chat_ids"))
     self_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
-    chat = await event.get_chat()
+    contacts_only = bool(settings.get("telegram_contacts_only"))
+    chat = await _resolve_chat(event)
+    chat_names = chat_name_keys(chat) if chat is not None else set()
+    is_private = bool(getattr(event, "is_private", False))
+    is_group = bool(getattr(event, "is_group", False))
     accepted = accept_private_chat(
         chat_id,
-        is_private=bool(getattr(event, "is_private", False)),
-        is_group=bool(getattr(event, "is_group", False)),
+        is_private=is_private,
+        is_group=is_group,
         sender_is_bot=sender_is_bot,
         outgoing=bool(getattr(event, "out", False)),
         self_id=self_id,
         allowlist=allowlist,
         self_names=self_names,
-        chat_names=chat_name_keys(chat),
+        chat_names=chat_names,
+        contacts_only=contacts_only,
+        sender_is_contact=sender_is_contact,
     )
-    if chat_is_ignored(chat_id, chat_name_keys(chat), settings):
+    if chat_is_ignored(chat_id, chat_names, settings):
         return
     learning = learn_enabled(settings)
     if not accepted and not learning:
         return
-    if not accepted and (sender_is_bot or not (
-        bool(getattr(event, "is_private", False)) or bool(getattr(event, "is_group", False))
-    )):
+    if not accepted and (sender_is_bot or not (is_private or is_group)):
         return
-    name, mime = _file_bits(message)
-    filename = media_filename(name, mime)
+    filename = filename_early
     if filename:
         from whisperfast.telegram.links import consume_own_upload
 
         if consume_own_upload(chat_id, filename):
             return
-    text = str(getattr(message, "message", None) or getattr(message, "raw_text", None) or "")
     urls = []
     if not filename:
         from whisperfast.telegram.links import extract_video_urls
@@ -355,20 +422,30 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         settings, media=bool(filename), links=bool(urls) and not filename,
     ):
         return
-    async def deliver():
+
+    async def deliver(prompt_nums=None):
         await _deliver_learned(
-            event, message, settings, submit, gui_running, log, chat, chat_id, filename, urls,
+            event,
+            message,
+            settings,
+            submit,
+            gui_running,
+            log,
+            chat,
+            chat_id,
+            filename,
+            urls,
+            prompt_nums=prompt_nums,
+            is_private=is_private,
         )
 
     if learning and (
-        chat_always_asks(chat_id, chat_name_keys(chat))
-        or not chat_is_automatic(chat_id, chat_name_keys(chat), settings)
+        chat_always_asks(chat_id, chat_names)
+        or not chat_is_automatic(chat_id, chat_names, settings)
     ):
         if not filename and not urls:
             return
         material = material_label(filename or "", urls)
-        import asyncio
-
         from whisperfast.telegram.learn import batch_material, schedule_learn_batch, take_batch_snapshot
 
         loop = asyncio.get_running_loop()
@@ -410,16 +487,27 @@ async def _handle_message(client, event, settings, submit, gui_running, self_id:
         }, flush)
         if await decision_future not in ("once", "always"):
             return
-    elif not accepted and not chat_is_automatic(chat_id, chat_name_keys(chat), settings):
+    elif not accepted and not chat_is_automatic(chat_id, chat_names, settings):
         return
     await deliver()
 
 
-async def _deliver_learned(event, message, settings, submit, gui_running, log, chat, chat_id, filename, urls):
+async def _deliver_learned(
+    event,
+    message,
+    settings,
+    submit,
+    gui_running,
+    log,
+    chat,
+    chat_id,
+    filename,
+    urls,
+    prompt_nums=None,
+    is_private: bool = False,
+):
     if not filename:
         if urls:
-            import asyncio
-
             task = asyncio.create_task(_take_video_links_guarded(
                 event, urls, settings, submit, log, chat_id, int(message.id),
             ))
@@ -428,6 +516,7 @@ async def _deliver_learned(event, message, settings, submit, gui_running, log, c
         return
     log(t("telegram_found", name=filename, chat=chat_display_name(chat, chat_id)))
     from whisperfast.telegram.links import log_downloaded_file
+    from whisperfast.telegram.prompts_ask import ask_prompt_nums, should_ask_prompts
     from whisperfast.telegram.seen import add_target, classify, note_download, telethon_file_key
 
     file_key = telethon_file_key(message)
@@ -451,9 +540,21 @@ async def _deliver_learned(event, message, settings, submit, gui_running, log, c
         log(text)
         await event.reply(text)
         return
+
+    if not gui_running():
+        await event.reply(t("telegram_gui_required"))
+        return
+
+    ask_task = None
+    if prompt_nums is None and should_ask_prompts(settings, is_private=is_private):
+        ask_task = asyncio.create_task(ask_prompt_nums(event, settings))
+
     if action == "enqueue":
+        chosen = prompt_nums
+        if ask_task is not None:
+            chosen = await ask_task
         try:
-            submit(known["path"], chat_id, int(message.id))
+            _call_submit(submit, known["path"], chat_id, int(message.id), prompt_nums=chosen)
         except Exception as exc:
             await event.reply(t("telegram_failed", error=str(exc)))
             return
@@ -461,20 +562,24 @@ async def _deliver_learned(event, message, settings, submit, gui_running, log, c
         log(t("telegram_gui_added", name=os.path.basename(known["path"])))
         log_downloaded_file(log, known["path"])
         return
-    if not gui_running():
-        await event.reply(t("telegram_gui_required"))
-        return
+
     await event.reply(t("telegram_queued", position=1))
     folder = os.path.join(resolve_work_dir(settings), f"{chat_id}_{int(message.id)}")
     os.makedirs(folder, exist_ok=True)
     dest = os.path.join(folder, filename)
-    downloaded = await message.download_media(file=dest)
+    download_task = asyncio.create_task(message.download_media(file=dest))
+    downloaded = await download_task
     local = downloaded or dest
     if not local or not os.path.isfile(local):
+        if ask_task is not None:
+            ask_task.cancel()
         await event.reply(t("telegram_failed", error=filename))
         return
+    chosen = prompt_nums
+    if ask_task is not None:
+        chosen = await ask_task
     try:
-        submit(local, chat_id, int(message.id))
+        _call_submit(submit, local, chat_id, int(message.id), prompt_nums=chosen)
     except Exception as exc:
         await event.reply(t("telegram_failed", error=str(exc)))
         return
@@ -549,7 +654,7 @@ def run_account(
                         await _flush_outbox(client, soft_log)
                     except Exception as exc:
                         soft_log(str(exc))
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(0.35)
                 await client.disconnect()
 
             pump = asyncio.create_task(_pump())

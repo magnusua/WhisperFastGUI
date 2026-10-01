@@ -106,6 +106,8 @@ _DEFAULTS = {
     "telegram_self_chat_names": [],
     "telegram_ignored_chat_names": [],
     "telegram_ignored_chat_ids": [],
+    "telegram_ask_prompts": True,
+    "telegram_contacts_only": False,
 }
 _DEFAULTS.update(CAPTURE_DEFAULTS)
 

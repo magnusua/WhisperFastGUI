@@ -30,11 +30,24 @@ def _save(data: dict) -> None:
     os.replace(tmp, _FILE)
 
 
-def remember(path: str, chat_id: int, message_id: int) -> None:
+def remember(path: str, chat_id: int, message_id: int, prompt_nums=None) -> None:
     if not path:
         return
     data = _load()
-    data[_key(path)] = {"chat_id": int(chat_id), "message_id": int(message_id)}
+    row = {"chat_id": int(chat_id), "message_id": int(message_id)}
+    if prompt_nums is not None:
+        nums = []
+        seen = set()
+        for item in prompt_nums or []:
+            try:
+                n = int(item)
+            except (TypeError, ValueError):
+                continue
+            if n > 0 and n not in seen:
+                seen.add(n)
+                nums.append(n)
+        row["prompt_nums"] = nums
+    data[_key(path)] = row
     _save(data)
 
 
@@ -63,6 +76,20 @@ def lookup(path: str) -> Optional[dict]:
     if not isinstance(row, dict):
         return None
     try:
-        return {"chat_id": int(row["chat_id"]), "message_id": int(row["message_id"])}
+        out = {"chat_id": int(row["chat_id"]), "message_id": int(row["message_id"])}
     except (KeyError, TypeError, ValueError):
         return None
+    raw_nums = row.get("prompt_nums")
+    if isinstance(raw_nums, list):
+        nums = []
+        seen = set()
+        for item in raw_nums:
+            try:
+                n = int(item)
+            except (TypeError, ValueError):
+                continue
+            if n > 0 and n not in seen:
+                seen.add(n)
+                nums.append(n)
+        out["prompt_nums"] = nums
+    return out

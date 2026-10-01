@@ -70,10 +70,10 @@ def ensure_markdown_for_cursor(
     target_md_path: Optional[str] = None,
 ) -> Tuple[str, bool]:
     """
-    Prepare a Markdown file for Cursor.
+    Prepare a Markdown file for AI post-processing.
 
-    Returns (md_path, was_converted) where was_converted is True for PDF/DOC/DOCX
-    (or when a non-md text file was written as .md in the output dir).
+    Returns (md_path, was_converted) where was_converted is True only for
+    PDF/DOC/DOCX (markitdown). Plain .txt/.md copies are not “conversions”.
     """
     source_path = os.path.abspath(source_path)
     ext = os.path.splitext(source_path)[1].lower()
@@ -90,11 +90,11 @@ def ensure_markdown_for_cursor(
         shutil.copy2(source_path, md_path)
         return md_path, False
 
-    # Other text formats → write .md copy in the output directory
+    # Other text formats → write .md copy in the output directory (no AI).
     text = _read_text_file(source_path)
     os.makedirs(os.path.dirname(md_path) or ".", exist_ok=True)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(text)
         if text and not text.endswith("\n"):
             f.write("\n")
-    return md_path, True
+    return md_path, False
