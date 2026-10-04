@@ -410,20 +410,32 @@ def _reuse_known_file(job: IncomingMedia, client: TelegramClient, log: LogFunc) 
     return False
 
 
-def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> None:
-    """Соц-скачування в окремій черзі — не блокує getUpdates і не чекає Whisper/AI."""
-
+def _sent_message_id(sent: Any) -> Optional[int]:
+    if sent is None:
+        return None
+    if isinstance(sent, Mapping):
+        raw = sent.get("message_id", sent.get("id"))
+    else:
+        raw = getattr(sent, "message_id", None)
+        if raw is None:
+            raw = getattr(sent, "id", None)
     try:
-        chat_id = int((message.get("chat") or {}).get("id"))
-        message_id = int(message.get("message_id"))
+        return int(raw) if raw is not None else None
     except (TypeError, ValueError):
-        return
-    text = message.get("text") if isinstance(message.get("text"), str) else ""
-    from whisperfast.telegram.links import extract_video_urls
+        return None
 
-    urls = extract_video_urls(text)[:3]
-    if not urls:
-        return
+
+def _social_chat_hooks(client, chat_id: int, message_id: int):
+    """Відповіді соц-черги: відео без reply, посилання і «Скачиваю» зникають після успіху."""
+    from whisperfast.telegram.social_queue import StatusMessageLedger
+
+    ledger = StatusMessageLedger()
+
+    def _delete(mid: int) -> None:
+        try:
+            client.delete_message(chat_id, int(mid))
+        except Exception:
+            return
 
     def reply(msg: str) -> None:
         client.send_message(chat_id, msg, reply_to=message_id)
@@ -439,6 +451,63 @@ def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> N
                 caption=str((item or {}).get("caption") or ""),
                 reply_to=message_id,
             )
+
+    def on_status(token: int) -> None:
+        sent = client.send_message(chat_id, t("telegram_link_downloading"), reply_to=message_id)
+        mid = _sent_message_id(sent)
+        if mid is None:
+            return
+        for drop in ledger.sent(int(token), mid):
+            _delete(drop)
+
+    def on_fail(token: Optional[int] = None) -> None:
+        client.send_message(chat_id, t("telegram_link_failed_short"), reply_to=message_id)
+        for mid in ledger.pop(token):
+            _delete(mid)
+
+    def on_drop_status(token: int) -> None:
+        for mid in ledger.pop(int(token)):
+            _delete(mid)
+
+    def on_video(files, token=None, delete_source: bool = False) -> None:
+        sent_any = False
+        for item in files or []:
+            path = str((item or {}).get("path") or "")
+            if not path:
+                continue
+            client.send_path(
+                chat_id,
+                path,
+                caption=str((item or {}).get("caption") or ""),
+                reply_to=None,
+            )
+            sent_any = True
+        for mid in ledger.pop(token):
+            _delete(mid)
+        if delete_source and sent_any:
+            _delete(message_id)
+
+    return reply, send_files, on_status, on_fail, on_video, on_drop_status
+
+
+def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> None:
+    """Соц-скачування в окремій черзі — не блокує getUpdates і не чекає Whisper/AI."""
+
+    try:
+        chat_id = int((message.get("chat") or {}).get("id"))
+        message_id = int(message.get("message_id"))
+    except (TypeError, ValueError):
+        return
+    text = message.get("text") if isinstance(message.get("text"), str) else ""
+    from whisperfast.telegram.links import extract_video_urls
+
+    urls = extract_video_urls(text)[:3]
+    if not urls:
+        return
+
+    reply, send_files, on_status, on_fail, on_video, on_drop_status = _social_chat_hooks(
+        client, chat_id, message_id
+    )
 
     def submit_whisper(path: str, cid: int, mid: int) -> None:
         fn = submit
@@ -459,6 +528,10 @@ def _start_bot_link_ingest(message, settings, client, submit, log: LogFunc) -> N
         reply=reply,
         send_files=send_files,
         submit_whisper=submit_whisper,
+        on_status=on_status,
+        on_fail=on_fail,
+        on_video=on_video,
+        on_drop_status=on_drop_status,
     )
 
 
@@ -477,20 +550,9 @@ def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
     if not urls:
         return
 
-    def reply(msg: str) -> None:
-        client.send_message(chat_id, msg, reply_to=message_id)
-
-    def send_files(files) -> None:
-        for item in files or []:
-            path = str((item or {}).get("path") or "")
-            if not path:
-                continue
-            client.send_path(
-                chat_id,
-                path,
-                caption=str((item or {}).get("caption") or ""),
-                reply_to=message_id,
-            )
+    reply, send_files, on_status, on_fail, on_video, on_drop_status = _social_chat_hooks(
+        client, chat_id, message_id
+    )
 
     def submit_whisper(path: str, cid: int, mid: int) -> None:
         fn = submit
@@ -509,6 +571,10 @@ def _ingest_bot_links(message, settings, client, submit, log: LogFunc) -> None:
         reply=reply,
         send_files=send_files,
         submit_whisper=submit_whisper,
+        on_status=on_status,
+        on_fail=on_fail,
+        on_video=on_video,
+        on_drop_status=on_drop_status,
     )
 
 

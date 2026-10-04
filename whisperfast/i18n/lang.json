@@ -4326,6 +4326,11 @@
     "UK": "Не вдалося завантажити відео: {error}",
     "RU": "Не удалось скачать видео: {error}"
   },
+  "telegram_link_failed_short": {
+    "EN": "Download failed",
+    "UK": "Завантажити не вдалося",
+    "RU": "Скачать не удалось"
+  },
   "telegram_link_facebook_stories": {
     "EN": "Facebook Stories links (/stories/...) are not supported. Send a Reel, post, or share link, or upload the video file to the chat.",
     "UK": "Посилання на Facebook Stories (/stories/...) не підтримуються. Надішліть Reel, пост чи share-посилання, або завантажте відеофайл у чат.",

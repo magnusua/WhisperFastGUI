@@ -167,6 +167,62 @@ async def _find_chat_id(client, wanted: str):
     return None
 
 
+_status_ledger = None
+
+
+def reset_status_ledger_for_tests():
+    """Скинути пари «Скачиваю» між тестами."""
+    global _status_ledger
+    from whisperfast.telegram.social_queue import StatusMessageLedger
+
+    _status_ledger = StatusMessageLedger()
+
+
+def _status_ledger_get():
+    global _status_ledger
+    if _status_ledger is None:
+        reset_status_ledger_for_tests()
+    return _status_ledger
+
+
+def _message_id_of(sent: Any) -> int | None:
+    if sent is None:
+        return None
+    if isinstance(sent, Mapping):
+        raw = sent.get("message_id", sent.get("id"))
+    else:
+        raw = getattr(sent, "message_id", None)
+        if raw is None:
+            raw = getattr(sent, "id", None)
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _delete_chat_messages(client, chat_id: int, ids) -> None:
+    clean = []
+    for raw in ids or []:
+        num = _optional_int(raw)
+        if num:
+            clean.append(num)
+    if not clean:
+        return
+    try:
+        await client.delete_messages(chat_id, clean, revoke=True)
+    except Exception:
+        return
+
+
 async def _flush_outbox(client, log=None) -> None:
     """Надіслати pending outbox. Файл зникає лише після успіху; помилка лишає його для retry."""
     from whisperfast.telegram.outbox import (
@@ -184,13 +240,13 @@ async def _flush_outbox(client, log=None) -> None:
         except Exception:
             pass
 
-    async def _send_message(chat_id: int, text: str, reply: int | None) -> None:
+    async def _send_message(chat_id: int, text: str, reply: int | None):
         try:
-            await client.send_message(chat_id, text, reply_to=reply)
+            return await client.send_message(chat_id, text, reply_to=reply)
         except Exception:
             if reply is None:
                 raise
-            await client.send_message(chat_id, text, reply_to=None)
+            return await client.send_message(chat_id, text, reply_to=None)
 
     async def _send_file(chat_id: int, path: str, caption: str, reply: int | None) -> None:
         from whisperfast.telegram.send_media import telethon_send_kwargs
@@ -223,12 +279,25 @@ async def _flush_outbox(client, log=None) -> None:
                     _safe_log(t("telegram_chat_not_found", name=wanted or "?"))
                     remove_outgoing(path)
                     continue
+            kind = str(item.get("kind") or "")
+            source_id = _optional_int(item.get("source_message_id"))
+            token = _optional_int(item.get("status_token"))
+            delete_source = bool(item.get("delete_source"))
             reply_to = item.get("reply_to")
             reply = int(reply_to) if reply_to is not None else None
+            if kind == "video":
+                reply = None
+            ledger = _status_ledger_get()
+            if kind == "drop_status":
+                await _delete_chat_messages(client, chat_id, ledger.pop(token))
+                remove_outgoing(path)
+                continue
             text = str(item.get("text") or "")
+            sent_id = None
             if text:
-                await _send_message(chat_id, text, reply)
+                sent_id = _message_id_of(await _send_message(chat_id, text, reply))
             sent_names: list[str] = []
+            sent_files = False
             for entry in item.get("files") or []:
                 file_path = str(entry.get("path") or "")
                 if file_path and os.path.isfile(file_path):
@@ -238,7 +307,14 @@ async def _flush_outbox(client, log=None) -> None:
                         str(entry.get("caption") or ""),
                         reply,
                     )
+                    sent_files = True
                     sent_names.append(os.path.basename(file_path))
+            if kind == "status" and token is not None and sent_id:
+                await _delete_chat_messages(client, chat_id, ledger.sent(token, sent_id))
+            elif kind in ("video", "fail"):
+                await _delete_chat_messages(client, chat_id, ledger.pop(token))
+            if kind == "video" and delete_source and source_id is not None and sent_files:
+                await _delete_chat_messages(client, chat_id, [source_id])
             remove_outgoing(path)
             label = wanted
             if not label:
@@ -294,19 +370,58 @@ async def _take_video_links(
     )
     from whisperfast.telegram.social_queue import enqueue_social_urls
 
+    def _files(files):
+        return [
+            {"path": str(item.get("path") or ""), "caption": str(item.get("caption") or "")}
+            for item in (files or [])
+            if isinstance(item, dict) and item.get("path")
+        ]
+
     def reply(text: str) -> None:
         enqueue_outgoing(chat_id, message_id, text=text)
 
     def send_files(files) -> None:
+        enqueue_outgoing(chat_id, message_id, text="", files=_files(files))
+
+    def on_status(token: int) -> None:
         enqueue_outgoing(
             chat_id,
             message_id,
+            text=t("telegram_link_downloading"),
+            kind="status",
+            source_message_id=message_id,
+            status_token=token,
+        )
+
+    def on_fail(token: int | None = None) -> None:
+        enqueue_outgoing(
+            chat_id,
+            message_id,
+            text=t("telegram_link_failed_short"),
+            kind="fail",
+            source_message_id=message_id,
+            status_token=token,
+        )
+
+    def on_drop_status(token: int) -> None:
+        enqueue_outgoing(
+            chat_id,
+            None,
+            kind="drop_status",
+            source_message_id=message_id,
+            status_token=token,
+        )
+
+    def on_video(files, token=None, delete_source: bool = False) -> None:
+        enqueue_outgoing(
+            chat_id,
+            None,
             text="",
-            files=[
-                {"path": str(item.get("path") or ""), "caption": str(item.get("caption") or "")}
-                for item in (files or [])
-                if isinstance(item, dict) and item.get("path")
-            ],
+            files=_files(files),
+            kind="video",
+            source_message_id=message_id,
+            status_token=token,
+            delete_source=delete_source,
         )
 
     ask_holder: dict = {"nums": None, "done": threading.Event()}
@@ -352,6 +467,10 @@ async def _take_video_links(
         reply=reply,
         send_files=send_files,
         submit_whisper=submit_whisper,
+        on_status=on_status,
+        on_fail=on_fail,
+        on_video=on_video,
+        on_drop_status=on_drop_status,
     )
 
 
@@ -379,15 +498,14 @@ async def _take_video_links_guarded(
             is_private=is_private,
         )
     except Exception as exc:
-        text = t("telegram_link_failed", error=str(exc))
-        log(text)
+        log(t("telegram_link_failed", error=str(exc)))
         try:
             from whisperfast.telegram.outbox import enqueue_outgoing
 
-            enqueue_outgoing(chat_id, message_id, text=text)
+            enqueue_outgoing(chat_id, message_id, text=t("telegram_link_failed_short"))
         except Exception:
             try:
-                await event.reply(text)
+                await event.reply(t("telegram_link_failed_short"))
             except Exception:
                 pass
 

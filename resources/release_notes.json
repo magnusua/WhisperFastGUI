@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.2.1",
+      "date": "04.10.2026",
+      "notes": {
+        "EN": [
+          "Telegram social links: after a successful download the original link and the Downloading status are deleted; the video is sent as a normal message, not as a reply.",
+          "If a download fails, the chat gets a short Download failed message without the error details, and the undownloaded link stays."
+        ],
+        "UK": [
+          "Telegram / соцпосилання: після успішного завантаження посилання і «Завантажую» видаляються; відео йде звичайним повідомленням, не відповіддю.",
+          "Якщо завантажити не вдалося, у чат приходить коротке «Завантажити не вдалося» без деталей помилки; посилання лишається."
+        ],
+        "RU": [
+          "Telegram / соцссылки: после успешной загрузки ссылка и «Скачиваю» удаляются; видео уходит обычным сообщением, не ответом.",
+          "Если скачать не удалось, в чат приходит короткое «Скачать не удалось» без описания ошибки; ссылка остаётся."
+        ]
+      }
+    },
+    {
       "version": "2.2.0",
       "date": "01.10.2026",
       "notes": {

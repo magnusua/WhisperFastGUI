@@ -79,6 +79,95 @@ class TestSocialQueueIsolation(unittest.TestCase):
         self.assertLess(elapsed, 1.0)
         self.assertTrue(replies)
 
+    def test_failed_download_replies_without_the_error_text(self):
+        from whisperfast.i18n import t
+
+        replies = []
+        with patch("whisperfast.telegram.seen.classify", return_value=("download", None)), patch(
+            "whisperfast.telegram.links.claim_link", side_effect=RuntimeError("SECRET-DETAIL")
+        ), patch("whisperfast.telegram.links.remember_link"), patch(
+            "whisperfast.telegram.links.report_link_failure"
+        ), patch("whisperfast.telegram.worker.resolve_work_dir", return_value=tempfile.gettempdir()):
+            sq.process_social_urls(
+                ["https://youtu.be/bad"],
+                chat_id=1,
+                message_id=2,
+                settings={},
+                log=lambda *_a, **_k: None,
+                reply=replies.append,
+                send_files=lambda _items: None,
+            )
+        self.assertIn(t("telegram_link_failed_short"), replies)
+        self.assertNotIn("SECRET-DETAIL", " ".join(replies))
+
+    def test_successful_video_can_drop_the_source_link(self):
+        video = os.path.join(tempfile.gettempdir(), "soc-ok.mp4")
+        with open(video, "w", encoding="utf-8") as handle:
+            handle.write("x")
+        sent = []
+        plain = []
+
+        def on_video(files, token=None, delete_source=False):
+            sent.append((files, token, delete_source))
+
+        with patch("whisperfast.telegram.seen.classify", return_value=("download", None)), patch(
+            "whisperfast.telegram.links.claim_link", return_value=("new", video, None)
+        ), patch("whisperfast.settings.load_app_settings", return_value={"telegram_social_to_queue": False}), patch(
+            "whisperfast.telegram.links.mark_own_upload"
+        ), patch("whisperfast.telegram.links.remember_link"), patch(
+            "whisperfast.telegram.links.log_downloaded_file"
+        ), patch("whisperfast.telegram.worker.resolve_work_dir", return_value=tempfile.gettempdir()):
+            sq.process_social_urls(
+                ["https://youtu.be/abc"],
+                chat_id=1,
+                message_id=2,
+                settings={},
+                log=lambda *_a, **_k: None,
+                reply=lambda _msg: None,
+                send_files=lambda items: plain.extend(items),
+                on_status=lambda _token: None,
+                on_video=on_video,
+            )
+        self.assertEqual(plain, [])
+        self.assertEqual(sent[0][0][0]["path"], video)
+        self.assertTrue(sent[0][2])
+
+    def test_partial_failure_does_not_drop_the_source_link(self):
+        video = os.path.join(tempfile.gettempdir(), "soc-mix.mp4")
+        with open(video, "w", encoding="utf-8") as handle:
+            handle.write("x")
+        sent = []
+        fails = []
+
+        def claim(url, _dest):
+            if "bad" in url:
+                raise RuntimeError("nope")
+            return ("new", video, None)
+
+        with patch("whisperfast.telegram.seen.classify", return_value=("download", None)), patch(
+            "whisperfast.telegram.links.claim_link", side_effect=claim
+        ), patch("whisperfast.settings.load_app_settings", return_value={"telegram_social_to_queue": False}), patch(
+            "whisperfast.telegram.links.mark_own_upload"
+        ), patch("whisperfast.telegram.links.remember_link"), patch(
+            "whisperfast.telegram.links.log_downloaded_file"
+        ), patch("whisperfast.telegram.links.report_link_failure"), patch(
+            "whisperfast.telegram.worker.resolve_work_dir", return_value=tempfile.gettempdir()
+        ):
+            sq.process_social_urls(
+                ["https://youtu.be/good", "https://youtu.be/bad"],
+                chat_id=1,
+                message_id=2,
+                settings={},
+                log=lambda *_a, **_k: None,
+                reply=lambda _msg: None,
+                send_files=lambda _items: None,
+                on_status=lambda _token: None,
+                on_fail=fails.append,
+                on_video=lambda files, token=None, delete_source=False: sent.append(delete_source),
+            )
+        self.assertEqual(sent, [False])
+        self.assertEqual(len(fails), 1)
+
     def test_serial_worker_runs_one_job_at_a_time(self):
         q = SocialSerialProbe()
         active = []

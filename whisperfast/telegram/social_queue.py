@@ -9,6 +9,7 @@ Whisper отримує файл лише через fire-and-forget submit; со
 """
 from __future__ import annotations
 
+import itertools
 import os
 import queue
 import threading
@@ -22,6 +23,38 @@ ReplyFn = Callable[[str], None]
 SendFilesFn = Callable[[List[dict]], None]
 SubmitWhisperFn = Callable[..., None]
 RetryHook = Callable[[Callable[[], None]], None]
+StatusFn = Callable[[int], None]
+FailFn = Callable[[Optional[int]], None]
+DropStatusFn = Callable[[int], None]
+VideoFn = Callable[..., None]
+
+_status_tokens = itertools.count(1)
+
+
+class StatusMessageLedger:
+    """Пари «Скачиваю» і пізніше відео або помилка. Id може з'явитися після запиту на видалення."""
+
+    def __init__(self) -> None:
+        self._ids: dict[int, int] = {}
+        self._pending: set[int] = set()
+
+    def sent(self, token: int, message_id: int) -> List[int]:
+        token = int(token)
+        if token in self._pending:
+            self._pending.discard(token)
+            return [int(message_id)]
+        self._ids[token] = int(message_id)
+        return []
+
+    def pop(self, token: Optional[int]) -> List[int]:
+        if token is None:
+            return []
+        token = int(token)
+        mid = self._ids.pop(token, None)
+        if mid is None:
+            self._pending.add(token)
+            return []
+        return [mid]
 
 _SOCIAL_WORKER_NAME = "ftw-social-queue"
 
@@ -118,6 +151,10 @@ def process_social_urls(
     send_files: SendFilesFn,
     submit_whisper: Optional[SubmitWhisperFn] = None,
     on_error_retry: Optional[RetryHook] = None,
+    on_status: Optional[StatusFn] = None,
+    on_fail: Optional[FailFn] = None,
+    on_video: Optional[VideoFn] = None,
+    on_drop_status: Optional[DropStatusFn] = None,
 ) -> None:
     """Скачати URL і постобробити: назад у чат і/або в чергу Whisper (без очікування)."""
     from whisperfast.log_store import CHANNEL_SOCIAL, bind_log_channel
@@ -136,6 +173,21 @@ def process_social_urls(
 
     log = bind_log_channel(log, CHANNEL_SOCIAL)
     work_dir = resolve_work_dir(settings)
+    delivered: List[tuple] = []
+    failed = False
+    other = False
+
+    def announce_fail(token: Optional[int]) -> None:
+        if on_fail is not None:
+            on_fail(token)
+            return
+        reply(t("telegram_link_failed_short"))
+
+    def drop_status(token: Optional[int]) -> None:
+        if token is None or on_drop_status is None:
+            return
+        on_drop_status(int(token))
+
     for url in list(urls)[:3]:
         dest = os.path.join(work_dir, f"{chat_id}_{message_id}")
         remember_link(url)
@@ -143,13 +195,19 @@ def process_social_urls(
             log(url)
         except TypeError:
             log(str(url))
+        token: Optional[int] = None
         if classify("url:" + url)[0] == "download":
-            reply(t("telegram_link_downloading"))
+            token = next(_status_tokens)
+            if on_status is not None:
+                on_status(token)
+            else:
+                reply(t("telegram_link_downloading"))
         try:
             action, path, known = claim_link(url, dest)
             remember_link(url, path or str((known or {}).get("path") or ""))
         except Exception as exc:
-            reply(t("telegram_link_failed", error=str(exc)))
+            failed = True
+            announce_fail(token)
 
             def retry(one=url):
                 process_social_urls(
@@ -162,6 +220,10 @@ def process_social_urls(
                     send_files=send_files,
                     submit_whisper=submit_whisper,
                     on_error_retry=on_error_retry,
+                    on_status=on_status,
+                    on_fail=on_fail,
+                    on_video=on_video,
+                    on_drop_status=on_drop_status,
                 )
 
             if on_error_retry is not None:
@@ -171,6 +233,8 @@ def process_social_urls(
             continue
 
         if action == "send":
+            other = True
+            drop_status(token)
             text = t(
                 "telegram_same_ai" if (known or {}).get("ai") else "telegram_same_done",
                 name=os.path.basename(url),
@@ -187,6 +251,8 @@ def process_social_urls(
             continue
 
         if action == "wait":
+            other = True
+            drop_status(token)
             remember_wait(url, chat_id, message_id)
             text = t("telegram_same_queued", name=os.path.basename(url))
             log(text)
@@ -195,11 +261,17 @@ def process_social_urls(
 
         # action new / enqueue — свіже або вже скачане відео
         if not social_videos_go_to_queue(load_app_settings()):
+            if not path:
+                other = True
+                drop_status(token)
+                continue
             mark_own_upload(chat_id, path)
-            send_files([{"path": path, "caption": ""}])
+            delivered.append((token, [{"path": path, "caption": ""}]))
             log_downloaded_file(log, path)
             continue
 
+        other = True
+        drop_status(token)
         if submit_whisper is None:
             reply(t("telegram_gui_required"))
             continue
@@ -214,6 +286,15 @@ def process_social_urls(
         log(t("telegram_gui_added", name=os.path.basename(path)))
         log_downloaded_file(log, path)
 
+    # Посилання з чату зникає лише коли кожне відео з цього повідомлення відправлено.
+    wipe_link = bool(delivered) and not failed and not other
+    for index, (token, files) in enumerate(delivered):
+        last = index == len(delivered) - 1
+        if on_video is not None:
+            on_video(files, token, delete_source=wipe_link and last)
+        else:
+            send_files(files)
+
 
 def enqueue_social_urls(
     urls: Sequence[str],
@@ -226,6 +307,10 @@ def enqueue_social_urls(
     send_files: SendFilesFn,
     submit_whisper: Optional[SubmitWhisperFn] = None,
     on_error_retry: Optional[RetryHook] = None,
+    on_status: Optional[StatusFn] = None,
+    on_fail: Optional[FailFn] = None,
+    on_video: Optional[VideoFn] = None,
+    on_drop_status: Optional[DropStatusFn] = None,
 ) -> None:
     """Поставити обробку URL у соц-чергу (не Whisper, не AI)."""
     from whisperfast.log_store import CHANNEL_SOCIAL, bind_log_channel
@@ -244,6 +329,10 @@ def enqueue_social_urls(
                 send_files=send_files,
                 submit_whisper=submit_whisper,
                 on_error_retry=on_error_retry,
+                on_status=on_status,
+                on_fail=on_fail,
+                on_video=on_video,
+                on_drop_status=on_drop_status,
             )
         except Exception as exc:
             try:
@@ -251,7 +340,10 @@ def enqueue_social_urls(
             except Exception:
                 pass
             try:
-                reply(t("telegram_link_failed", error=str(exc)))
+                if on_fail is not None:
+                    on_fail(None)
+                else:
+                    reply(t("telegram_link_failed_short"))
             except Exception:
                 pass
 

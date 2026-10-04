@@ -161,6 +161,13 @@ class TelegramClient:
             params["reply_to_message_id"] = int(reply_to)
         return self.call("sendMessage", params, timeout=60)
 
+    def delete_message(self, chat_id: int, message_id: int) -> Any:
+        return self.call(
+            "deleteMessage",
+            {"chat_id": int(chat_id), "message_id": int(message_id)},
+            timeout=30,
+        )
+
     def _upload_file(
         self,
         method: str,

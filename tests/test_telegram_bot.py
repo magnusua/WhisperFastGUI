@@ -968,6 +968,112 @@ class TestAccountMode(unittest.TestCase):
         self.assertEqual(items[0]["text"], "hi")
         self.assertEqual(items[0]["files"][0]["caption"], "c")
 
+    def test_account_flush_drops_link_and_status_after_video(self):
+        import asyncio
+        from types import SimpleNamespace
+
+        from whisperfast.telegram.account import _flush_outbox, reset_status_ledger_for_tests
+        from whisperfast.telegram.outbox import enqueue_outgoing
+
+        reset_status_ledger_for_tests()
+
+        class Client:
+            def __init__(self):
+                self.sent = []
+                self.deleted = []
+                self._n = 40
+
+            async def send_message(self, chat_id, text, reply_to=None):
+                self._n += 1
+                self.sent.append(("text", text, reply_to, self._n))
+                return SimpleNamespace(id=self._n)
+
+            async def send_file(self, chat_id, path, caption="", reply_to=None, **_extra):
+                self.sent.append(("file", path, reply_to))
+                return SimpleNamespace(id=1)
+
+            async def delete_messages(self, chat_id, ids, revoke=True):
+                self.deleted.append((chat_id, list(ids), revoke))
+
+        client = Client()
+        with tempfile.TemporaryDirectory() as tmp:
+            video = os.path.join(tmp, "clip.mp4")
+            with open(video, "wb") as handle:
+                handle.write(b"x")
+            with patch("whisperfast.telegram.outbox.outbox_dir", return_value=tmp):
+                enqueue_outgoing(
+                    7,
+                    8,
+                    text="Скачиваю",
+                    kind="status",
+                    source_message_id=8,
+                    status_token=1,
+                )
+                enqueue_outgoing(
+                    7,
+                    None,
+                    files=[{"path": video, "caption": ""}],
+                    kind="video",
+                    source_message_id=8,
+                    status_token=1,
+                    delete_source=True,
+                )
+                asyncio.run(_flush_outbox(client))
+        files = [item for item in client.sent if item[0] == "file"]
+        self.assertEqual(files[0][2], None)
+        removed = [mid for _chat, ids, _revoke in client.deleted for mid in ids]
+        self.assertIn(41, removed)
+        self.assertIn(8, removed)
+
+    def test_account_flush_keeps_the_link_when_download_fails(self):
+        import asyncio
+        from types import SimpleNamespace
+
+        from whisperfast.i18n import t
+        from whisperfast.telegram.account import _flush_outbox, reset_status_ledger_for_tests
+        from whisperfast.telegram.outbox import enqueue_outgoing
+
+        reset_status_ledger_for_tests()
+
+        class Client:
+            def __init__(self):
+                self.sent = []
+                self.deleted = []
+                self._n = 40
+
+            async def send_message(self, chat_id, text, reply_to=None):
+                self._n += 1
+                self.sent.append((text, reply_to, self._n))
+                return SimpleNamespace(id=self._n)
+
+            async def delete_messages(self, chat_id, ids, revoke=True):
+                self.deleted.append(list(ids))
+
+        client = Client()
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("whisperfast.telegram.outbox.outbox_dir", return_value=tmp):
+                enqueue_outgoing(
+                    7,
+                    8,
+                    text="Скачиваю",
+                    kind="status",
+                    source_message_id=8,
+                    status_token=2,
+                )
+                enqueue_outgoing(
+                    7,
+                    8,
+                    text=t("telegram_link_failed_short"),
+                    kind="fail",
+                    source_message_id=8,
+                    status_token=2,
+                )
+                asyncio.run(_flush_outbox(client))
+        self.assertEqual(client.sent[1][0], t("telegram_link_failed_short"))
+        self.assertEqual(client.sent[1][1], 8)
+        removed = [mid for ids in client.deleted for mid in ids]
+        self.assertEqual(removed, [41])
+
     def test_run_from_settings_uses_the_account_listener(self):
         from whisperfast.telegram.worker import run_from_settings
 
@@ -1231,6 +1337,39 @@ class TestVideoLinks(unittest.TestCase):
             _ingest_bot_links(message, {"telegram_work_dir": "."}, client, None, log)
         self.assertIn((video, "link"), logged)
         client.send_path.assert_called_once()
+        self.assertIsNone(client.send_path.call_args.kwargs.get("reply_to"))
+        client.delete_message.assert_called_once_with(7, 3)
+
+    def test_failed_link_stays_and_status_message_is_removed(self):
+        from whisperfast.i18n import t
+        from whisperfast.telegram.worker import _ingest_bot_links
+
+        message = {
+            "text": "https://youtube.com/shorts/cz8hpRokpE5",
+            "chat": {"id": 7},
+            "message_id": 3,
+        }
+        client = Mock()
+        client.send_message.return_value = {"message_id": 55}
+        with patch("whisperfast.telegram.seen.classify", return_value=("download", None)), patch(
+            "whisperfast.telegram.links.claim_link", side_effect=RuntimeError("SECRET-DETAIL")
+        ), patch("whisperfast.telegram.links.remember_link"), patch(
+            "whisperfast.telegram.links.report_link_failure"
+        ):
+            _ingest_bot_links(message, {"telegram_work_dir": "."}, client, None, lambda *_a, **_k: None)
+        texts = [call.args[1] for call in client.send_message.call_args_list]
+        self.assertIn(t("telegram_link_downloading"), texts)
+        self.assertIn(t("telegram_link_failed_short"), texts)
+        self.assertNotIn("SECRET-DETAIL", " ".join(texts))
+        fail = [
+            call
+            for call in client.send_message.call_args_list
+            if call.args[1] == t("telegram_link_failed_short")
+        ][0]
+        self.assertEqual(fail.kwargs.get("reply_to"), 3)
+        deleted = [call.args[1] for call in client.delete_message.call_args_list]
+        self.assertEqual(deleted, [55])
+        client.send_path.assert_not_called()
 
     def test_source_url_in_a_log_line_is_its_own_link(self):
         from whisperfast.ui.log_panel import url_spans

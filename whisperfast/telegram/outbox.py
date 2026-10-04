@@ -23,6 +23,11 @@ def enqueue_outgoing(
     text: str = "",
     files: List[Dict[str, str]] | None = None,
     chat_name: str = "",
+    *,
+    kind: str = "",
+    source_message_id: int | None = None,
+    status_token: int | None = None,
+    delete_source: bool = False,
 ) -> str:
     folder = outbox_dir()
     os.makedirs(folder, exist_ok=True)
@@ -34,6 +39,10 @@ def enqueue_outgoing(
         "files": list(files or []),
         "ts": time.time(),
         "attempts": 0,
+        "kind": str(kind or ""),
+        "source_message_id": None if source_message_id is None else int(source_message_id),
+        "status_token": None if status_token is None else int(status_token),
+        "delete_source": bool(delete_source),
     }
     name = f"{time.time_ns()}_{os.getpid()}.json"
     path = os.path.join(folder, name)
