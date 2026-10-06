@@ -6,8 +6,10 @@ import unittest
 
 from whisperfast.postprocess.cursor_postprocess import (
     default_checked_prompt_nums,
+    edited_output_path,
     is_one_liner_output,
     parse_redactor_prompts,
+    plan_prompt_outputs,
     prompt_label_from_output_path,
     sanitize_prompt_filename,
 )
@@ -221,6 +223,40 @@ class TestPromptMarkdownRoundtrip(unittest.TestCase):
                 obj = json.load(f)
             self.assertIn("Clean the transcript.", obj["body"])
             self.assertFalse(os.path.isfile(seen["md"]))
+
+
+class TestPlanPromptOutputs(unittest.TestCase):
+    def test_skip_one_existing_file_keeps_remaining_prompts(self):
+        txt = os.path.join("d", "Video 2026-10-06 11.23.58.txt")
+        prompts = [
+            (1, "redactor", "edit"),
+            (2, "TW_core", "core"),
+            (9, "one_liner", "brief"),
+        ]
+        skipped = []
+
+        def resolve(path):
+            if path.endswith("_redactor.md"):
+                return ""
+            return path
+
+        planned = plan_prompt_outputs(txt, prompts, resolve, skipped.append)
+        names = [name for _n, name, _t, _p in planned]
+        self.assertEqual(names, ["TW_core", "one_liner"])
+        self.assertTrue(any("redactor" in msg for msg in skipped))
+        self.assertEqual(
+            planned[0][3],
+            edited_output_path(txt, 2, "TW_core"),
+        )
+
+    def test_skip_all_returns_empty_plan(self):
+        txt = os.path.join("d", "clip.txt")
+        planned = plan_prompt_outputs(
+            txt,
+            [(1, "redactor", "a"), (9, "one_liner", "b")],
+            lambda _p: "",
+        )
+        self.assertEqual(planned, [])
 
 
 if __name__ == "__main__":

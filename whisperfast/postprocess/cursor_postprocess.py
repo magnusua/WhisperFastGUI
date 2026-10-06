@@ -506,7 +506,10 @@ def plan_prompt_outputs(
     resolve_output_path: Optional[Callable[[str], str]] = None,
     log_func: Optional[LogFunc] = None,
 ) -> List[Tuple[int, str, str, str]]:
-    """Pick every output path before any model call. A skipped file stops the chain."""
+    """Pick every output path before any model call.
+
+    Skip ("Ні") omits only that prompt; remaining selected prompts still run.
+    """
     planned: List[Tuple[int, str, str, str]] = []
     for num, name, text in prompts:
         intended = edited_output_path(txt_path, num, name)
@@ -520,7 +523,7 @@ def plan_prompt_outputs(
                     log_func(t("file_exists_skipped", name=os.path.basename(intended)))
                 except ImportError:
                     pass
-            break
+            continue
         planned.append((num, name, text, out_path))
     return planned
 
