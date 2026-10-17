@@ -4336,6 +4336,11 @@
     "UK": "Посилання на Facebook Stories (/stories/...) не підтримуються. Надішліть Reel, пост чи share-посилання, або завантажте відеофайл у чат.",
     "RU": "Ссылки на Facebook Stories (/stories/...) не поддерживаются. Пришлите Reel, пост или share-ссылку, либо загрузите видеофайл в чат."
   },
+  "telegram_link_fdownloader": {
+    "EN": "yt-dlp failed. Opening https://fdownloader.net/ru",
+    "UK": "yt-dlp не скачав. Відкриваю https://fdownloader.net/ru",
+    "RU": "yt-dlp не скачал. Открываю https://fdownloader.net/ru"
+  },
   "telegram_link_facebook_auth": {
     "EN": "Facebook requires login. Save cookies to downloads/facebook/cookies.txt (export while logged in), or stay signed in to Facebook in Chrome/Edge and retry. Public Reels/share links work without cookies.",
     "UK": "Facebook вимагає вхід. Збережіть cookies у downloads/facebook/cookies.txt (експорт під час сесії), або увійдіть у Facebook у Chrome/Edge і спробуйте знову. Публічні Reel/share-посилання працюють без cookies.",
@@ -4705,6 +4710,21 @@
     "EN": "Listener is stopped.",
     "UK": "Слухач зупинений.",
     "RU": "Слушатель остановлен."
+  },
+  "telegram_listener_reconnecting": {
+    "EN": "Telegram connection lost. Waiting for the network, then the listener will reconnect.",
+    "UK": "Зв’язок із Telegram обірвався. Чекаю мережу і підключуся знову.",
+    "RU": "Связь с Telegram пропала. Жду сеть и подключусь снова."
+  },
+  "telegram_listener_hold_power": {
+    "EN": "While the listener is on, this computer will not sleep or shut down. A Windows restart for an update still proceeds.",
+    "UK": "Поки слухач увімкнений, комп’ютер не засне і не вимкнеться. Перезавантаження для оновлення Windows проходить як звичайно.",
+    "RU": "Пока слушатель включён, компьютер не уснёт и не выключится. Перезагрузка для обновления Windows проходит как обычно."
+  },
+  "telegram_listener_shutdown_block": {
+    "EN": "The Telegram listener is on. Stop it in FTW before shutting down.",
+    "UK": "Слухач Telegram увімкнений. Зупиніть його в FTW, щоб вимкнути комп’ютер.",
+    "RU": "Включён слушатель Telegram. Остановите его в FTW, чтобы выключить компьютер."
   },
   "telegram_not_configured": {
     "EN": "Telegram is not set up. Open the Telegram settings and fill in the account or bot first.",

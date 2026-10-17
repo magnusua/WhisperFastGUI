@@ -1243,6 +1243,42 @@ class TestVideoLinks(unittest.TestCase):
         )
         self.assertIn("cookies", auth_msg.lower())
 
+    def test_any_facebook_download_error_opens_fdownloader(self):
+        from whisperfast.telegram.links import download_video
+
+        share = "https://www.facebook.com/share/r/1DeQTXKByW/"
+        saved = ""
+        lines = []
+
+        def fail_yt_dlp(_cmd, _dest, _started):
+            return "", "ERROR: [facebook] 3045270975643635: Cannot parse data"
+
+        def via_site(url, dest_dir):
+            nonlocal saved
+            self.assertEqual(url, share)
+            saved = os.path.join(dest_dir, "clip.mp4")
+            return saved
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("whisperfast.telegram.links._run_yt_dlp", fail_yt_dlp):
+                with patch("whisperfast.telegram.fdownloader.save_via_fdownloader", via_site):
+                    path = download_video(share, tmp, log=lines.append)
+        self.assertEqual(path, saved)
+        self.assertTrue(any("fdownloader.net" in line for line in lines))
+
+    def test_youtube_failure_does_not_open_fdownloader(self):
+        from whisperfast.telegram.links import download_video
+
+        def fail_yt_dlp(_cmd, _dest, _started):
+            return "", "ERROR: video unavailable"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("whisperfast.telegram.links._run_yt_dlp", fail_yt_dlp):
+                with patch("whisperfast.telegram.fdownloader.save_via_fdownloader") as site:
+                    with self.assertRaises(RuntimeError):
+                        download_video("https://youtu.be/abc123", tmp)
+        site.assert_not_called()
+
     def test_newest_media_file_is_the_downloaded_video(self):
         from whisperfast.telegram.links import newest_media_file
 

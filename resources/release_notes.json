@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "2.2.3",
+      "date": "17.10.2026",
+      "notes": {
+        "EN": [
+          "Telegram listener: after the network drops it keeps waiting and reconnects, including an outage of an hour or more. It no longer stops after five failed connections.",
+          "While the listener is on, the computer stays awake and a manual shutdown is refused. A Windows update restart still proceeds.",
+          "Facebook: if yt-dlp fails for any reason, FTW opens https://fdownloader.net/ru and downloads the video from there.",
+          "Listener lines appear only in the TG log, not in the combined log."
+        ],
+        "UK": [
+          "Слухач Telegram: після обриву мережі чекає зв’язок і підключається знову, навіть якщо інтернету не було годину. На п’ятій спробі більше не зупиняється.",
+          "Поки слухач увімкнений, комп’ютер не засинає і не вимикається вручну. Перезавантаження Windows для оновлення проходить як звичайно.",
+          "Facebook: якщо yt-dlp не скачав відео з будь-якої причини, FTW відкриває https://fdownloader.net/ru і забирає файл звідти.",
+          "Рядки слухача видно лише у фільтрі TG, не в загальному журналі."
+        ],
+        "RU": [
+          "Слушатель Telegram: после обрыва сети ждёт связь и подключается снова, даже если интернета не было час. После пяти попыток больше не останавливается.",
+          "Пока слушатель включён, компьютер не засыпает и не выключается вручную. Перезагрузка Windows для обновления проходит как обычно.",
+          "Facebook: если yt-dlp не скачал видео по любой причине, FTW открывает https://fdownloader.net/ru и забирает файл оттуда.",
+          "Строки слушателя видны только в фильтре TG, не в общем журнале."
+        ]
+      }
+    },
+    {
       "version": "2.2.2",
       "date": "06.10.2026",
       "notes": {

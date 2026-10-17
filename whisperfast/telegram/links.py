@@ -229,8 +229,8 @@ def _base_yt_dlp_cmd(dest_dir: str, quality: str | None) -> List[str]:
     ]
 
 
-def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
-    """Save one video with yt-dlp. Raises RuntimeError when the download fails."""
+def download_video(url: str, dest_dir: str, quality: str | None = None, log=None) -> str:
+    """Save one video with yt-dlp. A Facebook failure then tries fdownloader.net."""
     if is_facebook_stories_url(url):
         from whisperfast.i18n import t
 
@@ -244,25 +244,46 @@ def download_video(url: str, dest_dir: str, quality: str | None = None) -> str:
     if os.path.isfile(cookies):
         auth_args = ["--cookies", cookies]
 
-    path, output = _run_yt_dlp(base + auth_args + [url], dest_dir, started)
-    if path:
-        return path
+    output = ""
+    try:
+        path, output = _run_yt_dlp(base + auth_args + [url], dest_dir, started)
+        if path:
+            return path
 
-    # Facebook often needs a logged-in session; retry with browser cookies.
-    if (
-        is_facebook_url(url)
-        and _looks_like_auth_failure(output)
-        and not auth_args
-    ):
-        for browser in _BROWSER_COOKIE_CANDIDATES:
-            path, retry_out = _run_yt_dlp(
-                base + ["--cookies-from-browser", browser] + [url],
-                dest_dir,
-                started,
-            )
-            if path:
-                return path
-            output = retry_out or output
+        # A logged-in browser session still helps some videos. Any other
+        # failure, including "Cannot parse data", goes to the site below.
+        if (
+            is_facebook_url(url)
+            and _looks_like_auth_failure(output)
+            and not auth_args
+        ):
+            for browser in _BROWSER_COOKIE_CANDIDATES:
+                path, retry_out = _run_yt_dlp(
+                    base + ["--cookies-from-browser", browser] + [url],
+                    dest_dir,
+                    started,
+                )
+                if path:
+                    return path
+                output = retry_out or output
+    except RuntimeError as exc:
+        output = str(exc)
+
+    if is_facebook_url(url):
+        from whisperfast.i18n import t
+        from whisperfast.telegram.fdownloader import save_via_fdownloader
+
+        if log is not None:
+            try:
+                log(t("telegram_link_fdownloader"))
+            except Exception:
+                pass
+        try:
+            return save_via_fdownloader(url, dest_dir)
+        except Exception as exc:
+            site_error = str(exc).strip()
+            if site_error:
+                output = (output + "\n" + site_error).strip()
 
     raise RuntimeError(_friendly_download_error(url, output))
 
@@ -278,14 +299,14 @@ def report_link_failure(log, exc, retry) -> None:
         offer(retry)
 
 
-def claim_link(url: str, dest_dir: str):
+def claim_link(url: str, dest_dir: str, log=None):
     """download, enqueue, wait, or send. A new download is stored under the URL."""
     from whisperfast.telegram.seen import classify, note_download
 
     key = "url:" + url
     action, known = classify(key)
     if action == "download":
-        path = download_video(url, dest_dir)
+        path = download_video(url, dest_dir, log=log)
         note_download(key, path)
         return "new", path, None
     if action == "wait":

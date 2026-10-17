@@ -19,8 +19,6 @@ and Google Chrome; the script installs playwright on first use.
 from __future__ import annotations
 
 import argparse
-import base64
-import json
 import re
 import shutil
 import subprocess
@@ -31,12 +29,17 @@ from typing import List, Optional, Sequence, Tuple
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DEFAULT_URLS_FILE = Path(__file__).resolve().parent / "facebook_urls.txt"
 DEFAULT_OUT_DIR = ROOT / "downloads" / "facebook"
 DEFAULT_COOKIES = DEFAULT_OUT_DIR / "cookies.txt"
 ARCHIVE_NAME = "downloaded.txt"
-FDOWNLOADER_PAGE = "https://fdownloader.net/ru"
-_PLAYWRIGHT_READY: Optional[bool] = None
+
+from whisperfast.telegram.fdownloader import (  # noqa: E402
+    FDOWNLOADER_PAGE,
+    download_via_fdownloader,
+)
 
 URL_RE = re.compile(
     r"https?://(?:www\.|m\.|web\.)?(?:facebook\.com|fb\.watch|fb\.com|youtube\.com|youtu\.be)/[^\s<>\"']+",
@@ -210,119 +213,6 @@ def download_one(base_args: Sequence[str], url: str) -> Tuple[bool, str]:
 def _facebook_url(url: str) -> bool:
     host = urlsplit(url).netloc.lower()
     return host.endswith("facebook.com") or host.endswith("fb.watch") or host.endswith("fb.com")
-
-
-def _share_stem(url: str) -> str:
-    parts = urlsplit(url)
-    query = dict(parse_qsl(parts.query))
-    tail = query.get("story_fbid") or parts.path.rstrip("/").split("/")[-1] or "video"
-    tail = re.sub(r"[^A-Za-z0-9._-]+", "_", tail)[:80]
-    return tail or "video"
-
-
-def _existing_fdown(out_dir: Path, stem: str) -> Optional[Path]:
-    for path in sorted(out_dir.glob(f"{stem}_fdown_*.mp4")):
-        if path.stat().st_size > 10_000:
-            return path
-    return None
-
-
-def _quality_from_snap_url(url: str) -> str:
-    try:
-        token = url.split("token=", 1)[1].split(".", 2)[1]
-        payload = json.loads(base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)))
-        name = str(payload.get("filename") or "")
-        match = re.search(r"(\d{3,4}p)", name, re.IGNORECASE)
-        if match:
-            return match.group(1).lower()
-    except (IndexError, ValueError, json.JSONDecodeError):
-        pass
-    return "mp4"
-
-
-def _save_snap_file(href: str, dest: Path) -> None:
-    import requests
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-        ),
-        "Referer": "https://fdownloader.net/",
-    }
-    tmp = dest.with_suffix(dest.suffix + ".part")
-    with requests.get(href, headers=headers, stream=True, timeout=180) as response:
-        response.raise_for_status()
-        with tmp.open("wb") as handle:
-            for chunk in response.iter_content(1024 * 256):
-                if chunk:
-                    handle.write(chunk)
-    head = tmp.read_bytes()[:12]
-    if b"ftyp" not in head:
-        tmp.unlink(missing_ok=True)
-        raise RuntimeError("ответ fdownloader не похож на mp4")
-    tmp.replace(dest)
-
-
-def _ensure_playwright() -> bool:
-    global _PLAYWRIGHT_READY
-    if _PLAYWRIGHT_READY is not None:
-        return _PLAYWRIGHT_READY
-    try:
-        import playwright  # noqa: F401
-        _PLAYWRIGHT_READY = True
-        return True
-    except ImportError:
-        print("Ставлю playwright для fdownloader.net...", flush=True)
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "playwright"],
-            check=False,
-        )
-        _PLAYWRIGHT_READY = result.returncode == 0
-        return _PLAYWRIGHT_READY
-
-
-def _fdown_href(url: str) -> str:
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as playwright:
-        try:
-            browser = playwright.chromium.launch(channel="chrome", headless=False)
-        except Exception:
-            browser = playwright.chromium.launch(headless=False)
-        try:
-            page = browser.new_page()
-            page.goto(FDOWNLOADER_PAGE, wait_until="domcontentloaded", timeout=45000)
-            box = page.locator("input[placeholder*='Facebook'], input[type='text'], input[type='search']").first
-            box.fill(url)
-            page.get_by_role("button", name=re.compile(r"Скачать|Download")).first.click()
-            link = page.locator("a.download-link-fb").first
-            link.wait_for(timeout=45000)
-            href = link.get_attribute("href") or ""
-        finally:
-            browser.close()
-    if not href.startswith("http"):
-        raise RuntimeError("fdownloader не вернул ссылку на файл")
-    return href
-
-
-def download_via_fdownloader(url: str, out_dir: Path) -> Tuple[bool, str]:
-    stem = _share_stem(url)
-    existing = _existing_fdown(out_dir, stem)
-    if existing:
-        print(existing, flush=True)
-        return True, "fdownloader (уже есть)"
-    if not _ensure_playwright():
-        return False, "playwright не установлен"
-    try:
-        href = _fdown_href(url)
-        quality = _quality_from_snap_url(href)
-        dest = out_dir / f"{stem}_fdown_{quality}.mp4"
-        _save_snap_file(href, dest)
-        print(dest, flush=True)
-        return True, "fdownloader"
-    except Exception as exc:
-        return False, f"fdownloader: {exc}"
 
 
 def download_with_fallback(

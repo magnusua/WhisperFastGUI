@@ -714,44 +714,68 @@ def run_bot(
         base, _host, _port = api_endpoint(settings)
         client = TelegramClient(token, api_base=base)
 
+    from whisperfast.telegram.reconnect import (
+        is_network_error,
+        next_reconnect_wait,
+        sleep_until_stop,
+        stopped,
+    )
+
     offset = None
     cycles = 0
+    wait = 0.0
+    offline = False
     while max_cycles is None or cycles < max_cycles:
-        if stop and stop():
+        if stopped(stop):
             break
         cycles += 1
-        fresh = load_app_settings()
-        from whisperfast.telegram.learn import load_learn_chats
+        try:
+            fresh = load_app_settings()
+            from whisperfast.telegram.learn import load_learn_chats
 
-        allowlist = normalize_chat_ids(fresh.get("telegram_allowed_chat_ids"))
-        allowlist = list(allowlist) + [
-            int(row["id"]) for row in load_learn_chats().get("always") or [] if row.get("id")
-        ]
-        updates = client.get_updates(offset=offset, timeout=poll_timeout)
-        pending: List[IncomingMedia] = []
-        new_offset = accept_updates(
-            updates, allowlist, client, pending, log=log, settings=fresh, submit=submit, ask=ask,
-        )
-        from whisperfast.telegram.learn import take_ready
-
-        for decision, kind, payload in take_ready():
-            if decision not in ("once", "always"):
-                continue
-            if kind == "media":
-                pending.append(payload)
-            elif kind == "links":
-                _start_bot_link_ingest(payload, settings, client, submit, log)
-        if new_offset is not None:
-            offset = new_offset
-        if pending:
-            process_pending(
-                pending,
-                client=client,
-                settings=settings,
-                submit=submit,
-                gui_running=gui_running,
-                log=log,
+            allowlist = normalize_chat_ids(fresh.get("telegram_allowed_chat_ids"))
+            allowlist = list(allowlist) + [
+                int(row["id"]) for row in load_learn_chats().get("always") or [] if row.get("id")
+            ]
+            updates = client.get_updates(offset=offset, timeout=poll_timeout)
+            pending: List[IncomingMedia] = []
+            new_offset = accept_updates(
+                updates, allowlist, client, pending, log=log, settings=fresh, submit=submit, ask=ask,
             )
+            from whisperfast.telegram.learn import take_ready
+
+            for decision, kind, payload in take_ready():
+                if decision not in ("once", "always"):
+                    continue
+                if kind == "media":
+                    pending.append(payload)
+                elif kind == "links":
+                    _start_bot_link_ingest(payload, settings, client, submit, log)
+            if new_offset is not None:
+                offset = new_offset
+            if pending:
+                process_pending(
+                    pending,
+                    client=client,
+                    settings=settings,
+                    submit=submit,
+                    gui_running=gui_running,
+                    log=log,
+                )
+        except Exception as exc:
+            if not is_network_error(exc):
+                log(str(exc))
+                return 1
+            if not offline:
+                log(t("telegram_listener_reconnecting"))
+                log(str(exc))
+                offline = True
+            wait = next_reconnect_wait(wait, was_online=False)
+            if not sleep_until_stop(stop, wait):
+                break
+            continue
+        offline = False
+        wait = 0.0
     return 0
 
 

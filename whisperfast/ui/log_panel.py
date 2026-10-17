@@ -19,7 +19,9 @@ from typing import Optional
 
 from whisperfast.i18n import t
 from whisperfast.log_store import (
+    CHANNEL_TELEGRAM,
     CHANNEL_WHISPER,
+    CHANNELS,
     ChannelLogHub,
     KIND_FILE,
     KIND_LINE,
@@ -102,9 +104,10 @@ class LogPanel:
         self._schedule_ui = schedule_ui
         self.log_box = None
         self.log_menu = None
-        # Three channel files merged for UI; filter via set_channel_filter.
+        # Channel files. The general view omits the Telegram listener; that
+        # channel is shown only when the TG filter is selected.
         self._store = ChannelLogHub(base_dir=base_dir)
-        self._filter_channel: Optional[str] = None  # None = all channels
+        self._filter_channel: Optional[str] = None  # None = general log (no telegram)
         self._action_callbacks = {}
         self._day_expanded = {}
         self._day_body_loaded = {}
@@ -128,11 +131,11 @@ class LogPanel:
         self._schedule_ui = schedule_ui
 
     def channel_filter(self) -> Optional[str]:
-        """None = all channels; otherwise one of telegram/social/whisper."""
+        """None = general log (whisper and social). Otherwise one channel."""
         return self._filter_channel
 
     def set_channel_filter(self, channel: Optional[str], *, reload: bool = True):
-        """Filter UI to one channel, or ``None`` for all. Persists writes to all files."""
+        """Filter the UI. ``None`` is the general log and hides the Telegram listener."""
         if channel is None or str(channel).strip().lower() in ("", "all", "*"):
             self._filter_channel = None
         else:
@@ -148,12 +151,13 @@ class LogPanel:
     def _visible_channels(self):
         if self._filter_channel:
             return (self._filter_channel,)
-        return None  # all
+        return tuple(ch for ch in CHANNELS if ch != CHANNEL_TELEGRAM)
 
     def _channel_is_visible(self, channel: Optional[str]) -> bool:
+        ch = normalize_channel(channel)
         if self._filter_channel is None:
-            return True
-        return normalize_channel(channel) == self._filter_channel
+            return ch != CHANNEL_TELEGRAM
+        return ch == self._filter_channel
 
     def _run_on_ui(self, fn):
         """Run ``fn`` on the Tk thread. Never block a worker on ``root.after``."""
@@ -427,7 +431,7 @@ class LogPanel:
     # --- Clear / styles / reload ---------------------------------------------
 
     def clear(self):
-        # Clear only what the user currently sees (or all when filter is All).
+        # Clear only the channels currently on screen. The general log does not include Telegram.
         self._store.clear(self._visible_channels())
         self._action_callbacks.clear()
         self._file_action_callbacks.clear()

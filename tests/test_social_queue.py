@@ -139,7 +139,7 @@ class TestSocialQueueIsolation(unittest.TestCase):
         sent = []
         fails = []
 
-        def claim(url, _dest):
+        def claim(url, _dest, log=None):
             if "bad" in url:
                 raise RuntimeError("nope")
             return ("new", video, None)

@@ -203,7 +203,7 @@ def process_social_urls(
             else:
                 reply(t("telegram_link_downloading"))
         try:
-            action, path, known = claim_link(url, dest)
+            action, path, known = claim_link(url, dest, log=log)
             remember_link(url, path or str((known or {}).get("path") or ""))
         except Exception as exc:
             failed = True

@@ -810,64 +810,157 @@ def run_account(
     if gui_running is None:
         gui_running = gui_is_running
 
-    async def _main():
-        client = TelegramClient(session_base_path(), int(api_id), api_hash)
-        await client.connect()
+    async def _connect_or_stop(client) -> bool:
+        """Return False when the user stopped the listener while connect() was in progress."""
+        from whisperfast.telegram.reconnect import stopped
+
+        task = asyncio.create_task(client.connect())
         try:
-            if not await client.is_user_authorized():
-                log(t("telegram_sign_in_first"))
-                return 1
-            me = await client.get_me()
-            self_id = int(me.id)
-
-            @client.on(events.NewMessage)
-            async def _on_message(event):
-                await _handle_message(client, event, settings, submit, gui_running, self_id, log, ask)
-
-            def soft_log(msg, tag=None):
-                if not log:
-                    return
-                try:
-                    if tag is None:
-                        log(msg)
-                    else:
-                        log(msg, tag)
-                except Exception:
-                    pass
-
-            async def _pump():
-                while not (stop and stop()):
+            while not task.done():
+                if stopped(stop):
+                    task.cancel()
                     try:
-                        await _flush_outbox(client, soft_log)
-                    except Exception as exc:
-                        soft_log(str(exc))
-                    await asyncio.sleep(0.35)
-                await client.disconnect()
+                        await task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                    return False
+                await asyncio.sleep(0.4)
+            await task
+            return True
+        except asyncio.CancelledError:
+            return False
 
-            pump = asyncio.create_task(_pump())
-            own_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
-            own_list = ", ".join(own_names) if own_names else t("telegram_own_only_saved")
-            started = t(
-                "telegram_account_listening",
-                name=(me.first_name or me.username or str(me.id)),
-                chats=own_list,
-            )
-            soft_log(started)
+    async def _main():
+        # Telethon itself gives up after a few tries. This loop keeps going for
+        # as long as the listener is on, including an outage of an hour or more.
+        from whisperfast.telegram.reconnect import (
+            async_sleep_until_stop,
+            next_reconnect_wait,
+            stopped,
+        )
+
+        client = TelegramClient(
+            session_base_path(),
+            int(api_id),
+            api_hash,
+            connection_retries=3,
+            retry_delay=2,
+            auto_reconnect=True,
+            timeout=8,
+        )
+
+        def soft_log(msg, tag=None):
+            if not log:
+                return
             try:
-                await client.send_message("me", started)
-            except Exception as exc:
-                soft_log(t("telegram_start_notice_failed", error=str(exc)))
-            try:
-                await client.run_until_disconnected()
-            finally:
-                pump.cancel()
+                if tag is None:
+                    log(msg)
+                else:
+                    log(msg, tag)
+            except Exception:
+                pass
+
+        registered = False
+        announced = False
+        offline = False
+        wait = 0.0
+        self_id = 0
+        try:
+            while not stopped(stop):
+                dropped = None
                 try:
-                    await pump
-                except asyncio.CancelledError:
-                    pass
+                    try:
+                        online = bool(client.is_connected())
+                    except Exception:
+                        online = False
+                    if not online:
+                        if not await _connect_or_stop(client):
+                            return 0
+                    if not await client.is_user_authorized():
+                        log(t("telegram_sign_in_first"))
+                        return 1
+                    me = await client.get_me()
+                    self_id = int(me.id)
+                    if not registered:
+                        sid = self_id
+
+                        @client.on(events.NewMessage)
+                        async def _on_message(event, sid=sid):
+                            await _handle_message(
+                                client, event, settings, submit, gui_running, sid, log, ask,
+                            )
+
+                        registered = True
+
+                    own_names = normalize_chat_names(settings.get("telegram_self_chat_names"))
+                    own_list = ", ".join(own_names) if own_names else t("telegram_own_only_saved")
+                    started = t(
+                        "telegram_account_listening",
+                        name=(me.first_name or me.username or str(me.id)),
+                        chats=own_list,
+                    )
+                    soft_log(started)
+                    if not announced:
+                        try:
+                            await client.send_message("me", started)
+                        except Exception as exc:
+                            soft_log(t("telegram_start_notice_failed", error=str(exc)))
+                        announced = True
+                    offline = False
+                    wait = 0.0
+
+                    async def _pump():
+                        last = ""
+                        last_at = 0.0
+                        while not stopped(stop):
+                            try:
+                                await _flush_outbox(client, soft_log)
+                            except Exception as exc:
+                                text = str(exc)
+                                now = time.monotonic()
+                                if text != last or now - last_at >= 60:
+                                    soft_log(text)
+                                    last = text
+                                    last_at = now
+                            await asyncio.sleep(0.35)
+                        await client.disconnect()
+
+                    pump = asyncio.create_task(_pump())
+                    try:
+                        await client.run_until_disconnected()
+                    finally:
+                        if not pump.done():
+                            pump.cancel()
+                        try:
+                            await pump
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                    if stopped(stop):
+                        return 0
+                    dropped = ConnectionError("disconnected")
+                except Exception as exc:
+                    dropped = exc
+                    try:
+                        await client.disconnect()
+                    except Exception:
+                        pass
+                if stopped(stop):
+                    return 0
+                if not offline:
+                    soft_log(t("telegram_listener_reconnecting"))
+                    detail = str(dropped or "").strip()
+                    if detail and detail != "disconnected":
+                        soft_log(detail)
+                    offline = True
+                wait = next_reconnect_wait(wait, was_online=False)
+                if not await async_sleep_until_stop(stop, wait):
+                    return 0
             return 0
         finally:
-            await client.disconnect()
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
 
     try:
         return int(asyncio.run(_main()) or 0)

@@ -158,5 +158,29 @@ class TestChannelLogHub(unittest.TestCase):
         self.assertEqual(seen, [("hi", "link", CHANNEL_SOCIAL)])
 
 
+class TestGeneralLogHidesTelegram(unittest.TestCase):
+    def test_listener_lines_stay_on_the_telegram_filter(self):
+        from whisperfast.ui.log_panel import LogPanel
+
+        with tempfile.TemporaryDirectory() as tmp:
+            panel = LogPanel(root=None, base_dir=tmp)
+            panel.log("listener up", channel=CHANNEL_TELEGRAM)
+            self.assertNotIn(CHANNEL_TELEGRAM, panel._visible_channels())
+            self.assertIn(CHANNEL_WHISPER, panel._visible_channels())
+            self.assertIn(CHANNEL_SOCIAL, panel._visible_channels())
+            self.assertFalse(panel._channel_is_visible(CHANNEL_TELEGRAM))
+            self.assertTrue(panel._channel_is_visible(CHANNEL_WHISPER))
+            day = panel._store.day_keys(channels=[CHANNEL_TELEGRAM])[0]
+            stored = panel._store.get_entries(day, channels=[CHANNEL_TELEGRAM])
+            self.assertIn("listener up", stored[0]["text"])
+            general = panel._store.get_entries(day, channels=panel._visible_channels())
+            self.assertEqual(general, [])
+
+            panel.set_channel_filter(CHANNEL_TELEGRAM, reload=False)
+            self.assertEqual(panel._visible_channels(), (CHANNEL_TELEGRAM,))
+            self.assertTrue(panel._channel_is_visible(CHANNEL_TELEGRAM))
+            self.assertFalse(panel._channel_is_visible(CHANNEL_WHISPER))
+
+
 if __name__ == "__main__":
     unittest.main()
