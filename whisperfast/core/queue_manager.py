@@ -90,6 +90,11 @@ def _watch_filename_is_program_output(name):
     # Transcript / subtitles written beside the media
     if lower.endswith(".srt"):
         return True
+    # Session sidecars: Interview.meta.json, Interview.summary.md (and legacy names)
+    if lower == "meta.json" or lower.endswith(".meta.json"):
+        return True
+    if lower == "summary.md" or lower.endswith(".summary.md"):
+        return True
     # Default AI names when the prompt has no title; timed conflict → *_HHMM.md etc.
     stem, ext = os.path.splitext(lower)
     if ext not in (".md", ".markdown"):

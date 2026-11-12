@@ -195,7 +195,10 @@ def apply_one_liner_brief(app, file_id, summary, source_path="") -> bool:
         try:
             from whisperfast.core.session_store import write_summary
 
-            write_summary(folder, text)
+            written = write_summary(folder, text, source=source_path)
+            reg = getattr(ctrl, "register_output_paths", None) if ctrl is not None else None
+            if written and callable(reg):
+                reg([written])
         except Exception:
             pass
     win = getattr(app, "_archive_window", None)

@@ -590,7 +590,7 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
             attendees = list(getattr(session, "calendar_attendees", None) or [])
         except Exception:
             pass
-        merge_meta(
+        meta_written = merge_meta(
             session_folder,
             {
                 "source": final_source,
@@ -600,7 +600,10 @@ def save_files(app: TranscriptionHost, path, segments, audio_segment=None, segme
                 "attendees": attendees,
                 "job_id": file_id,
             },
+            source=txt_p,
         )
+        if meta_written:
+            app.queue_ctrl.register_output_paths([meta_written])
         if opts.get("diarization_enabled"):
             sp_path = speakers_json_path(txt_p)
             save_speakers(

@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.2.4",
+      "date": "12.11.2026",
+      "notes": {
+        "EN": [
+          "Telegram account mode no longer sends the listener start notice to Saved Messages. The same line stays in the TG log.",
+          "Files created while processing a video always include the video name, including Interview.meta.json and Interview.summary.md. Two videos in one folder no longer share a single meta.json."
+        ],
+        "UK": [
+          "Режим акаунта Telegram більше не надсилає повідомлення про старт слухача в Обране. Той самий рядок лишається в лозі TG.",
+          "Файли обробки відео завжди містять ім’я ролика, зокрема Interview.meta.json і Interview.summary.md. Два ролики в одній папці більше не ділять один meta.json."
+        ],
+        "RU": [
+          "В режиме аккаунта Telegram сообщение о старте слушателя больше не уходит в Избранное. Та же строка остаётся в логе TG.",
+          "Файлы обработки видео всегда содержат имя ролика, в том числе Interview.meta.json и Interview.summary.md. Два ролика в одной папке больше не делят один meta.json."
+        ]
+      }
+    },
+    {
       "version": "2.2.3",
       "date": "17.10.2026",
       "notes": {

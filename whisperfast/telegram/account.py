@@ -861,7 +861,6 @@ def run_account(
                 pass
 
         registered = False
-        announced = False
         offline = False
         wait = 0.0
         self_id = 0
@@ -900,12 +899,6 @@ def run_account(
                         chats=own_list,
                     )
                     soft_log(started)
-                    if not announced:
-                        try:
-                            await client.send_message("me", started)
-                        except Exception as exc:
-                            soft_log(t("telegram_start_notice_failed", error=str(exc)))
-                        announced = True
                     offline = False
                     wait = 0.0
 

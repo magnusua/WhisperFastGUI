@@ -160,6 +160,10 @@ class TestDirectoryWatcherRegisterOutputs(unittest.TestCase):
         self.assertTrue(_watch_filename_is_program_output("clip.srt"))
         self.assertTrue(_watch_filename_is_program_output("clip_edited.md"))
         self.assertTrue(_watch_filename_is_program_output("clip_edited_2.md"))
+        self.assertTrue(_watch_filename_is_program_output("clip.meta.json"))
+        self.assertTrue(_watch_filename_is_program_output("clip.summary.md"))
+        self.assertTrue(_watch_filename_is_program_output("meta.json"))
+        self.assertTrue(_watch_filename_is_program_output("summary.md"))
         self.assertFalse(_watch_filename_is_program_output("notes.md"))
         self.assertFalse(_watch_filename_is_program_output("meeting.mp4"))
 
