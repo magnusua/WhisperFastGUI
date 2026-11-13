@@ -1135,9 +1135,9 @@
     "RU": "❌ Ошибка постпроцессинга Cursor: {error}"
   },
   "save_mp3_confirm": {
-    "EN": "Save MP3 for this audio file?\n{filename}",
-    "UK": "Зберегти MP3 для цього аудіофайлу?\n{filename}",
-    "RU": "Сохранить MP3 для этого аудиофайла?\n{filename}"
+    "EN": "Save MP3 for this audio file?\n{filename}\n\nIf you do not choose, No is selected after 10 s and processing continues.",
+    "UK": "Зберегти MP3 для цього аудіофайлу?\n{filename}\n\nЯкщо не обрати, через 10 с буде «Ні», і обробка піде далі.",
+    "RU": "Сохранить MP3 для этого аудиофайла?\n{filename}\n\nЕсли не выбрать, через 10 с будет «Нет», и обработка пойдёт дальше."
   },
   "audio_mp3_file": {
     "EN": "Audio (MP3):",
@@ -4320,6 +4320,11 @@
     "EN": "Downloading",
     "UK": "Завантажую",
     "RU": "Скачиваю"
+  },
+  "telegram_link_already": {
+    "EN": "Already downloaded: {name}",
+    "UK": "Уже завантажено: {name}",
+    "RU": "Уже скачано: {name}"
   },
   "telegram_link_failed": {
     "EN": "Could not download the video: {error}",

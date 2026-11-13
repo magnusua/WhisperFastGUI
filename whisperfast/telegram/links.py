@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 from typing import List, Sequence, Tuple
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from whisperfast.config import AUDIO_EXTENSIONS, BASE_DIR, VIDEO_EXTENSIONS
 from whisperfast.platform_util import win_no_window_kwargs
@@ -50,6 +50,219 @@ def extract_video_urls(text: str) -> List[str]:
         seen.add(url)
         found.append(url)
     return found
+
+
+_TRACKING_KEYS = frozenset({
+    "si",
+    "feature",
+    "fbclid",
+    "igsh",
+    "igshid",
+    "mibextid",
+    "ref",
+    "ref_src",
+    "refid",
+    "__cft__",
+    "__tn__",
+    "t",
+    "list",
+    "index",
+    "pp",
+    "start_radio",
+    "ab_channel",
+})
+_MIN_SAVED_BYTES = 10_000
+
+
+def social_video_key(url: str) -> str:
+    """Stable id of one video. Tracking parameters and host aliases do not change it."""
+    raw = str(url or "").strip()
+    if not raw:
+        return ""
+    parts = urlsplit(raw)
+    host = _url_host(raw)
+    path = parts.path or ""
+    query = dict(parse_qsl(parts.query, keep_blank_values=False))
+    if host == "youtu.be" or host.endswith("youtube.com") or host.endswith("youtube-nocookie.com"):
+        video_id = ""
+        if host == "youtu.be":
+            video_id = path.strip("/").split("/")[0]
+        else:
+            video_id = query.get("v") or ""
+            if not video_id:
+                lowered = path.lower()
+                for prefix in ("/shorts/", "/embed/", "/live/", "/v/"):
+                    at = lowered.find(prefix)
+                    if at >= 0:
+                        video_id = path[at + len(prefix):].split("/")[0]
+                        break
+        video_id = re.sub(r"[^A-Za-z0-9_-]", "", video_id)[:11]
+        if len(video_id) >= 6:
+            return "yt:" + video_id
+    if host == "instagram.com":
+        match = re.search(r"/(?:reel|reels|p|tv)/([^/?#]+)", path, re.IGNORECASE)
+        if match:
+            code = re.sub(r"[^A-Za-z0-9_-]", "", match.group(1))
+            if len(code) >= 5:
+                return "ig:" + code
+    if host in _FACEBOOK_HOSTS:
+        token = query.get("story_fbid") or query.get("v") or query.get("fbid") or ""
+        if host == "fb.watch":
+            token = token or path.strip("/").split("/")[0]
+        if not token:
+            match = re.search(
+                r"/(?:videos|reel|watch|posts|share/[rv]|[^/]+/videos)/([^/?#]+)",
+                path,
+                re.IGNORECASE,
+            )
+            if match:
+                token = match.group(1)
+        token = re.sub(r"[^A-Za-z0-9_-]", "", token)[:80]
+        if len(token) >= 5:
+            return "fb:" + token
+    kept = []
+    for key, value in parse_qsl(parts.query, keep_blank_values=False):
+        low = key.lower()
+        if low in _TRACKING_KEYS or low.startswith("utm_"):
+            continue
+        kept.append(f"{key}={value}")
+    clean_path = path.rstrip("/") or "/"
+    base = host + clean_path
+    if kept:
+        return base + "?" + "&".join(kept)
+    return base
+
+
+def link_keys(url: str) -> List[str]:
+    """Seen-store keys: the stable video id, then the exact URL."""
+    raw = str(url or "").strip()
+    keys = []
+    ident = social_video_key(raw)
+    if ident:
+        keys.append("url:" + ident)
+    exact = "url:" + raw if raw else ""
+    if exact and exact not in keys:
+        keys.append(exact)
+    return keys
+
+
+def _file_is_saved(path: str, min_size: int = 1) -> bool:
+    try:
+        return bool(path) and os.path.isfile(path) and os.path.getsize(path) >= min_size
+    except OSError:
+        return False
+
+
+def _key_matches(file_key: str, url: str, ident: str) -> bool:
+    if not str(file_key).startswith("url:"):
+        return False
+    stored = file_key[4:]
+    if stored == url or (ident and stored == ident):
+        return True
+    return bool(ident) and social_video_key(stored) == ident
+
+
+def _disk_token(ident: str) -> str:
+    prefix, _, token = (ident or "").partition(":")
+    if prefix in ("yt", "ig", "fb") and len(token) >= 8:
+        return token
+    return ""
+
+
+def _find_named_media(root: str, token: str) -> str:
+    """A previous yt-dlp or fdownloader file named after this video id."""
+    if not root or not token or not os.path.isdir(root):
+        return ""
+    token_cf = token.casefold()
+    best = ""
+    best_size = 0
+    root = os.path.abspath(root)
+    try:
+        walker = os.walk(root)
+    except OSError:
+        return ""
+    for dirpath, dirnames, filenames in walker:
+        rel = os.path.relpath(dirpath, root)
+        depth = 0 if rel == "." else rel.count(os.sep) + 1
+        if depth >= 2:
+            dirnames[:] = []
+        for name in filenames:
+            if name.endswith(".part") or not name.lower().endswith(_MEDIA_EXTS):
+                continue
+            stem = os.path.splitext(name)[0].casefold()
+            if stem != token_cf and not stem.startswith(token_cf + "_fdown"):
+                continue
+            path = os.path.join(dirpath, name)
+            if not _file_is_saved(path, _MIN_SAVED_BYTES):
+                continue
+            try:
+                size = os.path.getsize(path)
+            except OSError:
+                continue
+            if size > best_size:
+                best, best_size = path, size
+    return best
+
+
+def find_existing_video(url: str, search_roots: Sequence[str] = ()) -> str:
+    """Path of this video if it was already saved. Empty when it has to be downloaded."""
+    ident = social_video_key(url)
+    candidates = []
+    try:
+        from whisperfast.telegram.seen import _load
+
+        for file_key, row in _load().items():
+            if not isinstance(row, dict) or not _key_matches(str(file_key), url, ident):
+                continue
+            path = str(row.get("path") or "")
+            if _file_is_saved(path):
+                candidates.append(path)
+    except Exception:
+        pass
+    for row in _load_saved_links():
+        if not isinstance(row, dict):
+            continue
+        stored = str(row.get("url") or "")
+        if stored != url and social_video_key(stored) != ident:
+            continue
+        path = str(row.get("path") or "")
+        if _file_is_saved(path):
+            candidates.append(path)
+    token = _disk_token(ident)
+    if token:
+        seen_roots = set()
+        for root in search_roots:
+            if not root:
+                continue
+            root = os.path.abspath(root)
+            if root in seen_roots:
+                continue
+            seen_roots.add(root)
+            found = _find_named_media(root, token)
+            if found:
+                candidates.append(found)
+    if not candidates:
+        return ""
+
+    def _size(path: str) -> int:
+        try:
+            return os.path.getsize(path)
+        except OSError:
+            return 0
+
+    return max(candidates, key=_size)
+
+
+def link_will_download(url: str, search_roots: Sequence[str] = ()) -> bool:
+    """False when the video is already on disk or its results are already known."""
+    if find_existing_video(url, search_roots):
+        return False
+    from whisperfast.telegram.seen import classify
+
+    for key in link_keys(url):
+        if classify(key)[0] != "download":
+            return False
+    return True
 
 
 def newest_media_file(dest_dir: str, not_before: float = 0) -> str:
@@ -300,19 +513,39 @@ def report_link_failure(log, exc, retry) -> None:
 
 
 def claim_link(url: str, dest_dir: str, log=None):
-    """download, enqueue, wait, or send. A new download is stored under the URL."""
+    """download, enqueue, wait, or send. An existing file for this video is reused."""
+    from whisperfast.i18n import t
     from whisperfast.telegram.seen import classify, note_download
 
-    key = "url:" + url
-    action, known = classify(key)
+    keys = link_keys(url)
+    roots = []
+    if dest_dir:
+        folder = os.path.abspath(dest_dir)
+        roots.append(folder)
+        roots.append(os.path.dirname(folder))
+    saved = find_existing_video(url, roots)
+    if saved:
+        for key in keys:
+            note_download(key, saved)
+        if log is not None:
+            try:
+                log(t("telegram_link_already", name=os.path.basename(saved)))
+            except Exception:
+                pass
+    action, known = "download", None
+    for key in keys:
+        action, known = classify(key)
+        if action != "download":
+            break
     if action == "download":
         path = download_video(url, dest_dir, log=log)
-        note_download(key, path)
+        for key in keys:
+            note_download(key, path)
         return "new", path, None
     if action == "wait":
         return "wait", "", known
     if action == "enqueue":
-        return "enqueue", str(known.get("path") or ""), known
+        return "enqueue", str((known or {}).get("path") or saved or ""), known
     return "send", "", known
 
 

@@ -1987,18 +1987,16 @@ class WhisperGUI:
 
     def ask_save_mp3_confirm(self, filename):
         """
-        Питає підтвердження «зберегти MP3?» з фонового потоку обробки черги
-        (core/transcription.py) через модальний Tk-діалог. Раніше цей виклик
-        (import tkinter + messagebox.askyesno) жив прямо в core/transcription.py —
-        перенесено сюди, щоб core лишався незалежним від Tkinter (див.
-        docs/INTERNAL-ARCHITECTURE.uk.md і docs/CODE-REVIEW.md, розділ 1).
-        Очікування відповіді — threading.Event з коротким timeout, щоб
-        не блокувати перевірку cancel_requested і відкритого вікна «Промты»
-        (той самий контракт, що ask_overwrite_via_tk).
+        Питає «зберегти MP3?» з фонового потоку черги. Вікно з відліком 10 с,
+        без messagebox: головний цикл Tk лишається вільним, тож черга не висить.
+        Мовчання, «Ні», Escape і хрестик — Ні. Після таймауту наступні аудіофайли
+        цієї сесії більше не питаються.
         """
         from whisperfast.core.output_conflict import ai_prompts_dialog_is_open
 
         if ai_prompts_dialog_is_open(self):
+            return False
+        if getattr(self, "_mp3_timeout_no", False):
             return False
 
         key = os.path.basename(str(filename or "")).casefold()
@@ -2009,23 +2007,88 @@ class WhisperGUI:
         if key and key in declined:
             return False
 
-        choice = [None]
+        choice = [False]
         answered = [False]
+        timed_out = [False]
         done = threading.Event()
+        closer = {"fn": None}
 
         def ask():
             try:
                 if ai_prompts_dialog_is_open(self):
                     choice[0] = False
+                    done.set()
                     return
-                choice[0] = messagebox.askyesno(
-                    t("save_audio_mp3"),
-                    t("save_mp3_confirm", filename=filename),
+                dialog = tk.Toplevel(self.root)
+                dialog.title(t("save_audio_mp3"))
+                dialog.resizable(False, False)
+                dialog.transient(self.root)
+                dialog.grab_set()
+                clock = {"id": None, "closed": False}
+
+                body = ttk.Frame(dialog, padding=16)
+                body.pack(fill="both", expand=True)
+                ttk.Label(
+                    body,
+                    text=t("save_mp3_confirm", filename=filename),
+                    wraplength=420,
+                    justify="left",
+                ).pack(anchor="w")
+                buttons = ttk.Frame(body)
+                buttons.pack(fill="x", pady=(16, 0))
+
+                def stop_clock():
+                    if clock["id"] is not None:
+                        try:
+                            dialog.after_cancel(clock["id"])
+                        except Exception:
+                            pass
+                        clock["id"] = None
+
+                def finish(save, from_timer=False):
+                    if clock["closed"]:
+                        return
+                    clock["closed"] = True
+                    stop_clock()
+                    choice[0] = bool(save)
+                    answered[0] = True
+                    timed_out[0] = bool(from_timer)
+                    try:
+                        dialog.grab_release()
+                    except Exception:
+                        pass
+                    try:
+                        dialog.destroy()
+                    except Exception:
+                        pass
+                    done.set()
+
+                closer["fn"] = lambda: finish(False)
+                no_btn = ttk.Button(buttons, text=t("file_exists_no"), command=lambda: finish(False))
+                no_btn.pack(side="right")
+                ttk.Button(buttons, text=t("file_exists_yes"), command=lambda: finish(True)).pack(
+                    side="right", padx=(0, 8)
                 )
-                answered[0] = True
+
+                def count_down(left):
+                    if clock["closed"]:
+                        return
+                    try:
+                        no_btn.configure(text=f"{t('file_exists_no')} ({left})")
+                    except tk.TclError:
+                        return
+                    if left <= 0:
+                        finish(False, from_timer=True)
+                        return
+                    clock["id"] = dialog.after(1000, lambda: count_down(left - 1))
+
+                count_down(10)
+                dialog.protocol("WM_DELETE_WINDOW", lambda: finish(False))
+                dialog.bind("<Escape>", lambda _e: finish(False))
+                self._center_toplevel(dialog)
+                no_btn.focus_set()
             except Exception:
                 choice[0] = False
-            finally:
                 done.set()
 
         try:
@@ -2033,11 +2096,17 @@ class WhisperGUI:
         except Exception:
             return False
         while not done.is_set():
-            if self.cancel_requested:
-                return False
-            if ai_prompts_dialog_is_open(self):
+            if self.cancel_requested or ai_prompts_dialog_is_open(self):
+                fn = closer["fn"]
+                if callable(fn):
+                    try:
+                        self.root.after(0, fn)
+                    except Exception:
+                        pass
                 return False
             done.wait(timeout=0.05)
+        if timed_out[0]:
+            self._mp3_timeout_no = True
         if answered[0] and choice[0] is False and key:
             declined.add(key)
         return bool(choice[0])

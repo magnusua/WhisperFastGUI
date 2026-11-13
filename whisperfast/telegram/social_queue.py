@@ -161,6 +161,7 @@ def process_social_urls(
     from whisperfast.settings import load_app_settings
     from whisperfast.telegram.links import (
         claim_link,
+        link_will_download,
         log_downloaded_file,
         mark_own_upload,
         remember_link,
@@ -168,7 +169,6 @@ def process_social_urls(
         report_link_failure,
         social_videos_go_to_queue,
     )
-    from whisperfast.telegram.seen import classify
     from whisperfast.telegram.worker import resolve_work_dir
 
     log = bind_log_channel(log, CHANNEL_SOCIAL)
@@ -196,7 +196,7 @@ def process_social_urls(
         except TypeError:
             log(str(url))
         token: Optional[int] = None
-        if classify("url:" + url)[0] == "download":
+        if link_will_download(url, [work_dir]):
             token = next(_status_tokens)
             if on_status is not None:
                 on_status(token)

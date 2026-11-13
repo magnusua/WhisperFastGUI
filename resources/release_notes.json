@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "2.2.5",
+      "date": "13.11.2026",
+      "notes": {
+        "EN": [
+          "Social links: the same video is not downloaded again when the file is already on disk. A different form of the same link counts as one video.",
+          "The “Save MP3 for this audio file?” window no longer blocks the queue. After 10 seconds it chooses No. If nobody answers, later audio files in this session are not asked."
+        ],
+        "UK": [
+          "Соцмережі: те саме відео не скачується знову, якщо файл уже є на диску. Інший вигляд того самого посилання вважається одним роликом.",
+          "Питання «Зберегти MP3 для цього аудіофайлу?» більше не блокує чергу. Через 10 с саме обирається «Ні». Якщо ніхто не відповів, у цій сесії далі не питає."
+        ],
+        "RU": [
+          "Соцсети: то же видео не скачивается снова, если файл уже есть на диске. Другой вид той же ссылки считается одним роликом.",
+          "Вопрос «Сохранить MP3 для этого аудиофайла?» больше не блокирует очередь. Через 10 с само выбирается «Нет». Если никто не ответил, в этой сессии дальше не спрашивает."
+        ]
+      }
+    },
+    {
       "version": "2.2.4",
       "date": "12.11.2026",
       "notes": {

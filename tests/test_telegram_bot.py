@@ -1426,6 +1426,90 @@ class TestVideoLinks(unittest.TestCase):
         self.assertEqual(download_format("720"), "bv*[height<=720]+ba/b[height<=720]")
         self.assertEqual(download_format("360"), "bv*[height<=360]+ba/b[height<=360]")
 
+    def test_same_video_link_is_not_downloaded_again(self):
+        from whisperfast.telegram import links, seen
+
+        video_id = "dQw4w9WgXcQ"
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox = os.path.join(tmp, "inbox")
+            previous = os.path.join(inbox, "100_1", video_id + ".mp4")
+            os.makedirs(os.path.dirname(previous))
+            with open(previous, "wb") as handle:
+                handle.write(b"x" * 20000)
+            store = os.path.join(tmp, "seen.json")
+            saved_links = os.path.join(tmp, "links.json")
+            with patch.object(seen, "_FILE", store), patch.object(links, "_LINKS_FILE", saved_links):
+                seen.note_download("url:https://youtu.be/" + video_id + "?si=abc", previous)
+                with patch.object(links, "download_video") as download:
+                    action, path, _known = links.claim_link(
+                        "https://www.youtube.com/watch?v=" + video_id + "&t=12",
+                        os.path.join(inbox, "100_2"),
+                        log=lambda *_a, **_k: None,
+                    )
+                download.assert_not_called()
+                self.assertEqual(action, "enqueue")
+                self.assertEqual(os.path.normcase(path), os.path.normcase(previous))
+                self.assertFalse(
+                    links.link_will_download(
+                        "https://youtube.com/shorts/" + video_id + "?si=1",
+                        [inbox],
+                    )
+                )
+
+    def test_video_already_on_disk_is_reused_without_a_saved_url(self):
+        from whisperfast.telegram import links, seen
+
+        video_id = "dQw4w9WgXcQ"
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox = os.path.join(tmp, "inbox")
+            previous = os.path.join(inbox, "100_1", video_id + ".mp4")
+            os.makedirs(os.path.dirname(previous))
+            with open(previous, "wb") as handle:
+                handle.write(b"x" * 20000)
+            store = os.path.join(tmp, "seen.json")
+            with patch.object(seen, "_FILE", store), patch.object(links, "_LINKS_FILE", os.path.join(tmp, "links.json")):
+                with patch.object(links, "download_video") as download:
+                    action, path, _known = links.claim_link(
+                        "https://youtu.be/" + video_id,
+                        os.path.join(inbox, "200_9"),
+                    )
+                download.assert_not_called()
+            self.assertEqual(action, "enqueue")
+            self.assertEqual(os.path.normcase(path), os.path.normcase(previous))
+
+    def test_a_different_video_is_still_downloaded(self):
+        from whisperfast.telegram import links, seen
+
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox = os.path.join(tmp, "inbox")
+            previous = os.path.join(inbox, "100_1", "dQw4w9WgXcQ.mp4")
+            os.makedirs(os.path.dirname(previous))
+            with open(previous, "wb") as handle:
+                handle.write(b"x" * 20000)
+            fresh = os.path.join(inbox, "300_1", "abcdefghijk.mp4")
+            store = os.path.join(tmp, "seen.json")
+            with patch.object(seen, "_FILE", store), patch.object(links, "_LINKS_FILE", os.path.join(tmp, "links.json")):
+                with patch.object(links, "download_video", return_value=fresh) as download:
+                    action, path, _known = links.claim_link(
+                        "https://youtu.be/abcdefghijk",
+                        os.path.join(inbox, "300_1"),
+                    )
+                download.assert_called_once()
+            self.assertEqual(action, "new")
+            self.assertEqual(path, fresh)
+
+    def test_link_aliases_are_one_video(self):
+        from whisperfast.telegram.links import social_video_key
+
+        youtube = social_video_key("https://youtu.be/dQw4w9WgXcQ?si=abc")
+        self.assertEqual(youtube, social_video_key("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30"))
+        self.assertEqual(youtube, social_video_key("https://youtube.com/shorts/dQw4w9WgXcQ"))
+        self.assertNotEqual(youtube, social_video_key("https://youtu.be/abcdefghijk"))
+        reel = social_video_key("https://www.instagram.com/reel/AbC12345/?igsh=foo")
+        self.assertEqual(reel, social_video_key("https://instagram.com/reel/AbC12345"))
+        share = social_video_key("https://www.facebook.com/share/r/1DeQTXKByW/")
+        self.assertEqual(share, social_video_key("https://facebook.com/share/r/1DeQTXKByW/?mibextid=abc"))
+
     def test_every_received_link_is_kept(self):
         from whisperfast.telegram import links
 
