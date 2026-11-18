@@ -75,8 +75,36 @@ def shutdown_should_proceed(lparam, update_pending=None) -> bool:
     return bool(update_pending)
 
 
+_power_guard = None
+_power_guard_lock = threading.Lock()
+
+
+def set_prevent_shutdown(enabled: bool) -> bool:
+    """Keep Windows awake and refuse a manual shutdown while ``enabled``.
+
+    Returns True when the guard is active. A Windows update restart still proceeds.
+    """
+    global _power_guard
+    with _power_guard_lock:
+        if not enabled:
+            guard = _power_guard
+            _power_guard = None
+            if guard is not None:
+                guard.stop()
+            return False
+        if _power_guard is not None and _power_guard.active():
+            return True
+        from whisperfast.i18n import t
+
+        guard = ListenerPowerGuard(t("prevent_shutdown_block"))
+        if not guard.start():
+            return False
+        _power_guard = guard
+        return True
+
+
 class ListenerPowerGuard:
-    """While the Telegram listener is on, keep Windows awake and refuse a manual shutdown.
+    """Keep Windows awake and refuse a manual shutdown while this guard is running.
 
     Idle sleep is held off. A shutdown the user starts is refused until the
     listener stops. A Windows update restart, Restart Manager, and a forced

@@ -201,6 +201,7 @@ class WhisperGUI:
         self.watch_enabled = tk.BooleanVar(value=False)
         self.autostart_enabled = tk.BooleanVar(value=win_autostart.is_enabled())
         self.daily_restart_enabled = tk.BooleanVar(value=False)
+        self.prevent_shutdown = tk.BooleanVar(value=False)
         self._app_started_at = time.time()
         self._uptime_update_checked = False
         self._daily_restart_last_day = ""
@@ -268,6 +269,7 @@ class WhisperGUI:
         self.watch_dir.set(serialize_watch_dirs(parse_watch_dirs(saved.get("watch_dir", "") or "")))
         self.watch_enabled.set(bool(saved.get("watch_enabled", False)))
         self.daily_restart_enabled.set(bool(saved.get("daily_restart_enabled", False)))
+        self.prevent_shutdown.set(bool(saved.get("prevent_shutdown", False)))
         self.device_mode.set(saved.get("device_mode", "AUTO"))
         if "keep_gpu_awake" in saved:
             self.keep_gpu_awake.set(bool(saved.get("keep_gpu_awake")))
@@ -439,6 +441,8 @@ class WhisperGUI:
         self.root.after(2000, self._schedule_startup_app_update_check)
         self._schedule_uptime_update_check()
         self._schedule_daily_restart()
+        if self.prevent_shutdown.get():
+            self._apply_prevent_shutdown_setting(True, announce=True)
 
 
     def _setup_tray(self):
@@ -1633,6 +1637,21 @@ class WhisperGUI:
             self.log(t("autostart_daily_restart_disabled_log"))
         self._schedule_daily_restart()
 
+    def _apply_prevent_shutdown_setting(self, enabled: bool, announce: bool = True):
+        try:
+            self.prevent_shutdown.set(bool(enabled))
+        except tk.TclError:
+            return
+        from whisperfast.platform_util import set_prevent_shutdown
+
+        active = set_prevent_shutdown(bool(enabled))
+        if not announce:
+            return
+        if enabled and active:
+            self.log(t("prevent_shutdown_on_log"))
+        elif not enabled:
+            self.log(t("prevent_shutdown_off_log"))
+
     def _cleanup_orphan_cursor_bridges(self):
         """При старті прибирає zombie cursor-sdk-bridge від попередніх зависань."""
 
@@ -2716,6 +2735,12 @@ class WhisperGUI:
         except Exception:
             pass
         self._persist_settings()
+        try:
+            from whisperfast.platform_util import set_prevent_shutdown
+
+            set_prevent_shutdown(False)
+        except Exception:
+            pass
 
     def _model_button_label(self):
         """Коротка назва поточної моделі для підказки."""
@@ -2949,6 +2974,7 @@ class WhisperGUI:
             "watch_dir": serialize_watch_dirs(parse_watch_dirs(self.watch_dir.get())),
             "watch_enabled": self.watch_enabled.get(),
             "daily_restart_enabled": bool(self.daily_restart_enabled.get()),
+            "prevent_shutdown": bool(self.prevent_shutdown.get()),
             "device_mode": self.device_mode.get(),
             "keep_gpu_awake": bool(self.keep_gpu_awake.get()),
             "play_sound_on_finish": self.play_sound_on_finish.get(),

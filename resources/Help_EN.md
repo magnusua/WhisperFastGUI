@@ -148,7 +148,7 @@ In the queue, × in the trash column removes the row (the archive entry stays). 
 - **Environment** — one puzzle icon. The menu is **Check system** (Python, FFmpeg, Pandoc, GPU, CUDA), **Check updates** (the app, pip, Whisper models, FFmpeg/Pandoc; a package is offered only when the version is newer and matches this Python), and **Install or reinstall** pip packages (including `markitdown`) and system tools. If FTW has been open more than 10 hours, it also checks for an app update once and offers Update / Later / Skip (skipped versions stay skipped on the next launch).
 - **Model** — a chip icon. The current model name is in the tooltip. The device icon to its left opens AUTO, GPU, or CPU. In GPU mode the video card stays awake while FTW is open.
 - **Clear log** — clear the visible log channel (or all when All is selected).
-- **Autostart** — click opens settings (Windows startup and daily restart at 02:00). Shift+click turns Windows startup on or off. A green icon means startup is on.
+- **Autostart** — click opens settings (Windows startup, daily restart at 02:00, and “Do not turn off the computer”, which is off by default). Shift+click turns Windows startup on or off. A green icon means startup is on.
 - **To AI** — click opens the Prompts window, Shift+click turns AI on or off (a message is written to the log). A green icon means AI is on. API keys are in the Prompts window.
 - **Telegram** — click opens account or bot settings. Shift+click starts or stops the listener. A green icon means the listener is on.
 - **Help** — open this file in the interface language. Use the document list at the top to also read architecture, setup, and other docs from `docs/`.

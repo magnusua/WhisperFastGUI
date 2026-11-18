@@ -1,6 +1,21 @@
 {
   "releases": [
     {
+      "version": "2.2.6",
+      "date": "18.11.2026",
+      "notes": {
+        "EN": [
+          "Autostart settings include “Do not turn off the computer”. It is off by default. The Telegram listener no longer keeps the computer awake by itself."
+        ],
+        "UK": [
+          "У налаштуваннях автозапуску є «Не вимикати комп’ютер». За замовчуванням вимкнено. Слухач Telegram більше сам не тримає комп’ютер увімкненим."
+        ],
+        "RU": [
+          "В настройках автозапуска есть «Не выключать компьютер». По умолчанию выключено. Слушатель Telegram больше сам не держит компьютер включённым."
+        ]
+      }
+    },
+    {
       "version": "2.2.5",
       "date": "13.11.2026",
       "notes": {

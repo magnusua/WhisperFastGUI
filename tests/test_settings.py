@@ -34,6 +34,7 @@ class TestLoadAppSettings(SettingsTmpTestCase):
         self.assertIn("send_txt_to_ai", data)
         self.assertFalse(data["send_txt_to_ai"])
         self.assertFalse(data["send_txt_to_cursor"])
+        self.assertFalse(data["prevent_shutdown"])
 
     def test_gpu_mode_without_checkbox_keeps_the_card_awake(self):
         with open(self.path, "w", encoding="utf-8") as f:

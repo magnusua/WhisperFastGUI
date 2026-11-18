@@ -2905,9 +2905,9 @@
     "RU": "Автозапуск"
   },
   "tooltip_autostart": {
-    "EN": "Click: autostart settings (Windows startup, daily restart at 02:00). Shift+click: turn Windows startup on or off. A green icon means startup is on.",
-    "UK": "Клік: налаштування автозапуску (Windows, щоденний перезапуск о 02:00). Shift+клік: увімкнути або вимкнути автозавантаження Windows. Зелена іконка — увімкнено.",
-    "RU": "Клик: настройки автозапуска (Windows, ежедневный перезапуск в 02:00). Shift+клик: включить или выключить автозагрузку Windows. Зелёная иконка — включено."
+    "EN": "Click: autostart settings (Windows startup, daily restart at 02:00, do not turn off the computer). Shift+click: turn Windows startup on or off. A green icon means startup is on.",
+    "UK": "Клік: налаштування автозапуску (Windows, щоденний перезапуск о 02:00, не вимикати комп’ютер). Shift+клік: увімкнути або вимкнути автозавантаження Windows. Зелена іконка — увімкнено.",
+    "RU": "Клик: настройки автозапуска (Windows, ежедневный перезапуск в 02:00, не выключать компьютер). Shift+клик: включить или выключить автозагрузку Windows. Зелёная иконка — включено."
   },
   "autostart_settings_title": {
     "EN": "Autostart",
@@ -2933,6 +2933,31 @@
     "EN": "If a recording or transcription is running, the restart waits until it finishes.",
     "UK": "Якщо йде запис або транскрибація, перезапуск чекає завершення.",
     "RU": "Если идёт запись или транскрибация, перезапуск ждёт завершения."
+  },
+  "autostart_prevent_shutdown_cb": {
+    "EN": "Do not turn off the computer",
+    "UK": "Не вимикати комп’ютер",
+    "RU": "Не выключать компьютер"
+  },
+  "autostart_prevent_shutdown_hint": {
+    "EN": "While FTW is open, the computer stays awake and a manual shutdown is refused. A Windows update restart still proceeds. Off by default.",
+    "UK": "Поки FTW відкритий, комп’ютер не засинає і ручне вимкнення відхиляється. Перезавантаження Windows для оновлення проходить. За замовчуванням вимкнено.",
+    "RU": "Пока FTW открыт, компьютер не засыпает и ручное выключение отклоняется. Перезагрузка Windows для обновления проходит. По умолчанию выключено."
+  },
+  "prevent_shutdown_on_log": {
+    "EN": "The computer will not sleep or shut down while FTW is open. A Windows update restart still proceeds.",
+    "UK": "Поки FTW відкритий, комп’ютер не засне і не вимкнеться. Перезавантаження для оновлення Windows проходить як звичайно.",
+    "RU": "Пока FTW открыт, компьютер не уснёт и не выключится. Перезагрузка для обновления Windows проходит как обычно."
+  },
+  "prevent_shutdown_off_log": {
+    "EN": "The computer can sleep and shut down again.",
+    "UK": "Комп’ютер знову може засинати і вимикатися.",
+    "RU": "Компьютер снова может засыпать и выключаться."
+  },
+  "prevent_shutdown_block": {
+    "EN": "FTW is set not to turn off this computer. Turn the option off in Autostart settings.",
+    "UK": "FTW налаштовано не вимикати комп’ютер. Вимкніть опцію в налаштуваннях автозапуску.",
+    "RU": "FTW настроено не выключать компьютер. Отключите опцию в настройках автозапуска."
   },
   "autostart_daily_restart_enabled_log": {
     "EN": "Daily restart at {time} enabled.",

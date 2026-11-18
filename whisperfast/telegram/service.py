@@ -37,17 +37,7 @@ def start(
 
             code = 1
             write = log or (lambda _msg: None)
-            guard = None
             try:
-                from whisperfast.i18n import t
-                from whisperfast.platform_util import ListenerPowerGuard
-
-                guard = ListenerPowerGuard(t("telegram_listener_shutdown_block"))
-                if guard.start():
-                    try:
-                        write(t("telegram_listener_hold_power"))
-                    except Exception:
-                        pass
                 code = run_from_settings(
                     submit=enqueue_telegram_file,
                     gui_running=lambda: True,
@@ -65,11 +55,6 @@ def start(
             finally:
                 from whisperfast.i18n import t
 
-                if guard is not None:
-                    try:
-                        guard.stop()
-                    except Exception:
-                        pass
                 try:
                     write(t("telegram_listener_off"))
                 except Exception:

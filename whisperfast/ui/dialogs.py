@@ -2665,6 +2665,7 @@ def show_autostart_settings_dialog(app):
 
     win_var = tk.BooleanVar(value=bool(win_autostart.is_enabled()))
     daily_var = tk.BooleanVar(value=bool(getattr(app, "daily_restart_enabled", tk.BooleanVar(value=False)).get()))
+    power_var = tk.BooleanVar(value=bool(getattr(app, "prevent_shutdown", tk.BooleanVar(value=False)).get()))
 
     win_cb = ttk.Checkbutton(frame, text=t("autostart_windows_cb"), variable=win_var)
     win_cb.pack(anchor="w")
@@ -2683,6 +2684,17 @@ def show_autostart_settings_dialog(app):
     )
     daily_hint.pack(anchor="w", pady=(2, 12))
 
+    power_cb = ttk.Checkbutton(
+        frame,
+        text=t("autostart_prevent_shutdown_cb"),
+        variable=power_var,
+    )
+    power_cb.pack(anchor="w")
+    power_hint = ttk.Label(
+        frame, text=t("autostart_prevent_shutdown_hint"), wraplength=420, justify="left"
+    )
+    power_hint.pack(anchor="w", pady=(2, 12))
+
     bf = ttk.Frame(frame)
     bf.pack(fill="x", pady=(8, 0))
 
@@ -2692,6 +2704,8 @@ def show_autostart_settings_dialog(app):
         hint.config(text=t("autostart_windows_hint"))
         daily_cb.config(text=t("autostart_daily_restart_cb", time=time_label))
         daily_hint.config(text=t("autostart_daily_restart_hint"))
+        power_cb.config(text=t("autostart_prevent_shutdown_cb"))
+        power_hint.config(text=t("autostart_prevent_shutdown_hint"))
         ok_btn.config(text=t("save"))
         cancel_btn.config(text=t("cancel_btn"))
 
@@ -2704,6 +2718,7 @@ def show_autostart_settings_dialog(app):
     def save():
         want_win = bool(win_var.get())
         want_daily = bool(daily_var.get())
+        want_power = bool(power_var.get())
         try:
             app.daily_restart_enabled.set(want_daily)
         except Exception:
@@ -2711,6 +2726,14 @@ def show_autostart_settings_dialog(app):
         apply_daily = getattr(app, "_apply_daily_restart_setting", None)
         if callable(apply_daily):
             apply_daily(want_daily)
+        apply_power = getattr(app, "_apply_prevent_shutdown_setting", None)
+        if callable(apply_power):
+            apply_power(want_power)
+        else:
+            try:
+                app.prevent_shutdown.set(want_power)
+            except Exception:
+                pass
         apply_win = getattr(app, "_apply_autostart_windows", None)
         if callable(apply_win):
             apply_win(want_win)
